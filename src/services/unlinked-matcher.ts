@@ -138,9 +138,9 @@ function findUnlinkedPositions(text: string, term: string): number[] {
     const charBefore = idx > 0 ? text[idx - 1] : " ";
     const charAfter =
       idx + termLen < text.length ? text[idx + termLen] : " ";
-    const isWordBoundaryBefore = /[\s,;:!?([\]"'\-—]/.test(charBefore) || idx === 0;
+    const isWordBoundaryBefore = /[\s,;:!?([\]"'\-—*_~`]/.test(charBefore) || idx === 0;
     const isWordBoundaryAfter =
-      /[\s,;:!?)\]"'\-—.]/.test(charAfter) ||
+      /[\s,;:!?)\]"'\-—.*_~`]/.test(charAfter) ||
       idx + termLen === text.length;
 
     if (isWordBoundaryBefore && isWordBoundaryAfter) {

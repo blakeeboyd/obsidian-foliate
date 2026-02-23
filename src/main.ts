@@ -7,7 +7,6 @@ import {
   ensureFolderExists,
 } from "./services/file-operations";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
-import { TaxaSummaryModal } from "./ui/taxa-summary-modal";
 import { TaxaSuggest } from "./ui/taxa-suggest";
 import {
   SuggestionsView,
@@ -48,10 +47,7 @@ export default class PortfolioPlugin extends Plugin {
       this.statusBarEl.addClass("portfolio-status-bar");
       this.statusBarEl.addClass("mod-clickable");
       this.statusBarEl.addEventListener("click", () => {
-        const file = this.app.workspace.getActiveFile();
-        if (file) {
-          new TaxaSummaryModal(this.app, this.settings.taxaMappings, file).open();
-        }
+        this.activateSuggestionsView();
       });
       this.registerEvent(
         this.app.workspace.on("active-leaf-change", () => {

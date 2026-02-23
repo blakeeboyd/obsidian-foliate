@@ -162,6 +162,13 @@
   margin: 2px 0;
 }
 
+.portfolio-help-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 4px 0;
+}
+
 .portfolio-retry-btn {
   font-size: 11px;
   padding: 2px 8px;
@@ -170,10 +177,46 @@
   margin-top: 4px;
 }
 
+/* Linked Taxa */
+.portfolio-linked-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.portfolio-linked-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.portfolio-go-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.portfolio-go-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
 /* Jump Highlight */
 .portfolio-jump-highlight {
-  background-color: var(--portfolio-highlight-color, var(--text-highlight-bg));
+  background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45));
   border-radius: 2px;
+  animation: portfolio-highlight-fade 2.5s ease-out forwards;
+}
+
+@keyframes portfolio-highlight-fade {
+  0% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
+  60% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
+  100% { background-color: transparent; }
 }
 
 /* Status Bar */

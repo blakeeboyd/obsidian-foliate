@@ -122,12 +122,21 @@ export class SuggestionsView extends ItemView {
     const idx = (this.jumpIndex.get(key) ?? 0) % positions.length;
     this.jumpIndex.set(key, idx + 1);
 
-    const pos = this.offsetToPos(content, positions[idx]);
+    const offset = positions[idx];
+    const pos = this.offsetToPos(content, offset);
     editor.setCursor(pos);
     editor.scrollIntoView({ from: pos, to: pos }, true);
 
     if (this.plugin.settings.highlightOnJump && matchLength) {
-      this.flashHighlight(editor, positions[idx], positions[idx] + matchLength);
+      // If this position is a wikilink, highlight the full [[...]] span
+      let highlightLen = matchLength;
+      if (content.substring(offset, offset + 2) === "[[") {
+        const closeIdx = content.indexOf("]]", offset + 2);
+        if (closeIdx !== -1) {
+          highlightLen = closeIdx + 2 - offset;
+        }
+      }
+      this.flashHighlight(editor, offset, offset + highlightLen);
     }
   }
 
@@ -154,7 +163,7 @@ export class SuggestionsView extends ItemView {
       if (el && color) {
         el.style.removeProperty("--portfolio-highlight-color");
       }
-    }, 1500);
+    }, 2500);
   }
 
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -256,6 +265,9 @@ export class SuggestionsView extends ItemView {
       }
     });
 
+    // Linked Taxa
+    this.renderLinkedTaxa(container, file);
+
     // Layer 1: Unlinked Matches
     const unlinkedMatches = findUnlinkedMatches(
       this.app,
@@ -283,59 +295,68 @@ export class SuggestionsView extends ItemView {
       }
     }
 
-    // Layer 2: LLM Suggestions (only when AI is enabled)
-    if (this.plugin.settings.aiEnabled) {
-      const llmSection = container.createDiv("portfolio-section");
-      llmSection.createEl("h5", { text: "AI Taxa Extraction" });
+    // Layer 2: LLM Suggestions
+    const llmSection = container.createDiv("portfolio-section");
+    llmSection.createEl("h5", { text: "AI Taxa Extraction" });
 
-      if (this.isAnalyzing) {
-        llmSection.createEl("p", {
-          text: "Analyzing...",
-          cls: "portfolio-analyzing",
-        });
-      } else if (this.llmEntities.length > 0) {
-        const filteredEntities = this.llmEntities.filter(
-          (e) => !this.dismissed.has(`llm:${e.suggestedName}`) && !this.plugin.settings.blocklist.includes(e.suggestedName)
-        );
+    if (!this.plugin.settings.aiEnabled) {
+      const msgEl = llmSection.createDiv("portfolio-ollama-status");
+      msgEl.createEl("p", {
+        text: "AI taxa extraction is off.",
+        cls: "portfolio-empty-state",
+      });
+      msgEl.createEl("p", {
+        text: "Enable it in Settings \u2192 Portfolio to discover people, concepts, places, and other entities in your notes using a local LLM.",
+        cls: "portfolio-help-text",
+      });
+    } else if (this.isAnalyzing) {
+      llmSection.createEl("p", {
+        text: "Analyzing...",
+        cls: "portfolio-analyzing",
+      });
+    } else if (this.llmEntities.length > 0) {
+      const filteredEntities = this.llmEntities.filter(
+        (e) => !this.dismissed.has(`llm:${e.suggestedName}`) && !this.plugin.settings.blocklist.includes(e.suggestedName)
+      );
 
-        if (filteredEntities.length > 0) {
-          for (const entity of filteredEntities) {
-            this.renderLlmEntity(llmSection, entity, file, content);
-          }
-        } else {
-          llmSection.createEl("p", {
-            text: "No new taxa found.",
-            cls: "portfolio-empty-state",
-          });
+      if (filteredEntities.length > 0) {
+        for (const entity of filteredEntities) {
+          this.renderLlmEntity(llmSection, entity, file, content);
         }
       } else {
-        const ollamaService = new OllamaService(
-          this.plugin.settings.ollamaUrl,
-          this.plugin.settings.ollamaModel
-        );
-        const isConnected = await ollamaService.testConnection();
-        if (!isConnected) {
-          const msgEl = llmSection.createDiv("portfolio-ollama-status");
-          msgEl.createEl("p", {
-            text: "Ollama not available",
-          });
-          msgEl.createEl("p", {
-            text: "Connect to see AI taxa suggestions.",
-            cls: "portfolio-empty-state",
-          });
-          const retryBtn = msgEl.createEl("button", {
-            text: "Retry",
-            cls: "portfolio-retry-btn",
-          });
-          retryBtn.addEventListener("click", () => {
-            this.runLlmExtraction();
-          });
-        } else {
-          llmSection.createEl("p", {
-            text: "Click refresh to analyze.",
-            cls: "portfolio-empty-state",
-          });
-        }
+        llmSection.createEl("p", {
+          text: "No new taxa found.",
+          cls: "portfolio-empty-state",
+        });
+      }
+    } else {
+      const ollamaService = new OllamaService(
+        this.plugin.settings.ollamaUrl,
+        this.plugin.settings.ollamaModel
+      );
+      const isConnected = await ollamaService.testConnection();
+      if (!isConnected) {
+        const msgEl = llmSection.createDiv("portfolio-ollama-status");
+        msgEl.createEl("p", {
+          text: "Ollama not available",
+        });
+        const model = this.plugin.settings.ollamaModel || "a chat model";
+        msgEl.createEl("p", {
+          text: `Make sure Ollama is running and ${model} is installed. See Settings \u2192 Portfolio for connection details.`,
+          cls: "portfolio-help-text",
+        });
+        const retryBtn = msgEl.createEl("button", {
+          text: "Retry",
+          cls: "portfolio-retry-btn",
+        });
+        retryBtn.addEventListener("click", () => {
+          this.runLlmExtraction();
+        });
+      } else {
+        llmSection.createEl("p", {
+          text: "Click \u21BB to analyze this note.",
+          cls: "portfolio-empty-state",
+        });
       }
     }
   }
@@ -558,6 +579,118 @@ export class SuggestionsView extends ItemView {
       await this.plugin.saveSettings();
       this.refresh();
     });
+  }
+
+  private async renderLinkedTaxa(container: HTMLElement, file: TFile) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const links = cache?.links || [];
+    const content = await this.app.vault.cachedRead(file);
+
+    // Group linked taxa by mapping, collecting positions
+    interface LinkedItem {
+      displayName: string;
+      link: string;
+      positions: number[];
+    }
+    const grouped = new Map<TaxaMapping, LinkedItem[]>();
+    for (const mapping of this.plugin.settings.taxaMappings) {
+      grouped.set(mapping, []);
+    }
+
+    for (const link of links) {
+      for (const mapping of this.plugin.settings.taxaMappings) {
+        if (link.link.startsWith(mapping.prefix)) {
+          const items = grouped.get(mapping)!;
+          if (!items.some((i) => i.link === link.link)) {
+            const displayName = link.displayText || link.link;
+            const positions: number[] = [];
+
+            // Find wikilink positions
+            const wikiPattern = `[[${link.link}`;
+            let searchFrom = 0;
+            while (searchFrom < content.length) {
+              const idx = content.indexOf(wikiPattern, searchFrom);
+              if (idx === -1) break;
+              positions.push(idx);
+              searchFrom = idx + wikiPattern.length;
+            }
+
+            // Find plain text occurrences of the display name
+            if (displayName.length >= 2) {
+              const lowerContent = content.toLowerCase();
+              const lowerName = displayName.toLowerCase();
+              searchFrom = 0;
+              while (searchFrom < lowerContent.length) {
+                const idx = lowerContent.indexOf(lowerName, searchFrom);
+                if (idx === -1) break;
+                // Skip if this position overlaps with a wikilink position
+                if (!positions.some((p) => Math.abs(p - idx) < wikiPattern.length + 2)) {
+                  positions.push(idx);
+                }
+                searchFrom = idx + displayName.length;
+              }
+            }
+
+            positions.sort((a, b) => a - b);
+
+            items.push({
+              displayName,
+              link: link.link,
+              positions,
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    let hasAny = false;
+    for (const items of grouped.values()) {
+      if (items.length > 0) { hasAny = true; break; }
+    }
+
+    if (!hasAny) return;
+
+    const section = container.createDiv("portfolio-section");
+    section.createEl("h5", { text: "Linked Taxa" });
+
+    for (const [mapping, items] of grouped) {
+      if (items.length === 0) continue;
+
+      const groupEl = section.createDiv("portfolio-taxa-group");
+      groupEl.createEl("h6", {
+        text: `${mapping.prefix} ${mapping.label}`,
+        cls: "portfolio-group-label",
+      });
+
+      for (const item of items) {
+        const row = groupEl.createDiv("portfolio-linked-row");
+        const info = row.createDiv("portfolio-suggestion-info");
+        const nameSpan = info.createSpan({
+          text: item.displayName,
+          cls: "portfolio-match-text portfolio-clickable",
+        });
+        if (item.positions.length > 0) {
+          const jumpKey = `linked:${item.link}`;
+          nameSpan.addEventListener("click", () => {
+            this.jumpToOccurrence(jumpKey, item.positions, content, file, item.displayName.length);
+          });
+          info.createSpan({
+            text: ` (${item.positions.length})`,
+            cls: "portfolio-match-count",
+          });
+        }
+        const goBtn = row.createEl("button", {
+          text: "\u2192",
+          cls: "portfolio-go-btn",
+          attr: { "aria-label": "Open taxa file" },
+        });
+        goBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.app.workspace.openLinkText(item.link, file.path);
+        });
+      }
+    }
   }
 
   private async runLlmExtraction() {
