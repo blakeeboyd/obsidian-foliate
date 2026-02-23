@@ -1,0 +1,259 @@
+/* Portfolio Plugin Styles */
+
+/* Suggestions Sidebar */
+.portfolio-suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.portfolio-suggestions-header h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.portfolio-scope-indicator {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.portfolio-refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.portfolio-refresh-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.portfolio-section {
+  padding: 8px 12px;
+}
+
+.portfolio-section h5 {
+  margin: 8px 0 4px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.portfolio-taxa-group {
+  margin-bottom: 8px;
+}
+
+.portfolio-group-label {
+  margin: 4px 0 2px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.portfolio-suggestion-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.portfolio-suggestion-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.portfolio-suggestion-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.portfolio-match-text {
+  font-weight: 500;
+}
+
+.portfolio-clickable {
+  cursor: pointer;
+}
+
+.portfolio-clickable:hover {
+  text-decoration: underline;
+  color: var(--text-accent);
+}
+
+.portfolio-match-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.portfolio-entity-type {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.portfolio-low-confidence {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.portfolio-suggestion-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.portfolio-action-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+}
+
+.portfolio-action-btn:hover {
+  opacity: 0.9;
+}
+
+.portfolio-dismiss-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.portfolio-dismiss-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.portfolio-empty-state {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 4px 0;
+}
+
+.portfolio-analyzing {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.portfolio-ollama-status {
+  padding: 4px 0;
+}
+
+.portfolio-ollama-status p {
+  margin: 2px 0;
+}
+
+.portfolio-retry-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+/* Jump Highlight */
+.portfolio-jump-highlight {
+  background-color: var(--portfolio-highlight-color, var(--text-highlight-bg));
+  border-radius: 2px;
+}
+
+/* Status Bar */
+.portfolio-status-bar {
+  cursor: pointer;
+}
+
+.portfolio-status-bar:hover {
+  color: var(--text-normal);
+}
+
+/* Suggest Items */
+.portfolio-suggest-item {
+  display: flex;
+  align-items: center;
+}
+
+.portfolio-suggest-prefix {
+  color: var(--text-muted);
+  font-size: 12px;
+  width: 16px;
+}
+
+.portfolio-suggest-name {
+  font-weight: 500;
+}
+
+.portfolio-ignore-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.portfolio-ignore-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Settings */
+.portfolio-taxa-mappings {
+  margin-bottom: 8px;
+}
+
+.portfolio-blocklist {
+  margin-bottom: 8px;
+}
+
+.portfolio-blocklist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.portfolio-blocklist-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.portfolio-blocklist-row button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.portfolio-blocklist-row button:hover {
+  color: var(--text-normal);
+}
+
+.portfolio-taxa-row input {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
