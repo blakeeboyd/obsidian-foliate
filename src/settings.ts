@@ -1,53 +1,6 @@
-import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, TFolder } from "obsidian";
+import { App, PluginSettingTab, Setting, AbstractInputSuggest, TFolder } from "obsidian";
 import type PortfolioPlugin from "./main";
 import { TaxaMapping } from "./types";
-
-class CustomPromptModal extends Modal {
-  private plugin: PortfolioPlugin;
-
-  constructor(app: App, plugin: PortfolioPlugin) {
-    super(app);
-    this.plugin = plugin;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-
-    contentEl.createEl("h2", { text: "Custom Extraction Prompt" });
-    contentEl.createEl("p", {
-      text: "Additional instructions for the AI model. Use this to describe your vault's conventions so the model avoids false positives.",
-      cls: "setting-item-description",
-    });
-
-    const textarea = contentEl.createEl("textarea", {
-      placeholder: 'e.g. Ignore text that looks like citation keys (e.g. "hoffmanTransformativePower2024"). Filenames starting with a number followed by a dot (like "12.15") are note IDs, not entities.',
-    });
-    textarea.value = this.plugin.settings.customPrompt;
-    textarea.style.width = "100%";
-    textarea.style.minHeight = "200px";
-    textarea.style.resize = "vertical";
-    textarea.style.fontFamily = "var(--font-monospace)";
-    textarea.style.fontSize = "13px";
-    textarea.style.padding = "8px";
-
-    const btnRow = contentEl.createDiv();
-    btnRow.style.display = "flex";
-    btnRow.style.justifyContent = "flex-end";
-    btnRow.style.marginTop = "12px";
-
-    const saveBtn = btnRow.createEl("button", { text: "Save", cls: "mod-cta" });
-    saveBtn.addEventListener("click", async () => {
-      this.plugin.settings.customPrompt = textarea.value;
-      await this.plugin.saveSettings();
-      this.close();
-    });
-  }
-
-  onClose() {
-    this.contentEl.empty();
-  }
-}
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
   getSuggestions(query: string): TFolder[] {
@@ -180,18 +133,6 @@ export class PortfolioSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Auto-analyze on file open")
-      .setDesc("Automatically run AI taxa extraction when switching files.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoAnalyze)
-          .onChange(async (value) => {
-            this.plugin.settings.autoAnalyze = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName("Match aliases of linked files")
       .setDesc(
         'In Unlinked Mentions, also surface unlinked alias occurrences of a file that is already linked in the note, so you can cycle through and link them (e.g. "ZPD" for an already-linked Zone of Proximal Development).'
@@ -260,94 +201,6 @@ export class PortfolioSettingTab extends PluginSettingTab {
 
     const blocklistContainer = containerEl.createDiv("portfolio-blocklist");
     this.renderBlocklist(blocklistContainer);
-
-    // --- AI Taxa Extraction ---
-    containerEl.createEl("h2", { text: "AI Taxa Extraction" });
-
-    new Setting(containerEl)
-      .setName("Enable AI taxa extraction")
-      .setDesc("Use a local Ollama model to suggest new taxa from your notes.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.aiEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.aiEnabled = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Ollama URL")
-      .setDesc("URL of your local Ollama instance.")
-      .addText((text) =>
-        text
-          .setPlaceholder("http://localhost:11434")
-          .setValue(this.plugin.settings.ollamaUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.ollamaUrl = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Model")
-      .setDesc("Ollama model to use for taxa extraction.")
-      .addText((text) =>
-        text
-          .setPlaceholder("llama3.2:3b")
-          .setValue(this.plugin.settings.ollamaModel)
-          .onChange(async (value) => {
-            this.plugin.settings.ollamaModel = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Custom extraction prompt")
-      .setDesc(this.plugin.settings.customPrompt
-        ? "Custom instructions configured."
-        : "No custom instructions set.")
-      .addButton((btn) =>
-        btn.setButtonText("Manage").onClick(() => {
-          new CustomPromptModal(this.app, this.plugin).open();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Test connection")
-      .setDesc("Check if Ollama is running and the model is available.")
-      .addButton((btn) =>
-        btn.setButtonText("Test").onClick(async () => {
-          btn.setButtonText("Testing...");
-          btn.setDisabled(true);
-          try {
-            const response = await fetch(
-              `${this.plugin.settings.ollamaUrl}/api/tags`
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            const models = (data.models || []).map(
-              (m: { name: string }) => m.name
-            );
-            const hasModel = models.some(
-              (name: string) =>
-                name === this.plugin.settings.ollamaModel ||
-                name.startsWith(this.plugin.settings.ollamaModel + ":")
-            );
-            if (hasModel) {
-              btn.setButtonText("Connected");
-            } else {
-              btn.setButtonText("Model not found");
-            }
-          } catch {
-            btn.setButtonText("Connection failed");
-          }
-          setTimeout(() => {
-            btn.setButtonText("Test");
-            btn.setDisabled(false);
-          }, 3000);
-        })
-      );
   }
 
   private renderBlocklist(container: HTMLElement): void {

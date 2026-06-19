@@ -40,24 +40,3 @@ export function addPrefix(name: string, mapping: TaxaMapping): string {
 export function getAllPrefixes(mappings: TaxaMapping[]): string[] {
   return mappings.map((m) => m.prefix);
 }
-
-/**
- * Map LLM entity type strings to taxa prefixes.
- */
-export const ENTITY_TYPE_TO_PREFIX: Record<string, string> = {
-  person: "@",
-  concept: "+",
-  place: "~",
-  organization: "\u00BA",
-  work: "\u00A9",
-  event: "\u221E",
-};
-
-export function taxonForEntityType(
-  entityType: string,
-  mappings: TaxaMapping[]
-): TaxaMapping | null {
-  const prefix = ENTITY_TYPE_TO_PREFIX[entityType];
-  if (!prefix) return null;
-  return mappings.find((m) => m.prefix === prefix) ?? null;
-}

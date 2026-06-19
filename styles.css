@@ -111,34 +111,10 @@
   display: inline;
 }
 
-.portfolio-existing-file {
-  color: var(--text-accent);
-  margin-left: 4px;
-}
-
-.portfolio-existing-file svg {
-  width: 11px;
-  height: 11px;
-  display: inline;
-  vertical-align: middle;
-  margin-right: 2px;
-}
-
 .portfolio-match-count {
   display: block;
   font-size: 11px;
   color: var(--text-muted);
-}
-
-.portfolio-entity-type {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.portfolio-low-confidence {
-  font-size: 10px;
-  color: var(--text-faint);
-  font-style: italic;
 }
 
 .portfolio-suggestion-actions {
@@ -210,35 +186,6 @@
   color: var(--text-muted);
   font-style: italic;
   margin: 4px 0;
-}
-
-.portfolio-analyzing {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.portfolio-ollama-status {
-  padding: 4px 0;
-}
-
-.portfolio-ollama-status p {
-  margin: 2px 0;
-}
-
-.portfolio-help-text {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  margin: 4px 0;
-}
-
-.portfolio-retry-btn {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 4px;
 }
 
 /* Linked Taxa */

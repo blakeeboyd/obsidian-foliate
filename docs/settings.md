@@ -30,7 +30,6 @@ Changes take effect immediately after saving.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Open suggestions on startup | Off | Automatically open the suggestions sidebar when the plugin loads |
-| Auto-analyze on file open | Off | Run AI taxa extraction automatically when switching to a new file |
 | Match aliases of linked files | Off | Also surface unlinked alias occurrences of a file that is already linked in the note (e.g. "ZPD" for an already-linked Zone of Proximal Development) |
 | Highlight on jump | On | Flash a brief highlight when jumping to an occurrence |
 | Highlight color | Yellow | Color picker for the jump highlight (reset button restores default) |
@@ -40,17 +39,6 @@ Changes take effect immediately after saving.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Show status bar | On | Display taxa link counts in Obsidian's status bar. Requires plugin reload to take effect. |
-
-## AI Taxa Extraction
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Enable AI taxa extraction | On | Master toggle for the entire AI feature. When off, the sidebar shows an explanation of the feature. |
-| Ollama URL | `http://localhost:11434` | Address of your local Ollama instance |
-| Model | `llama3.2:3b` | Ollama model used for entity extraction |
-| Test connection | — | Button to verify Ollama is running and the model is available |
-
-See [AI Extraction](ai-extraction.md) for setup instructions.
 
 ## Blocklist
 

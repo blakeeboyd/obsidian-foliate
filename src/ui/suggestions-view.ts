@@ -2,11 +2,9 @@ import { ItemView, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "o
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type PortfolioPlugin from "../main";
-import { UnlinkedMatch, ExtractedEntity, TaxaMapping, MatchPosition } from "../types";
+import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions } from "../services/unlinked-matcher";
-import { OllamaService } from "../services/ollama";
-import { createTaxaLink } from "../services/file-operations";
-import { taxonForEntityType, stripPrefix } from "../taxa";
+import { stripPrefix } from "../taxa";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
 const clearHighlight = StateEffect.define<null>();
@@ -36,9 +34,6 @@ export class SuggestionsView extends ItemView {
   plugin: PortfolioPlugin;
   private dismissed: Set<string> = new Set();
   private currentFile: TFile | null = null;
-  private llmEntities: ExtractedEntity[] = [];
-  private llmCache: Map<string, ExtractedEntity[]> = new Map();
-  private isAnalyzing = false;
   private selectionEditorCallback: (() => void) | null = null;
   private lastSelection = "";
   private jumpIndex: Map<string, number> = new Map();
@@ -70,7 +65,6 @@ export class SuggestionsView extends ItemView {
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (file === this.currentFile) {
-          this.llmCache.delete(file.path);
           this.debounceRefresh();
         }
       })
@@ -244,17 +238,7 @@ export class SuggestionsView extends ItemView {
     this.jumpIndex.clear();
     this.lastSelection = "";
 
-    const cached = this.llmCache.get(file.path);
-    if (cached) {
-      this.llmEntities = cached;
-      this.refresh();
-    } else {
-      this.llmEntities = [];
-      this.refresh();
-      if (this.plugin.settings.aiEnabled && this.plugin.settings.autoAnalyze) {
-        this.runLlmExtraction();
-      }
-    }
+    this.refresh();
   }
 
   async refresh() {
@@ -294,11 +278,7 @@ export class SuggestionsView extends ItemView {
     });
     setIcon(refreshBtn, "refresh-cw");
     refreshBtn.addEventListener("click", () => {
-      this.llmEntities = [];
       this.refresh();
-      if (this.plugin.settings.aiEnabled) {
-        this.runLlmExtraction();
-      }
     });
 
     // Linked Taxa
@@ -329,71 +309,6 @@ export class SuggestionsView extends ItemView {
         for (const match of matches) {
           this.renderUnlinkedMatch(groupEl, match, file, content);
         }
-      }
-    }
-
-    // Layer 2: LLM Suggestions
-    const llmSection = container.createDiv("portfolio-section");
-    llmSection.createEl("h5", { text: "AI Taxa Extraction" });
-
-    if (!this.plugin.settings.aiEnabled) {
-      const msgEl = llmSection.createDiv("portfolio-ollama-status");
-      msgEl.createEl("p", {
-        text: "AI taxa extraction is off.",
-        cls: "portfolio-empty-state",
-      });
-      msgEl.createEl("p", {
-        text: "Enable it in Settings \u2192 Portfolio to discover people, concepts, places, and other entities in your notes using a local LLM.",
-        cls: "portfolio-help-text",
-      });
-    } else if (this.isAnalyzing) {
-      llmSection.createEl("p", {
-        text: "Analyzing...",
-        cls: "portfolio-analyzing",
-      });
-    } else if (this.llmEntities.length > 0) {
-      const filteredEntities = this.llmEntities.filter(
-        (e) => !this.dismissed.has(`llm:${e.suggestedName}`) && !this.plugin.settings.blocklist.includes(e.suggestedName)
-      );
-
-      if (filteredEntities.length > 0) {
-        for (const entity of filteredEntities) {
-          this.renderLlmEntity(llmSection, entity, file, content);
-        }
-      } else {
-        llmSection.createEl("p", {
-          text: "No new taxa found.",
-          cls: "portfolio-empty-state",
-        });
-      }
-    } else {
-      const ollamaService = new OllamaService(
-        this.plugin.settings.ollamaUrl,
-        this.plugin.settings.ollamaModel
-      );
-      const isConnected = await ollamaService.testConnection();
-      if (!isConnected) {
-        const msgEl = llmSection.createDiv("portfolio-ollama-status");
-        msgEl.createEl("p", {
-          text: "Ollama not available",
-        });
-        const model = this.plugin.settings.ollamaModel || "a chat model";
-        msgEl.createEl("p", {
-          text: `Make sure Ollama is running and ${model} is installed. See Settings \u2192 Portfolio for connection details.`,
-          cls: "portfolio-help-text",
-        });
-        const retryBtn = msgEl.createEl("button", {
-          text: "Retry",
-          cls: "portfolio-retry-btn",
-        });
-        retryBtn.addEventListener("click", () => {
-          this.runLlmExtraction();
-        });
-      } else {
-        llmSection.createEl("p", {
-          text: "Click \u21BB to analyze this note.",
-          cls: "portfolio-empty-state",
-        });
       }
     }
   }
@@ -535,191 +450,6 @@ export class SuggestionsView extends ItemView {
     new Notice(`Unlinked ${displayName} (${count} ${count > 1 ? "occurrences" : "occurrence"})`);
     this.plugin.updateStatusBar();
     this.refresh();
-  }
-
-  private findExistingTaxaFile(
-    entityName: string,
-    taxon: TaxaMapping
-  ): TFile | null {
-    const taxaFiles = this.app.vault.getMarkdownFiles().filter(
-      (f) => f.path.startsWith(taxon.folder + "/")
-    );
-    const lowerName = entityName.toLowerCase();
-
-    // Exact match: file basename (without prefix) matches entity name
-    for (const f of taxaFiles) {
-      const nameWithoutPrefix = stripPrefix(f.basename, taxon).toLowerCase();
-      if (nameWithoutPrefix === lowerName) return f;
-    }
-
-    // Partial match: entity name appears as a word in a filename (e.g., "Holiday" → "@Ryan Holiday")
-    for (const f of taxaFiles) {
-      const nameWithoutPrefix = stripPrefix(f.basename, taxon).toLowerCase();
-      const words = nameWithoutPrefix.split(/\s+/);
-      if (words.some((w) => w === lowerName)) return f;
-    }
-
-    return null;
-  }
-
-  private renderLlmEntity(
-    container: HTMLElement,
-    entity: ExtractedEntity,
-    noteFile: TFile,
-    fullContent: string
-  ) {
-    const taxon = taxonForEntityType(
-      entity.type,
-      this.plugin.settings.taxaMappings
-    );
-    if (!taxon) return;
-
-    // Check if a taxa file already exists for this entity
-    const existingFile = this.findExistingTaxaFile(entity.suggestedName, taxon);
-
-    // Collect positions of entity text in content, skipping matches inside wikilinks
-    const entityPositions: number[] = [];
-    let searchFrom = 0;
-    while (true) {
-      const idx = fullContent.indexOf(entity.text, searchFrom);
-      if (idx === -1) break;
-      // Check if this position is inside a wikilink by looking for [[ before and ]] after
-      const before = fullContent.lastIndexOf("[[", idx);
-      const closeBefore = fullContent.lastIndexOf("]]", idx);
-      const insideWikilink = before !== -1 && (closeBefore === -1 || closeBefore < before);
-      if (!insideWikilink) {
-        entityPositions.push(idx);
-      }
-      searchFrom = idx + entity.text.length;
-    }
-
-    const row = container.createDiv("portfolio-suggestion-row");
-
-    // Top line: name + action buttons
-    const top = row.createDiv("portfolio-suggestion-top");
-
-    const info = top.createDiv("portfolio-suggestion-info");
-    const nameSpan = info.createSpan({
-      text: entity.suggestedName,
-      cls: "portfolio-match-text portfolio-clickable",
-    });
-    if (entityPositions.length > 0) {
-      const jumpKey = `llm:${entity.suggestedName}`;
-      nameSpan.addEventListener("click", () => {
-        this.jumpToOccurrence(jumpKey, entityPositions, fullContent, noteFile, entity.text.length);
-      });
-    }
-
-    const actions = top.createDiv("portfolio-suggestion-actions");
-
-    // If file exists, show go-to-file button
-    if (existingFile) {
-      const goBtn = actions.createEl("button", {
-        cls: "portfolio-go-btn",
-        attr: { "aria-label": `Open ${existingFile.basename}` },
-      });
-      setIcon(goBtn, "external-link");
-      goBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.app.workspace.openLinkText(existingFile.basename, noteFile.path);
-      });
-    }
-
-    // Link button — creates the taxa file and links the first mention
-    const linkBtn = actions.createEl("button", {
-      cls: "portfolio-action-btn",
-      attr: { "aria-label": "Link" },
-    });
-    setIcon(linkBtn, "replace");
-    linkBtn.addEventListener("click", async () => {
-      const view = await this.findEditorForFile(noteFile);
-      if (!view) {
-        new Notice("Could not open editor");
-        return;
-      }
-
-      this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
-
-      const editor = view.editor;
-      const content = editor.getValue();
-      const idx = content.indexOf(entity.text);
-      if (idx === -1) {
-        new Notice(`Could not find "${entity.text}" in note`);
-        return;
-      }
-
-      const pos = this.offsetToPos(content, idx);
-      editor.setSelection(
-        pos,
-        { line: pos.line, ch: pos.ch + entity.text.length }
-      );
-
-      await createTaxaLink(
-        this.app,
-        editor,
-        entity.text,
-        taxon,
-        this.plugin.settings
-      );
-
-      this.dismissed.add(`llm:${entity.suggestedName}`);
-      this.plugin.updateStatusBar();
-      this.refresh();
-    });
-
-    // Ignore button (blocklist permanently)
-    const ignoreBtn = actions.createEl("button", {
-      cls: "portfolio-action-btn",
-      attr: { "aria-label": "Always ignore" },
-    });
-    setIcon(ignoreBtn, "eye-off");
-    ignoreBtn.addEventListener("click", async () => {
-      this.plugin.settings.blocklist.push(entity.suggestedName);
-      await this.plugin.saveSettings();
-      this.refresh();
-    });
-
-    // Dismiss button (hide for this session)
-    const dismissBtn = actions.createEl("button", {
-      cls: "portfolio-dismiss-btn",
-      attr: { "aria-label": "Dismiss" },
-    });
-    setIcon(dismissBtn, "x");
-    dismissBtn.addEventListener("click", () => {
-      this.dismissed.add(`llm:${entity.suggestedName}`);
-      this.refresh();
-    });
-
-    // Bottom line: metadata
-    const meta = row.createDiv("portfolio-suggestion-meta");
-    if (entityPositions.length > 0) {
-      meta.createSpan({
-        text: `(${entityPositions.length} ${entityPositions.length > 1 ? "mentions" : "mention"}) `,
-        cls: "portfolio-meta-chunk",
-      });
-    }
-    meta.createSpan({
-      text: `${taxon.prefix} ${taxon.label}`,
-      cls: "portfolio-meta-chunk",
-    });
-    if (existingFile) {
-      const fileIndicator = meta.createSpan({
-        cls: "portfolio-meta-chunk portfolio-existing-file portfolio-clickable",
-      });
-      setIcon(fileIndicator, "file-check");
-      const displayName = stripPrefix(existingFile.basename, taxon);
-      fileIndicator.appendText(` ${displayName}`);
-      fileIndicator.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.app.workspace.openLinkText(existingFile.basename, noteFile.path);
-      });
-    }
-    if (entity.confidence < 0.7) {
-      meta.createSpan({
-        text: " (low confidence)",
-        cls: "portfolio-low-confidence",
-      });
-    }
   }
 
   private async renderLinkedTaxa(container: HTMLElement, file: TFile) {
@@ -873,65 +603,6 @@ export class SuggestionsView extends ItemView {
     }
   }
 
-  private async runLlmExtraction() {
-    if (!this.currentFile) return;
-    if (this.isAnalyzing) return;
-
-    const ollamaService = new OllamaService(
-      this.plugin.settings.ollamaUrl,
-      this.plugin.settings.ollamaModel
-    );
-
-    const isConnected = await ollamaService.testConnection();
-    if (!isConnected) {
-      this.refresh();
-      return;
-    }
-
-    this.isAnalyzing = true;
-    this.refresh();
-
-    try {
-      const content = await this.app.vault.cachedRead(this.currentFile);
-      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-      const selection = view ? view.editor.getSelection() : "";
-      const textToAnalyze =
-        selection && selection.trim().length > 0
-          ? selection.trim()
-          : content;
-
-      const customPrompt = this.plugin.settings.customPrompt || undefined;
-      const entities = await ollamaService.extractEntities(textToAnalyze, customPrompt);
-
-      // Filter out entities that already have taxa files
-      const filtered: ExtractedEntity[] = [];
-      for (const entity of entities) {
-        const taxon = taxonForEntityType(
-          entity.type,
-          this.plugin.settings.taxaMappings
-        );
-        if (!taxon) continue;
-
-        const fileName = `${taxon.prefix}${entity.suggestedName}`;
-        const filePath = `${taxon.folder}/${fileName}.md`;
-        const exists = this.app.vault.getAbstractFileByPath(filePath);
-        if (!exists) {
-          filtered.push(entity);
-        }
-      }
-
-      this.llmEntities = filtered;
-      if (this.currentFile) {
-        this.llmCache.set(this.currentFile.path, filtered);
-      }
-    } catch (e) {
-      new Notice(`Taxa extraction failed: ${e}`);
-      this.llmEntities = [];
-    } finally {
-      this.isAnalyzing = false;
-      this.refresh();
-    }
-  }
 }
 
 function groupByTaxon(

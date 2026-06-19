@@ -6,7 +6,7 @@ Open it with the **Open suggestions sidebar** command, by clicking the status ba
 
 ## Sections
 
-The sidebar has three sections, top to bottom:
+The sidebar has two sections, top to bottom:
 
 ### Linked Taxa
 
@@ -39,10 +39,6 @@ Matching rules:
 - Minimum term length of 2 characters
 - By default, a file that is already linked anywhere in the note drops out of unlinked mentions. Turn on **Match aliases of linked files** (see [Settings](settings.md)) to keep surfacing its still-unlinked alias occurrences — for example, when `[[+Zone of Proximal Development]]` is linked once but the abbreviation "ZPD" appears unlinked elsewhere. Each occurrence links with its own surface form, so "ZPD" becomes `[[+Zone of Proximal Development|ZPD]]`.
 
-### AI Taxa Extraction
-
-Uses a local [Ollama](https://ollama.ai) LLM to discover entities in your text. See [AI Extraction](ai-extraction.md) for setup and details.
-
 ## Refreshing
 
 The sidebar refreshes automatically when you:
@@ -51,11 +47,11 @@ The sidebar refreshes automatically when you:
 - Edit the current file (debounced to 1 second)
 - Change your text selection
 
-Click the **↻** button in the header to manually refresh and re-run AI extraction.
+Click the **↻** button in the header to refresh manually.
 
 ## Selection scoping
 
-Select text in the editor before refreshing to scope AI extraction to just that selection. Unlinked mention detection always scans the full note.
+Select text in the editor to scope the scan to just that selection. Deselect to revert to the full note.
 
 ## Jump-to-occurrence
 

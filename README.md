@@ -30,15 +30,14 @@ Portfolio also provides real-time **editor autocomplete** — type a prefix char
 
 ### Suggestions sidebar
 
-A sidebar panel with three sections for the active note:
+A sidebar panel with two sections for the active note:
 
 - **Linked taxa** — all taxa currently linked in the note, grouped by type. Click a name to jump through occurrences (wikilinks and plain text). Click → to open the taxa file.
-- **Unlinked mentions** — existing taxa files whose names appear in your note but aren't linked yet. Link individual mentions or all at once.
-- **AI taxa extraction** — uses a local [Ollama](https://ollama.ai) LLM to discover people, concepts, places, organizations, works, and events in your text.
+- **Unlinked mentions** — existing taxa files whose names or aliases appear in your note but aren't linked yet. Link individual mentions or all at once.
 
-The sidebar refreshes on file switch, content edits, and selection changes. Select text to scope AI extraction to just that selection.
+The sidebar refreshes on file switch, content edits, and selection changes. Select text to scope the scan to just that selection.
 
-[Suggestions sidebar docs →](docs/suggestions-sidebar.md) · [AI extraction docs →](docs/ai-extraction.md)
+[Suggestions sidebar docs →](docs/suggestions-sidebar.md)
 
 ### Navigation
 
@@ -88,17 +87,6 @@ npm run build
 
 Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-portfolio/` folder.
 
-### Ollama setup (optional)
-
-The AI suggestions feature requires a local Ollama instance:
-
-1. Install [Ollama](https://ollama.ai)
-2. Pull a model: `ollama pull llama3.2:3b`
-3. Make sure Ollama is running when you want AI suggestions
-4. Configure the URL and model name in plugin settings
-
-[Full AI setup guide →](docs/ai-extraction.md)
-
 ## Settings
 
 [Full settings reference →](docs/settings.md)
@@ -110,12 +98,9 @@ The AI suggestions feature requires a local Ollama instance:
 | Create folders if missing | On | Create target folders that don't exist |
 | Open suggestions on startup | Off | Auto-open the sidebar on plugin load |
 | Show status bar | On | Taxa counts in the status bar (reload required) |
-| Enable AI taxa extraction | On | Toggle the AI feature on/off |
-| Auto-analyze on file open | Off | Run extraction automatically when switching files |
+| Match aliases of linked files | Off | Surface unlinked alias mentions of already-linked files |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
 | Highlight color | Yellow | Custom color for the jump highlight |
-| Ollama URL | `http://localhost:11434` | Local Ollama instance address |
-| Model | `llama3.2:3b` | Ollama model for extraction |
 | Blocklist | — | Permanently ignored suggestion terms |
 
 ## Documentation
@@ -123,7 +108,6 @@ The AI suggestions feature requires a local Ollama instance:
 - [Taxa System](docs/taxa-system.md) — prefixes, folders, auto-move, aliases
 - [Smart Linking](docs/smart-linking.md) — link creation, autocomplete, how linking works
 - [Suggestions Sidebar](docs/suggestions-sidebar.md) — linked taxa, unlinked mentions, actions, jump behavior
-- [AI Extraction](docs/ai-extraction.md) — Ollama setup, entity types, troubleshooting
 - [Navigation](docs/navigation.md) — status bar, jump-to-occurrence, highlight, commands
 - [Settings Reference](docs/settings.md) — every setting explained
 

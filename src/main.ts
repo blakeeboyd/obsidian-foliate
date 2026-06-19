@@ -15,20 +15,15 @@ import {
 
 const DEFAULT_SETTINGS: PortfolioSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
-  ollamaUrl: "http://localhost:11434",
-  ollamaModel: "llama3.2:3b",
   autoMoveEnabled: true,
   createFolderIfMissing: true,
   editorSuggestEnabled: true,
   sidebarOpen: false,
   statusBarEnabled: true,
-  aiEnabled: true,
-  autoAnalyze: true,
   matchLinkedAliases: false,
   blocklist: [],
   highlightOnJump: true,
   highlightColor: "",
-  customPrompt: "",
 };
 
 export default class PortfolioPlugin extends Plugin {

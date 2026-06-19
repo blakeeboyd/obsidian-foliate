@@ -7,27 +7,15 @@ export interface TaxaMapping {
 
 export interface PortfolioSettings {
   taxaMappings: TaxaMapping[];
-  ollamaUrl: string;
-  ollamaModel: string;
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
   editorSuggestEnabled: boolean;
   sidebarOpen: boolean;
   statusBarEnabled: boolean;
-  aiEnabled: boolean;
-  autoAnalyze: boolean;
   matchLinkedAliases: boolean;
   blocklist: string[];
   highlightOnJump: boolean;
   highlightColor: string;
-  customPrompt: string;
-}
-
-export interface ExtractedEntity {
-  text: string;
-  type: string;
-  suggestedName: string;
-  confidence: number;
 }
 
 /**
