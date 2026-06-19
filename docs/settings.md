@@ -31,6 +31,7 @@ Changes take effect immediately after saving.
 |---------|---------|-------------|
 | Open suggestions on startup | Off | Automatically open the suggestions sidebar when the plugin loads |
 | Auto-analyze on file open | Off | Run AI taxa extraction automatically when switching to a new file |
+| Match aliases of linked files | Off | Also surface unlinked alias occurrences of a file that is already linked in the note (e.g. "ZPD" for an already-linked Zone of Proximal Development) |
 | Highlight on jump | On | Flash a brief highlight when jumping to an occurrence |
 | Highlight color | Yellow | Color picker for the jump highlight (reset button restores default) |
 

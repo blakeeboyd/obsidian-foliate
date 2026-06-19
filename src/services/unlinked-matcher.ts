@@ -1,16 +1,21 @@
 import { App, TFile, CachedMetadata } from "obsidian";
-import { TaxaMapping, UnlinkedMatch } from "../types";
+import { TaxaMapping, UnlinkedMatch, MatchPosition } from "../types";
 import { stripPrefix } from "../taxa";
 
 /**
  * Scan note text for mentions of existing taxa files that aren't linked.
  * Matches against filenames (without prefix) and frontmatter aliases.
+ *
+ * When includeLinkedFiles is true, files that are already linked in the note
+ * are still scanned, so their unlinked alias occurrences (e.g. "ZPD" for an
+ * already-linked Zone of Proximal Development) surface for linking.
  */
 export function findUnlinkedMatches(
   app: App,
   noteContent: string,
   noteFile: TFile,
-  taxaMappings: TaxaMapping[]
+  taxaMappings: TaxaMapping[],
+  includeLinkedFiles = false
 ): UnlinkedMatch[] {
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
@@ -19,41 +24,20 @@ export function findUnlinkedMatches(
     const taxaFiles = getTaxaFiles(app, taxon);
 
     for (const taxaFile of taxaFiles) {
-      // Skip if already linked in this note
-      if (alreadyLinked.has(taxaFile.path)) continue;
       // Skip self-references
       if (taxaFile.path === noteFile.path) continue;
+      // Skip already-linked files unless we're surfacing their aliases
+      if (!includeLinkedFiles && alreadyLinked.has(taxaFile.path)) continue;
 
-      const searchTerms = getSearchTerms(app, taxaFile, taxon);
-      const positions: number[] = [];
-      let matchText = "";
-
-      for (const term of searchTerms) {
-        if (term.length < 2) continue;
-
-        // Find all occurrences that aren't inside wikilinks
-        const termPositions = findUnlinkedPositions(
-          noteContent,
-          term
-        );
-        if (termPositions.length > 0 && !matchText) {
-          matchText = term;
-        }
-        positions.push(...termPositions);
-      }
-
+      const positions = findFileMatchPositions(app, noteContent, taxaFile, taxon);
       if (positions.length > 0) {
-        // Deduplicate positions
-        const uniquePositions = [...new Set(positions)].sort(
-          (a, b) => a - b
-        );
         matches.push({
-          matchText,
+          matchText: positions[0].surface,
           filePath: taxaFile.path,
           fileName: taxaFile.basename,
           alias: stripPrefix(taxaFile.basename, taxon),
           taxon,
-          positions: uniquePositions,
+          positions,
         });
       }
     }
@@ -62,6 +46,40 @@ export function findUnlinkedMatches(
   // Sort by number of occurrences descending
   matches.sort((a, b) => b.positions.length - a.positions.length);
   return matches;
+}
+
+/**
+ * Find all unlinked occurrences of a single taxa file's name and aliases in the
+ * text, deduped by offset (keeping the longest term at each offset). Positions
+ * inside existing [[ ]] wikilinks are excluded. Used both for unlinked-mention
+ * detection and for folding alias mentions into an already-linked file's entry.
+ */
+export function findFileMatchPositions(
+  app: App,
+  noteContent: string,
+  taxaFile: TFile,
+  taxon: TaxaMapping
+): MatchPosition[] {
+  const searchTerms = getSearchTerms(app, taxaFile, taxon);
+  // Keyed by offset so overlapping terms dedupe; keep the longest match.
+  const byOffset = new Map<number, MatchPosition>();
+
+  for (const term of searchTerms) {
+    if (term.length < 2) continue;
+
+    for (const offset of findUnlinkedPositions(noteContent, term)) {
+      const existing = byOffset.get(offset);
+      if (!existing || term.length > existing.len) {
+        byOffset.set(offset, {
+          offset,
+          len: term.length,
+          surface: noteContent.substring(offset, offset + term.length),
+        });
+      }
+    }
+  }
+
+  return [...byOffset.values()].sort((a, b) => a.offset - b.offset);
 }
 
 /**

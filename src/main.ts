@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: PortfolioSettings = {
   statusBarEnabled: true,
   aiEnabled: true,
   autoAnalyze: true,
+  matchLinkedAliases: false,
   blocklist: [],
   highlightOnJump: true,
   highlightColor: "",

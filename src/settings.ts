@@ -192,6 +192,20 @@ export class PortfolioSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Match aliases of linked files")
+      .setDesc(
+        'In Unlinked Mentions, also surface unlinked alias occurrences of a file that is already linked in the note, so you can cycle through and link them (e.g. "ZPD" for an already-linked Zone of Proximal Development).'
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.matchLinkedAliases)
+          .onChange(async (value) => {
+            this.plugin.settings.matchLinkedAliases = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Highlight on jump")
       .setDesc("Briefly highlight the matched text in the editor when clicking a suggestion name.")
       .addToggle((toggle) =>

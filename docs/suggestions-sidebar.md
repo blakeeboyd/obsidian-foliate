@@ -13,7 +13,7 @@ The sidebar has three sections, top to bottom:
 Shows all taxa currently linked in the active note, grouped by type. Each item displays:
 
 - **Name** — click to jump to the next occurrence in the document (cycles through all occurrences, including both wikilinks and plain text mentions)
-- **Count** — total number of occurrences (linked + unlinked mentions of that name)
+- **Count** — total number of occurrences (linked + unlinked mentions of that name). With **Match aliases of linked files** on (see [Settings](settings.md)), the count also folds in unlinked occurrences of the file's other aliases and is shown as `(total, N unlinked)`. For example, a note that links `[[+Zone of Proximal Development]]` twice but writes "ZPD" 33 more times reads `(35, 33 unlinked)`, and clicking the name cycles through all 35.
 - **→ button** — opens the taxa file directly
 
 This section only appears when the note contains at least one taxa link.
@@ -24,9 +24,9 @@ Scans the note for text matching existing taxa files that aren't linked yet. Por
 
 Matches are grouped by taxa type. Each match shows:
 
-- **Name** — click to jump to the next occurrence
+- **Name** — click to jump to the next occurrence, cycling through every match (including alias hits of different lengths)
 - **Count** — number of unlinked occurrences
-- **Link** — wraps the first occurrence in a wikilink
+- **Link** — wraps the first occurrence in a wikilink, preserving its surface form as the link alias
 - **Link all** — wraps every occurrence in wikilinks
 - **✕ (Dismiss)** — hides this suggestion for the current session
 - **Ignore** — permanently blocklists this term (see [Settings](settings.md))
@@ -37,6 +37,7 @@ Matching rules:
 - Markdown formatting characters (`*`, `_`, `~`, `` ` ``) treated as word boundaries, so bold/italic text is matched correctly
 - Existing wikilinks are excluded — text inside `[[ ]]` won't generate a match
 - Minimum term length of 2 characters
+- By default, a file that is already linked anywhere in the note drops out of unlinked mentions. Turn on **Match aliases of linked files** (see [Settings](settings.md)) to keep surfacing its still-unlinked alias occurrences — for example, when `[[+Zone of Proximal Development]]` is linked once but the abbreviation "ZPD" appears unlinked elsewhere. Each occurrence links with its own surface form, so "ZPD" becomes `[[+Zone of Proximal Development|ZPD]]`.
 
 ### AI Taxa Extraction
 

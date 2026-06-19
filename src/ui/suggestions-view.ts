@@ -2,8 +2,8 @@ import { ItemView, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "o
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type PortfolioPlugin from "../main";
-import { UnlinkedMatch, ExtractedEntity, TaxaMapping } from "../types";
-import { findUnlinkedMatches } from "../services/unlinked-matcher";
+import { UnlinkedMatch, ExtractedEntity, TaxaMapping, MatchPosition } from "../types";
+import { findUnlinkedMatches, findFileMatchPositions } from "../services/unlinked-matcher";
 import { OllamaService } from "../services/ollama";
 import { createTaxaLink } from "../services/file-operations";
 import { taxonForEntityType, stripPrefix } from "../taxa";
@@ -112,32 +112,68 @@ export class SuggestionsView extends ItemView {
     return { line: lines.length - 1, ch: lines[lines.length - 1].length };
   }
 
-  private async jumpToOccurrence(key: string, positions: number[], content: string, noteFile: TFile, matchLength?: number) {
+  private async jumpToOccurrence(key: string, positions: (number | MatchPosition)[], content: string, noteFile: TFile, matchLength?: number) {
     const view = await this.findEditorForFile(noteFile);
     if (!view) return;
 
     this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
-    const editor = view.editor;
 
     const idx = (this.jumpIndex.get(key) ?? 0) % positions.length;
     this.jumpIndex.set(key, idx + 1);
 
-    const offset = positions[idx];
+    // Positions may be bare offsets (uniform length) or per-occurrence
+    // objects that carry their own length (mixed-length alias matches).
+    const entry = positions[idx];
+    const offset = typeof entry === "number" ? entry : entry.offset;
+    const occurrenceLen = typeof entry === "number" ? matchLength : entry.len;
     const pos = this.offsetToPos(content, offset);
-    editor.setCursor(pos);
-    editor.scrollIntoView({ from: pos, to: pos }, true);
 
-    if (this.plugin.settings.highlightOnJump && matchLength) {
-      // If this position is a wikilink, highlight the full [[...]] span
-      let highlightLen = matchLength;
-      if (content.substring(offset, offset + 2) === "[[") {
-        const closeIdx = content.indexOf("]]", offset + 2);
-        if (closeIdx !== -1) {
-          highlightLen = closeIdx + 2 - offset;
-        }
-      }
-      this.flashHighlight(editor, offset, offset + highlightLen);
+    // Expand the highlight span to cover a full [[...]] wikilink if needed.
+    let highlightLen = occurrenceLen ?? 0;
+    if (highlightLen && content.substring(offset, offset + 2) === "[[") {
+      const closeIdx = content.indexOf("]]", offset + 2);
+      if (closeIdx !== -1) highlightLen = closeIdx + 2 - offset;
     }
+
+    if (view.getMode() === "preview") {
+      // Reading mode: there is no live CodeMirror editor to drive, so scroll
+      // the rendered preview to the line and flash the section instead.
+      this.jumpInPreview(view, pos.line);
+    } else {
+      const editor = view.editor;
+      editor.setCursor(pos);
+      editor.scrollIntoView({ from: pos, to: pos }, true);
+      if (this.plugin.settings.highlightOnJump && highlightLen) {
+        this.flashHighlight(editor, offset, offset + highlightLen);
+      }
+    }
+  }
+
+  private jumpInPreview(view: MarkdownView, line: number) {
+    const preview = (view as any).previewMode;
+    if (preview && typeof preview.applyScroll === "function") {
+      preview.applyScroll(line);
+    }
+    if (!this.plugin.settings.highlightOnJump) return;
+
+    // The target section may need a tick to render after scrolling.
+    window.setTimeout(() => {
+      const sections = preview?.renderer?.sections as
+        | Array<{ lineStart: number; lineEnd: number; el: HTMLElement }>
+        | undefined;
+      if (!Array.isArray(sections)) return;
+      const section = sections.find((s) => line >= s.lineStart && line <= s.lineEnd);
+      const el = section?.el;
+      if (!el) return;
+
+      const color = this.plugin.settings.highlightColor;
+      if (color) el.style.setProperty("--portfolio-highlight-color", color);
+      el.addClass("portfolio-preview-flash");
+      window.setTimeout(() => {
+        el.removeClass("portfolio-preview-flash");
+        if (color) el.style.removeProperty("--portfolio-highlight-color");
+      }, 2500);
+    }, 50);
   }
 
   private flashHighlight(editor: any, fromOffset: number, toOffset: number) {
@@ -273,7 +309,8 @@ export class SuggestionsView extends ItemView {
       this.app,
       textToAnalyze,
       file,
-      this.plugin.settings.taxaMappings
+      this.plugin.settings.taxaMappings,
+      this.plugin.settings.matchLinkedAliases
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 
     if (unlinkedMatches.length > 0) {
@@ -442,25 +479,28 @@ export class SuggestionsView extends ItemView {
     linkAll: boolean
   ) {
     const content = await this.app.vault.read(noteFile);
-    const wikilink = `[[${match.fileName}|${match.alias}]]`;
+
+    // Each occurrence links with its own surface form, so an alias hit becomes
+    // [[Full Name|ZPD]] while a full-name hit links as itself.
+    const wikilinkFor = (p: MatchPosition) => `[[${match.fileName}|${p.surface}]]`;
 
     let newContent: string;
     if (linkAll) {
-      // Replace all occurrences, working backwards to preserve positions
+      // Replace all occurrences, working backwards to preserve offsets
       newContent = content;
-      const sortedPositions = [...match.positions].sort((a, b) => b - a);
-      for (const pos of sortedPositions) {
-        const before = newContent.substring(0, pos);
-        const after = newContent.substring(pos + match.matchText.length);
-        newContent = before + wikilink + after;
+      const sortedPositions = [...match.positions].sort((a, b) => b.offset - a.offset);
+      for (const p of sortedPositions) {
+        const before = newContent.substring(0, p.offset);
+        const after = newContent.substring(p.offset + p.len);
+        newContent = before + wikilinkFor(p) + after;
       }
     } else {
       // Replace first occurrence only
-      const pos = match.positions[0];
+      const p = match.positions[0];
       newContent =
-        content.substring(0, pos) +
-        wikilink +
-        content.substring(pos + match.matchText.length);
+        content.substring(0, p.offset) +
+        wikilinkFor(p) +
+        content.substring(p.offset + p.len);
     }
 
     await this.app.vault.modify(noteFile, newContent);
@@ -691,7 +731,8 @@ export class SuggestionsView extends ItemView {
     interface LinkedItem {
       displayName: string;
       link: string;
-      positions: number[];
+      positions: MatchPosition[];
+      unlinkedCount: number;
     }
     const grouped = new Map<TaxaMapping, LinkedItem[]>();
     for (const mapping of this.plugin.settings.taxaMappings) {
@@ -704,17 +745,19 @@ export class SuggestionsView extends ItemView {
           const items = grouped.get(mapping)!;
           if (!items.some((i) => i.link === link.link)) {
             const displayName = link.displayText || link.link;
-            const positions: number[] = [];
+            // Keyed by offset so wikilink, display-name, and alias hits dedupe.
+            const byOffset = new Map<number, MatchPosition>();
 
-            // Find wikilink positions
+            // Find wikilink positions (the actual links to this file)
             const wikiPattern = `[[${link.link}`;
             let searchFrom = 0;
             while (searchFrom < content.length) {
               const idx = content.indexOf(wikiPattern, searchFrom);
               if (idx === -1) break;
-              positions.push(idx);
+              byOffset.set(idx, { offset: idx, len: wikiPattern.length, surface: wikiPattern });
               searchFrom = idx + wikiPattern.length;
             }
+            const linkedCount = byOffset.size;
 
             // Find plain text occurrences of the display name
             if (displayName.length >= 2) {
@@ -725,19 +768,38 @@ export class SuggestionsView extends ItemView {
                 const idx = lowerContent.indexOf(lowerName, searchFrom);
                 if (idx === -1) break;
                 // Skip if this position overlaps with a wikilink position
-                if (!positions.some((p) => Math.abs(p - idx) < wikiPattern.length + 2)) {
-                  positions.push(idx);
+                if (
+                  !byOffset.has(idx) &&
+                  ![...byOffset.keys()].some((p) => Math.abs(p - idx) < wikiPattern.length + 2)
+                ) {
+                  byOffset.set(idx, {
+                    offset: idx,
+                    len: displayName.length,
+                    surface: content.substring(idx, idx + displayName.length),
+                  });
                 }
                 searchFrom = idx + displayName.length;
               }
             }
 
-            positions.sort((a, b) => a - b);
+            // Fold in unlinked occurrences of this file's other aliases
+            // (e.g. "ZPD" for an already-linked Zone of Proximal Development).
+            if (this.plugin.settings.matchLinkedAliases) {
+              const dest = this.app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+              if (dest) {
+                for (const mp of findFileMatchPositions(this.app, content, dest, mapping)) {
+                  if (!byOffset.has(mp.offset)) byOffset.set(mp.offset, mp);
+                }
+              }
+            }
+
+            const positions = [...byOffset.values()].sort((a, b) => a.offset - b.offset);
 
             items.push({
               displayName,
               link: link.link,
               positions,
+              unlinkedCount: positions.length - linkedCount,
             });
           }
           break;
@@ -777,7 +839,10 @@ export class SuggestionsView extends ItemView {
             this.jumpToOccurrence(jumpKey, item.positions, content, file, item.displayName.length);
           });
           info.createSpan({
-            text: ` (${item.positions.length})`,
+            text:
+              item.unlinkedCount > 0
+                ? ` (${item.positions.length}, ${item.unlinkedCount} unlinked)`
+                : ` (${item.positions.length})`,
             cls: "portfolio-match-count",
           });
         }

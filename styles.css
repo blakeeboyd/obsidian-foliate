@@ -125,6 +125,7 @@
 }
 
 .portfolio-match-count {
+  display: block;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -324,6 +325,12 @@
   0% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
   60% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
   100% { background-color: transparent; }
+}
+
+/* Jump Highlight (reading mode — flashes the rendered section) */
+.portfolio-preview-flash {
+  border-radius: 4px;
+  animation: portfolio-highlight-fade 2.5s ease-out forwards;
 }
 
 /* Status Bar */
