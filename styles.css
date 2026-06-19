@@ -1,12 +1,64 @@
 /* Portfolio Plugin Styles */
 
 /* Suggestions Sidebar */
+.workspace-leaf-content[data-type="portfolio-suggestions"] .view-content {
+  padding: 0;
+}
+
+.portfolio-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
 .portfolio-suggestions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.portfolio-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: var(--ptf-sticky-top, 0);
+  z-index: 20;
+  background: var(--background-secondary);
+  padding: 8px 12px 2px 12px;
+}
+
+.portfolio-collapse-all-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.portfolio-collapse-all-btn:hover {
+  color: var(--text-normal);
+}
+
+.portfolio-collapse-all-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.portfolio-search {
+  padding: 8px 12px 4px 12px;
+}
+
+.portfolio-search-input {
+  width: 100%;
+  font-size: 12px;
 }
 
 .portfolio-suggestions-header h4 {
@@ -41,12 +93,15 @@
   height: 14px;
 }
 
+/* Wrappers use display:contents so their children (the headers) are direct
+   layout children of the scrolling content element, which is what lets
+   position:sticky engage for the nested section and category headers. */
 .portfolio-section {
-  padding: 8px 12px;
+  display: contents;
 }
 
 .portfolio-section h5 {
-  margin: 8px 0 4px 0;
+  margin: 0;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -54,12 +109,48 @@
 }
 
 .portfolio-taxa-group {
+  display: contents;
+}
+
+.portfolio-group-content {
+  padding: 0 12px;
   margin-bottom: 8px;
 }
 
+.portfolio-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+  top: var(--ptf-sticky-section, 0);
+  z-index: 10;
+  background: var(--background-secondary);
+  padding: 4px 12px 2px 12px;
+}
+
+.portfolio-group-header:hover .portfolio-group-label {
+  color: var(--text-normal);
+}
+
+.portfolio-group-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-faint);
+}
+
+.portfolio-group-chevron svg {
+  width: 13px;
+  height: 13px;
+}
+
 .portfolio-group-label {
-  margin: 4px 0 2px 0;
+  margin: 0;
   font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 

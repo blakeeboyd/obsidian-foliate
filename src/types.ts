@@ -16,6 +16,9 @@ export interface PortfolioSettings {
   blocklist: string[];
   highlightOnJump: boolean;
   selectOnJump: boolean;
+  scopeToSelection: boolean;
+  showSearchBar: boolean;
+  collapsedCategories: string[];
   highlightColor: string;
 }
 

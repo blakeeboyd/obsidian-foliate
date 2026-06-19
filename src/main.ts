@@ -24,6 +24,9 @@ const DEFAULT_SETTINGS: PortfolioSettings = {
   blocklist: [],
   highlightOnJump: true,
   selectOnJump: false,
+  scopeToSelection: true,
+  showSearchBar: true,
+  collapsedCategories: [],
   highlightColor: "",
 };
 

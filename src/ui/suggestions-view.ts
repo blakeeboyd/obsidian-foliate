@@ -36,6 +36,8 @@ export class SuggestionsView extends ItemView {
   private currentFile: TFile | null = null;
   private selectionEditorCallback: (() => void) | null = null;
   private lastSelection = "";
+  private searchQuery = "";
+  private stickyObserver: ResizeObserver | null = null;
   private jumpIndex: Map<string, number> = new Map();
 
   constructor(leaf: WorkspaceLeaf, plugin: PortfolioPlugin) {
@@ -71,11 +73,20 @@ export class SuggestionsView extends ItemView {
     );
 
     this.registerSelectionListener();
+
+    // Recompute sticky-header offsets whenever the panel resizes — including
+    // when it first gains dimensions, which fixes the offsets being measured
+    // too early on initial open.
+    this.stickyObserver = new ResizeObserver(() => this.updateStickyOffsets());
+    this.stickyObserver.observe(this.contentEl);
+
     this.onActiveFileChange();
   }
 
   async onClose() {
     this.selectionEditorCallback = null;
+    this.stickyObserver?.disconnect();
+    this.stickyObserver = null;
   }
 
   private async findEditorForFile(noteFile: TFile): Promise<MarkdownView | null> {
@@ -217,6 +228,7 @@ export class SuggestionsView extends ItemView {
     const editor = view.editor;
     let debounce: ReturnType<typeof setTimeout> | null = null;
     this.selectionEditorCallback = () => {
+      if (!this.plugin.settings.scopeToSelection) return;
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
         const sel = editor.getSelection() || "";
@@ -261,14 +273,16 @@ export class SuggestionsView extends ItemView {
 
     const content = await this.app.vault.cachedRead(file);
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    const selection = view ? view.editor.getSelection() : "";
-    const textToAnalyze = selection && selection.trim().length > 0
-      ? selection.trim()
-      : content;
-    const isSelection = selection && selection.trim().length > 0;
+    const selection = this.plugin.settings.scopeToSelection && view
+      ? view.editor.getSelection()
+      : "";
+    const isSelection = selection.trim().length > 0;
+    const textToAnalyze = isSelection ? selection.trim() : content;
 
-    // Header
-    const header = container.createDiv("portfolio-suggestions-header");
+    // Sticky top bar: title + search stay pinned as the list scrolls.
+    const stickyTop = container.createDiv("portfolio-sticky-top");
+
+    const header = stickyTop.createDiv("portfolio-suggestions-header");
     const titleEl = header.createEl("h4", { text: "Portfolio Suggestions" });
     if (isSelection) {
       titleEl.createSpan({
@@ -286,6 +300,21 @@ export class SuggestionsView extends ItemView {
       this.refresh();
     });
 
+    // Search / filter box (optional)
+    if (this.plugin.settings.showSearchBar) {
+      const searchWrap = stickyTop.createDiv("portfolio-search");
+      const searchInput = searchWrap.createEl("input", {
+        type: "text",
+        cls: "portfolio-search-input",
+        attr: { placeholder: "Filter taxa..." },
+      });
+      searchInput.value = this.searchQuery;
+      searchInput.addEventListener("input", () => {
+        this.searchQuery = searchInput.value;
+        this.applyFilter();
+      });
+    }
+
     // Linked Taxa (awaited so it renders above Unlinked Mentions)
     await this.renderLinkedTaxa(container, file);
 
@@ -301,24 +330,165 @@ export class SuggestionsView extends ItemView {
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 
     if (unlinkedMatches.length > 0) {
-      const section = container.createDiv("portfolio-section");
-      section.createEl("h5", { text: "Unlinked Mentions" });
+      const { section, keys, collapseAllBtn } = this.makeSection(container, "Unlinked Mentions");
 
       // Group by taxon
       const grouped = groupByTaxon(unlinkedMatches, this.plugin.settings.taxaMappings);
       for (const [taxon, matches] of grouped) {
         if (matches.length === 0) continue;
-        const groupEl = section.createDiv("portfolio-taxa-group");
-        groupEl.createEl("h6", {
-          text: `${taxon.prefix} ${taxon.label}`,
-          cls: "portfolio-group-label",
-        });
+        const key = `unlinked:${taxon.prefix} ${taxon.label}`;
+        keys.push(key);
+        const groupContent = this.makeTaxaGroup(section, key, `${taxon.prefix} ${taxon.label}`);
 
         for (const match of matches) {
-          this.renderUnlinkedMatch(groupEl, match, file, content);
+          this.renderUnlinkedMatch(groupContent, match, file, content);
         }
       }
+      this.wireCollapseAll(collapseAllBtn, keys);
     }
+
+    // Apply any active search filter to the freshly rendered rows.
+    this.applyFilter();
+
+    // Measure now and again next frame, once layout has flushed (offsetHeight
+    // can read 0 synchronously on the very first render).
+    this.updateStickyOffsets();
+    window.requestAnimationFrame(() => this.updateStickyOffsets());
+  }
+
+  /**
+   * Measure the pinned top bar and a section header, then publish their heights
+   * as CSS variables so the nested sticky headers (section, then category)
+   * stack flush beneath each other.
+   */
+  private updateStickyOffsets() {
+    const stickyTop = this.contentEl.querySelector<HTMLElement>(".portfolio-sticky-top");
+    if (!stickyTop) return;
+    const topH = stickyTop.offsetHeight;
+    const sectionHeader = this.contentEl.querySelector<HTMLElement>(".portfolio-section-header");
+    const sectionH = sectionHeader ? sectionHeader.offsetHeight : 0;
+    this.contentEl.style.setProperty("--ptf-sticky-top", `${topH}px`);
+    this.contentEl.style.setProperty("--ptf-sticky-section", `${topH + sectionH}px`);
+  }
+
+  /**
+   * Show only rows whose name/alias matches the search query, hiding categories
+   * that end up empty. With a query active, matching categories are expanded so
+   * hits inside collapsed groups are visible; clearing it restores collapse state.
+   */
+  private applyFilter() {
+    const query = this.searchQuery.trim().toLowerCase();
+    const groups = this.contentEl.querySelectorAll<HTMLElement>(".portfolio-taxa-group");
+    groups.forEach((group) => {
+      const content = group.querySelector<HTMLElement>(".portfolio-group-content");
+      const rows = group.querySelectorAll<HTMLElement>("[data-search]");
+      let anyVisible = false;
+      rows.forEach((row) => {
+        const show = !query || (row.dataset.search || "").includes(query);
+        row.style.display = show ? "" : "none";
+        if (show) anyVisible = true;
+      });
+
+      if (!query) {
+        group.style.display = "";
+        if (content) {
+          const collapsed = this.plugin.settings.collapsedCategories.includes(
+            group.dataset.collapseKey || ""
+          );
+          content.style.display = collapsed ? "none" : "";
+        }
+      } else {
+        group.style.display = anyVisible ? "" : "none";
+        if (content) content.style.display = anyVisible ? "" : "none";
+      }
+    });
+
+    // Hide a section heading entirely when all its categories are filtered out.
+    const sections = this.contentEl.querySelectorAll<HTMLElement>(".portfolio-section");
+    sections.forEach((section) => {
+      if (!query) {
+        section.style.display = "";
+        return;
+      }
+      const visible = Array.from(
+        section.querySelectorAll<HTMLElement>(".portfolio-taxa-group")
+      ).some((g) => g.style.display !== "none");
+      section.style.display = visible ? "" : "none";
+    });
+  }
+
+  /**
+   * Create a collapsible taxa-category group. Returns the content element that
+   * items should be appended to. Collapsed state is keyed by `key` and persisted
+   * so it survives the sidebar's frequent re-renders.
+   */
+  private makeTaxaGroup(parent: HTMLElement, key: string, labelText: string): HTMLElement {
+    const groupEl = parent.createDiv("portfolio-taxa-group");
+    groupEl.dataset.collapseKey = key;
+    const isCollapsed = this.plugin.settings.collapsedCategories.includes(key);
+
+    const header = groupEl.createDiv("portfolio-group-header portfolio-clickable");
+    const chevron = header.createSpan({ cls: "portfolio-group-chevron" });
+    setIcon(chevron, isCollapsed ? "chevron-right" : "chevron-down");
+    header.createSpan({ text: labelText, cls: "portfolio-group-label" });
+
+    const content = groupEl.createDiv("portfolio-group-content");
+    if (isCollapsed) content.style.display = "none";
+
+    header.addEventListener("click", async () => {
+      const set = new Set(this.plugin.settings.collapsedCategories);
+      const nowCollapsed = !set.has(key);
+      if (nowCollapsed) set.add(key);
+      else set.delete(key);
+      content.style.display = nowCollapsed ? "none" : "";
+      setIcon(chevron, nowCollapsed ? "chevron-right" : "chevron-down");
+      this.plugin.settings.collapsedCategories = [...set];
+      await this.plugin.saveSettings();
+    });
+
+    return content;
+  }
+
+  /**
+   * Create a section (Linked Taxa / Unlinked Mentions) with a heading and a
+   * collapse/expand-all button. Returns the section element plus a keys array
+   * to fill with each category's collapse key and the button to wire afterward.
+   */
+  private makeSection(
+    container: HTMLElement,
+    title: string
+  ): { section: HTMLElement; keys: string[]; collapseAllBtn: HTMLElement } {
+    const section = container.createDiv("portfolio-section");
+    const head = section.createDiv("portfolio-section-header");
+    head.createEl("h5", { text: title });
+    const collapseAllBtn = head.createEl("button", {
+      cls: "portfolio-collapse-all-btn",
+    });
+    return { section, keys: [], collapseAllBtn };
+  }
+
+  /**
+   * Wire a section's collapse/expand-all button. Collapses every category when
+   * any is expanded; expands every category when all are already collapsed.
+   */
+  private wireCollapseAll(btn: HTMLElement, keys: string[]) {
+    if (keys.length === 0) {
+      btn.style.display = "none";
+      return;
+    }
+    const allCollapsed = keys.every((k) =>
+      this.plugin.settings.collapsedCategories.includes(k)
+    );
+    setIcon(btn, allCollapsed ? "chevrons-up-down" : "chevrons-down-up");
+    btn.setAttribute("aria-label", allCollapsed ? "Expand all" : "Collapse all");
+    btn.addEventListener("click", async () => {
+      const set = new Set(this.plugin.settings.collapsedCategories);
+      if (allCollapsed) keys.forEach((k) => set.delete(k));
+      else keys.forEach((k) => set.add(k));
+      this.plugin.settings.collapsedCategories = [...set];
+      await this.plugin.saveSettings();
+      this.refresh();
+    });
   }
 
   private renderUnlinkedMatch(
@@ -328,6 +498,7 @@ export class SuggestionsView extends ItemView {
     fullContent: string
   ) {
     const row = container.createDiv("portfolio-suggestion-row");
+    row.dataset.search = `${match.alias} ${match.matchText}`.toLowerCase();
 
     // Top line: name + action buttons
     const top = row.createDiv("portfolio-suggestion-top");
@@ -556,20 +727,18 @@ export class SuggestionsView extends ItemView {
 
     if (!hasAny) return;
 
-    const section = container.createDiv("portfolio-section");
-    section.createEl("h5", { text: "Linked Taxa" });
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Linked Taxa");
 
     for (const [mapping, items] of grouped) {
       if (items.length === 0) continue;
 
-      const groupEl = section.createDiv("portfolio-taxa-group");
-      groupEl.createEl("h6", {
-        text: `${mapping.prefix} ${mapping.label}`,
-        cls: "portfolio-group-label",
-      });
+      const key = `linked:${mapping.prefix} ${mapping.label}`;
+      keys.push(key);
+      const groupContent = this.makeTaxaGroup(section, key, `${mapping.prefix} ${mapping.label}`);
 
       for (const item of items) {
-        const row = groupEl.createDiv("portfolio-linked-row");
+        const row = groupContent.createDiv("portfolio-linked-row");
+        row.dataset.search = `${item.displayName} ${item.link}`.toLowerCase();
         const info = row.createDiv("portfolio-linked-info");
         const nameSpan = info.createSpan({
           text: item.displayName,
@@ -613,6 +782,8 @@ export class SuggestionsView extends ItemView {
         });
       }
     }
+
+    this.wireCollapseAll(collapseAllBtn, keys);
   }
 
 }

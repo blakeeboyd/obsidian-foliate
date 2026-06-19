@@ -246,6 +246,31 @@ export class PortfolioSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Scope to selection")
+      .setDesc("When you select text in the editor, narrow the sidebar to taxa found within that selection. Turn off to always scan the whole note.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.scopeToSelection)
+          .onChange(async (value) => {
+            this.plugin.settings.scopeToSelection = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Show search bar")
+      .setDesc("Show the filter box at the top of the suggestions sidebar.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showSearchBar)
+          .onChange(async (value) => {
+            this.plugin.settings.showSearchBar = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Highlight color")
       .setDesc("Color for the jump highlight. Leave empty to use Obsidian's default highlight color.")
       .addColorPicker((picker) =>

@@ -6,7 +6,7 @@ Open it with the **Open suggestions sidebar** command, by clicking the status ba
 
 ## Sections
 
-The sidebar has two sections, top to bottom:
+The sidebar has two sections, top to bottom. Within each, every taxa category (`@ People`, `+ Concepts`, etc.) has a clickable header that collapses or expands its contents; the collapsed state persists across notes and restarts. Each section heading also has a collapse/expand-all button that toggles every category in that section at once.
 
 ### Linked Taxa
 
@@ -39,6 +39,14 @@ Matching rules:
 - Minimum term length of 2 characters
 - A file that is already linked anywhere in the note never appears under Unlinked Mentions — it is shown under Linked Taxa instead, so the same file is never listed twice. Its still-unlinked alias occurrences are surfaced there (see Linked Taxa above) when **Match aliases of linked files** is on.
 
+## Sticky headers
+
+As you scroll, the title bar, the search box, the current section heading (Linked Taxa / Unlinked Mentions), and the current category header stay pinned to the top of the panel, so you always know where you are. Hide the search box with **Show search bar** in settings.
+
+## Filtering
+
+The **Filter taxa** box at the top of the panel narrows both Linked Taxa and Unlinked Mentions to entries whose name or alias contains what you type. Categories with no remaining matches are hidden, and a matching entry inside a collapsed category is revealed while the filter is active. Clearing the box restores the full list and your collapse state.
+
 ## Refreshing
 
 The sidebar refreshes automatically when you:
@@ -51,7 +59,7 @@ Click the **↻** button in the header to refresh manually.
 
 ## Selection scoping
 
-Select text in the editor to scope the scan to just that selection. Deselect to revert to the full note.
+Select text in the editor to scope the scan to just that selection. Deselect to revert to the full note. Turn this off with **Scope to selection** in settings to always scan the whole note regardless of selection.
 
 ## Jump-to-occurrence
 
