@@ -5,7 +5,7 @@ export interface TaxaMapping {
   template?: string;
 }
 
-export interface PortfolioSettings {
+export interface EnfoliateSettings {
   taxaMappings: TaxaMapping[];
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;

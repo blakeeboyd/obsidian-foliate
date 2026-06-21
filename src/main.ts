@@ -1,7 +1,7 @@
 import { Notice, Plugin, TAbstractFile, TFile, MarkdownView } from "obsidian";
-import { PortfolioSettings } from "./types";
+import { EnfoliateSettings } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, findTaxonByPrefix } from "./taxa";
-import { PortfolioSettingTab } from "./settings";
+import { EnfoliateSettingTab } from "./settings";
 import {
   createTaxaLink,
   ensureFolderExists,
@@ -13,7 +13,7 @@ import {
   SUGGESTIONS_VIEW_TYPE,
 } from "./ui/suggestions-view";
 
-const DEFAULT_SETTINGS: PortfolioSettings = {
+const DEFAULT_SETTINGS: EnfoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
   autoMoveEnabled: true,
   createFolderIfMissing: true,
@@ -31,14 +31,14 @@ const DEFAULT_SETTINGS: PortfolioSettings = {
   highlightColor: "",
 };
 
-export default class PortfolioPlugin extends Plugin {
-  settings: PortfolioSettings = DEFAULT_SETTINGS;
+export default class EnfoliatePlugin extends Plugin {
+  settings: EnfoliateSettings = DEFAULT_SETTINGS;
   private statusBarEl: HTMLElement | null = null;
   private taxaSuggest: TaxaSuggest | null = null;
 
   async onload() {
     await this.loadSettings();
-    this.addSettingTab(new PortfolioSettingTab(this.app, this));
+    this.addSettingTab(new EnfoliateSettingTab(this.app, this));
     this.registerCommands();
     this.registerAutoMover();
     if (this.settings.editorSuggestEnabled) {
@@ -51,7 +51,7 @@ export default class PortfolioPlugin extends Plugin {
     );
     if (this.settings.statusBarEnabled) {
       this.statusBarEl = this.addStatusBarItem();
-      this.statusBarEl.addClass("portfolio-status-bar");
+      this.statusBarEl.addClass("enfoliate-status-bar");
       this.statusBarEl.addClass("mod-clickable");
       this.statusBarEl.addEventListener("click", () => {
         this.activateSuggestionsView();
@@ -76,7 +76,7 @@ export default class PortfolioPlugin extends Plugin {
 
   private registerCommands() {
     this.addCommand({
-      id: "portfolio-create-taxa-link",
+      id: "enfoliate-create-taxa-link",
       name: "Create taxa link",
       editorCallback: (editor, view) => {
         const selection = editor.getSelection();
@@ -124,7 +124,7 @@ export default class PortfolioPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "portfolio-move-current-note",
+      id: "enfoliate-move-current-note",
       name: "Move current note to taxa folder",
       callback: () => {
         const file = this.app.workspace.getActiveFile();
@@ -145,7 +145,7 @@ export default class PortfolioPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "portfolio-open-suggestions",
+      id: "enfoliate-open-suggestions",
       name: "Open suggestions sidebar",
       callback: () => {
         this.activateSuggestionsView();

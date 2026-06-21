@@ -1,7 +1,7 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "obsidian";
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
-import type PortfolioPlugin from "../main";
+import type EnfoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
 import { stripPrefix } from "../taxa";
@@ -16,7 +16,7 @@ const highlightField = StateField.define<DecorationSet>({
   update(decorations, tr) {
     for (const effect of tr.effects) {
       if (effect.is(addHighlight)) {
-        const mark = Decoration.mark({ class: "portfolio-jump-highlight" });
+        const mark = Decoration.mark({ class: "enfoliate-jump-highlight" });
         return Decoration.set([mark.range(effect.value.from, effect.value.to)]);
       }
       if (effect.is(clearHighlight)) {
@@ -28,10 +28,10 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-export const SUGGESTIONS_VIEW_TYPE = "portfolio-suggestions";
+export const SUGGESTIONS_VIEW_TYPE = "enfoliate-suggestions";
 
 export class SuggestionsView extends ItemView {
-  plugin: PortfolioPlugin;
+  plugin: EnfoliatePlugin;
   private dismissed: Set<string> = new Set();
   private currentFile: TFile | null = null;
   private selectionEditorCallback: (() => void) | null = null;
@@ -40,7 +40,7 @@ export class SuggestionsView extends ItemView {
   private stickyObserver: ResizeObserver | null = null;
   private jumpIndex: Map<string, number> = new Map();
 
-  constructor(leaf: WorkspaceLeaf, plugin: PortfolioPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: EnfoliatePlugin) {
     super(leaf);
     this.plugin = plugin;
   }
@@ -50,7 +50,7 @@ export class SuggestionsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Portfolio: Suggestions";
+    return "Enfoliate: Suggestions";
   }
 
   getIcon(): string {
@@ -192,11 +192,11 @@ export class SuggestionsView extends ItemView {
       const highlights = (CSS as any).highlights;
       if (!HighlightCtor || !highlights) return;
       const color = this.plugin.settings.highlightColor;
-      if (color) document.body.style.setProperty("--portfolio-highlight-color", color);
-      highlights.set("portfolio-jump", new HighlightCtor(target));
+      if (color) document.body.style.setProperty("--enfoliate-highlight-color", color);
+      highlights.set("enfoliate-jump", new HighlightCtor(target));
       window.setTimeout(() => {
-        highlights.delete("portfolio-jump");
-        if (color) document.body.style.removeProperty("--portfolio-highlight-color");
+        highlights.delete("enfoliate-jump");
+        if (color) document.body.style.removeProperty("--enfoliate-highlight-color");
       }, this.highlightMs());
     };
 
@@ -373,10 +373,10 @@ export class SuggestionsView extends ItemView {
     const el = cm.dom.closest(".cm-editor") as HTMLElement | null;
     if (el) {
       el.style.setProperty(
-        "--portfolio-highlight-duration",
+        "--enfoliate-highlight-duration",
         `${this.plugin.settings.highlightDurationSeconds}s`
       );
-      if (color) el.style.setProperty("--portfolio-highlight-color", color);
+      if (color) el.style.setProperty("--enfoliate-highlight-color", color);
     }
 
     cm.dispatch({ effects: addHighlight.of({ from: fromOffset, to: toOffset }) });
@@ -384,8 +384,8 @@ export class SuggestionsView extends ItemView {
     setTimeout(() => {
       cm.dispatch({ effects: clearHighlight.of(null) });
       if (el) {
-        el.style.removeProperty("--portfolio-highlight-duration");
-        if (color) el.style.removeProperty("--portfolio-highlight-color");
+        el.style.removeProperty("--enfoliate-highlight-duration");
+        if (color) el.style.removeProperty("--enfoliate-highlight-color");
       }
     }, this.highlightMs());
   }
@@ -449,7 +449,7 @@ export class SuggestionsView extends ItemView {
     if (!file) {
       container.createEl("p", {
         text: "Open a note to see suggestions.",
-        cls: "portfolio-empty-state",
+        cls: "enfoliate-empty-state",
       });
       return;
     }
@@ -463,19 +463,19 @@ export class SuggestionsView extends ItemView {
     const textToAnalyze = isSelection ? selection.trim() : content;
 
     // Sticky top bar: title + search stay pinned as the list scrolls.
-    const stickyTop = container.createDiv("portfolio-sticky-top");
+    const stickyTop = container.createDiv("enfoliate-sticky-top");
 
-    const header = stickyTop.createDiv("portfolio-suggestions-header");
-    const titleEl = header.createEl("h4", { text: "Portfolio Suggestions" });
+    const header = stickyTop.createDiv("enfoliate-suggestions-header");
+    const titleEl = header.createEl("h4", { text: "Enfoliate Suggestions" });
     if (isSelection) {
       titleEl.createSpan({
         text: " (selection)",
-        cls: "portfolio-scope-indicator",
+        cls: "enfoliate-scope-indicator",
       });
     }
 
     const refreshBtn = header.createEl("button", {
-      cls: "portfolio-refresh-btn",
+      cls: "enfoliate-refresh-btn",
       attr: { "aria-label": "Refresh" },
     });
     setIcon(refreshBtn, "refresh-cw");
@@ -485,10 +485,10 @@ export class SuggestionsView extends ItemView {
 
     // Search / filter box (optional)
     if (this.plugin.settings.showSearchBar) {
-      const searchWrap = stickyTop.createDiv("portfolio-search");
+      const searchWrap = stickyTop.createDiv("enfoliate-search");
       const searchInput = searchWrap.createEl("input", {
         type: "text",
-        cls: "portfolio-search-input",
+        cls: "enfoliate-search-input",
         attr: { placeholder: "Filter taxa..." },
       });
       searchInput.value = this.searchQuery;
@@ -545,10 +545,10 @@ export class SuggestionsView extends ItemView {
    * stack flush beneath each other.
    */
   private updateStickyOffsets() {
-    const stickyTop = this.contentEl.querySelector<HTMLElement>(".portfolio-sticky-top");
+    const stickyTop = this.contentEl.querySelector<HTMLElement>(".enfoliate-sticky-top");
     if (!stickyTop) return;
     const topH = stickyTop.offsetHeight;
-    const sectionHeader = this.contentEl.querySelector<HTMLElement>(".portfolio-section-header");
+    const sectionHeader = this.contentEl.querySelector<HTMLElement>(".enfoliate-section-header");
     const sectionH = sectionHeader ? sectionHeader.offsetHeight : 0;
     this.contentEl.style.setProperty("--ptf-sticky-top", `${topH}px`);
     this.contentEl.style.setProperty("--ptf-sticky-section", `${topH + sectionH}px`);
@@ -561,9 +561,9 @@ export class SuggestionsView extends ItemView {
    */
   private applyFilter() {
     const query = this.searchQuery.trim().toLowerCase();
-    const groups = this.contentEl.querySelectorAll<HTMLElement>(".portfolio-taxa-group");
+    const groups = this.contentEl.querySelectorAll<HTMLElement>(".enfoliate-taxa-group");
     groups.forEach((group) => {
-      const content = group.querySelector<HTMLElement>(".portfolio-group-content");
+      const content = group.querySelector<HTMLElement>(".enfoliate-group-content");
       const rows = group.querySelectorAll<HTMLElement>("[data-search]");
       let anyVisible = false;
       rows.forEach((row) => {
@@ -587,14 +587,14 @@ export class SuggestionsView extends ItemView {
     });
 
     // Hide a section heading entirely when all its categories are filtered out.
-    const sections = this.contentEl.querySelectorAll<HTMLElement>(".portfolio-section");
+    const sections = this.contentEl.querySelectorAll<HTMLElement>(".enfoliate-section");
     sections.forEach((section) => {
       if (!query) {
         section.style.display = "";
         return;
       }
       const visible = Array.from(
-        section.querySelectorAll<HTMLElement>(".portfolio-taxa-group")
+        section.querySelectorAll<HTMLElement>(".enfoliate-taxa-group")
       ).some((g) => g.style.display !== "none");
       section.style.display = visible ? "" : "none";
     });
@@ -606,16 +606,16 @@ export class SuggestionsView extends ItemView {
    * so it survives the sidebar's frequent re-renders.
    */
   private makeTaxaGroup(parent: HTMLElement, key: string, labelText: string): HTMLElement {
-    const groupEl = parent.createDiv("portfolio-taxa-group");
+    const groupEl = parent.createDiv("enfoliate-taxa-group");
     groupEl.dataset.collapseKey = key;
     const isCollapsed = this.plugin.settings.collapsedCategories.includes(key);
 
-    const header = groupEl.createDiv("portfolio-group-header portfolio-clickable");
-    const chevron = header.createSpan({ cls: "portfolio-group-chevron" });
+    const header = groupEl.createDiv("enfoliate-group-header enfoliate-clickable");
+    const chevron = header.createSpan({ cls: "enfoliate-group-chevron" });
     setIcon(chevron, isCollapsed ? "chevron-right" : "chevron-down");
-    header.createSpan({ text: labelText, cls: "portfolio-group-label" });
+    header.createSpan({ text: labelText, cls: "enfoliate-group-label" });
 
-    const content = groupEl.createDiv("portfolio-group-content");
+    const content = groupEl.createDiv("enfoliate-group-content");
     if (isCollapsed) content.style.display = "none";
 
     header.addEventListener("click", async () => {
@@ -641,11 +641,11 @@ export class SuggestionsView extends ItemView {
     container: HTMLElement,
     title: string
   ): { section: HTMLElement; keys: string[]; collapseAllBtn: HTMLElement } {
-    const section = container.createDiv("portfolio-section");
-    const head = section.createDiv("portfolio-section-header");
+    const section = container.createDiv("enfoliate-section");
+    const head = section.createDiv("enfoliate-section-header");
     head.createEl("h5", { text: title });
     const collapseAllBtn = head.createEl("button", {
-      cls: "portfolio-collapse-all-btn",
+      cls: "enfoliate-collapse-all-btn",
     });
     return { section, keys: [], collapseAllBtn };
   }
@@ -680,26 +680,26 @@ export class SuggestionsView extends ItemView {
     noteFile: TFile,
     fullContent: string
   ) {
-    const row = container.createDiv("portfolio-suggestion-row");
+    const row = container.createDiv("enfoliate-suggestion-row");
     row.dataset.search = `${match.alias} ${match.matchText}`.toLowerCase();
 
     // Top line: name + action buttons
-    const top = row.createDiv("portfolio-suggestion-top");
+    const top = row.createDiv("enfoliate-suggestion-top");
 
-    const info = top.createDiv("portfolio-suggestion-info");
+    const info = top.createDiv("enfoliate-suggestion-info");
     const nameSpan = info.createSpan({
       text: match.alias,
-      cls: "portfolio-match-text portfolio-clickable",
+      cls: "enfoliate-match-text enfoliate-clickable",
     });
     nameSpan.addEventListener("click", () => {
       this.jumpToOccurrence(match.filePath, match.positions, fullContent, noteFile, match.matchText.length);
     });
 
-    const actions = top.createDiv("portfolio-suggestion-actions");
+    const actions = top.createDiv("enfoliate-suggestion-actions");
 
     // Link button (replace first occurrence)
     const linkBtn = actions.createEl("button", {
-      cls: "portfolio-action-btn",
+      cls: "enfoliate-action-btn",
       attr: { "aria-label": "Link" },
     });
     setIcon(linkBtn, "replace");
@@ -710,7 +710,7 @@ export class SuggestionsView extends ItemView {
     // Link all button (if multiple occurrences)
     if (match.positions.length > 1) {
       const linkAllBtn = actions.createEl("button", {
-        cls: "portfolio-action-btn",
+        cls: "enfoliate-action-btn",
         attr: { "aria-label": "Link all" },
       });
       setIcon(linkAllBtn, "replace-all");
@@ -721,7 +721,7 @@ export class SuggestionsView extends ItemView {
 
     // Ignore button (blocklist permanently)
     const ignoreBtn = actions.createEl("button", {
-      cls: "portfolio-action-btn",
+      cls: "enfoliate-action-btn",
       attr: { "aria-label": "Always ignore" },
     });
     setIcon(ignoreBtn, "eye-off");
@@ -733,7 +733,7 @@ export class SuggestionsView extends ItemView {
 
     // Dismiss button (hide for this session)
     const dismissBtn = actions.createEl("button", {
-      cls: "portfolio-dismiss-btn",
+      cls: "enfoliate-dismiss-btn",
       attr: { "aria-label": "Dismiss" },
     });
     setIcon(dismissBtn, "x");
@@ -743,10 +743,10 @@ export class SuggestionsView extends ItemView {
     });
 
     // Bottom line: metadata
-    const meta = row.createDiv("portfolio-suggestion-meta");
+    const meta = row.createDiv("enfoliate-suggestion-meta");
     meta.createSpan({
       text: `(${match.positions.length} ${match.positions.length > 1 ? "mentions" : "mention"})`,
-      cls: "portfolio-meta-chunk",
+      cls: "enfoliate-meta-chunk",
     });
   }
 
@@ -920,12 +920,12 @@ export class SuggestionsView extends ItemView {
       const groupContent = this.makeTaxaGroup(section, key, `${mapping.prefix} ${mapping.label}`);
 
       for (const item of items) {
-        const row = groupContent.createDiv("portfolio-linked-row");
+        const row = groupContent.createDiv("enfoliate-linked-row");
         row.dataset.search = `${item.displayName} ${item.link}`.toLowerCase();
-        const info = row.createDiv("portfolio-linked-info");
+        const info = row.createDiv("enfoliate-linked-info");
         const nameSpan = info.createSpan({
           text: item.displayName,
-          cls: "portfolio-linked-name portfolio-clickable",
+          cls: "enfoliate-linked-name enfoliate-clickable",
         });
         if (item.positions.length > 0) {
           const jumpKey = `linked:${item.link}`;
@@ -937,15 +937,15 @@ export class SuggestionsView extends ItemView {
               item.unlinkedCount > 0
                 ? ` (${item.positions.length}, ${item.unlinkedCount} unlinked)`
                 : ` (${item.positions.length})`,
-            cls: "portfolio-match-count",
+            cls: "enfoliate-match-count",
           });
         }
 
-        const linkedActions = row.createDiv("portfolio-linked-actions");
+        const linkedActions = row.createDiv("enfoliate-linked-actions");
 
         // Go to file button
         const goBtn = linkedActions.createEl("button", {
-          cls: "portfolio-go-btn",
+          cls: "enfoliate-go-btn",
           attr: { "aria-label": "Open taxa file" },
         });
         setIcon(goBtn, "external-link");
@@ -956,7 +956,7 @@ export class SuggestionsView extends ItemView {
 
         // Unlink button
         const unlinkBtn = linkedActions.createEl("button", {
-          cls: "portfolio-unlink-btn",
+          cls: "enfoliate-unlink-btn",
           attr: { "aria-label": "Unlink" },
         });
         setIcon(unlinkBtn, "unlink");

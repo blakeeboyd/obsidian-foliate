@@ -1,16 +1,16 @@
-# CLAUDE.md — obsidian-portfolio
+# CLAUDE.md — obsidian-enfoliate
 
 ## Project Locations
 
-- **Source code:** `/Users/harrisgb/Documents/GitHub/obsidian-portfolio/`
-- **Deployed plugin:** `/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-portfolio/`
+- **Source code:** `/Users/harrisgb/Documents/GitHub/obsidian-enfoliate/`
+- **Deployed plugin:** `/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-enfoliate/`
 
 ## Build & Deploy
 
 ```bash
-cd /Users/harrisgb/Documents/GitHub/obsidian-portfolio
+cd /Users/harrisgb/Documents/GitHub/obsidian-enfoliate
 npm run build
-cp main.js /Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-portfolio/main.js
+cp main.js /Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-enfoliate/main.js
 ```
 
 After copying, disable and re-enable the plugin in Obsidian (Settings > Community plugins) to pick up changes.

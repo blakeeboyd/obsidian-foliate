@@ -1,5 +1,5 @@
 import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, TFile, TFolder } from "obsidian";
-import type PortfolioPlugin from "./main";
+import type EnfoliatePlugin from "./main";
 import { TaxaMapping } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
 
@@ -38,10 +38,10 @@ class ConfirmModal extends Modal {
 }
 
 class BlocklistModal extends Modal {
-  private plugin: PortfolioPlugin;
+  private plugin: EnfoliatePlugin;
   private onChangeCb?: () => void;
 
-  constructor(app: App, plugin: PortfolioPlugin, onChange?: () => void) {
+  constructor(app: App, plugin: EnfoliatePlugin, onChange?: () => void) {
     super(app);
     this.plugin = plugin;
     this.onChangeCb = onChange;
@@ -61,7 +61,7 @@ class BlocklistModal extends Modal {
       cls: "setting-item-description",
     });
 
-    const addRow = contentEl.createDiv("portfolio-blocklist-add");
+    const addRow = contentEl.createDiv("enfoliate-blocklist-add");
     const input = addRow.createEl("input", {
       type: "text",
       placeholder: "Add a term to block",
@@ -82,7 +82,7 @@ class BlocklistModal extends Modal {
       if (e.key === "Enter") addTerm();
     });
 
-    const list = contentEl.createDiv("portfolio-blocklist");
+    const list = contentEl.createDiv("enfoliate-blocklist");
     const blocklist = this.plugin.settings.blocklist;
 
     if (blocklist.length === 0) {
@@ -92,7 +92,7 @@ class BlocklistModal extends Modal {
       });
     } else {
       for (let i = 0; i < blocklist.length; i++) {
-        const row = list.createDiv("portfolio-blocklist-row");
+        const row = list.createDiv("enfoliate-blocklist-row");
         row.createSpan({ text: blocklist[i] });
         const deleteBtn = row.createEl("button", { text: "✕" });
         deleteBtn.addEventListener("click", async () => {
@@ -161,10 +161,10 @@ class FileSuggest extends AbstractInputSuggest<TFile> {
   }
 }
 
-export class PortfolioSettingTab extends PluginSettingTab {
-  plugin: PortfolioPlugin;
+export class EnfoliateSettingTab extends PluginSettingTab {
+  plugin: EnfoliatePlugin;
 
-  constructor(app: App, plugin: PortfolioPlugin) {
+  constructor(app: App, plugin: EnfoliatePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -186,7 +186,7 @@ export class PortfolioSettingTab extends PluginSettingTab {
     });
     attribution.appendText(". Define prefix characters and their target folders. Files starting with a prefix will be auto-moved to the corresponding folder. Optionally set a template file per taxa; new files of that type start from the template, with {{title}}, {{prefix}}, and {{label}} substituted.");
 
-    const mappingsContainer = containerEl.createDiv("portfolio-taxa-mappings");
+    const mappingsContainer = containerEl.createDiv("enfoliate-taxa-mappings");
     this.renderTaxaMappings(mappingsContainer);
 
     new Setting(containerEl)
@@ -419,7 +419,7 @@ export class PortfolioSettingTab extends PluginSettingTab {
     container.empty();
     this.plugin.settings.taxaMappings.forEach(
       (mapping: TaxaMapping, index: number) => {
-        const row = container.createDiv("portfolio-taxa-row");
+        const row = container.createDiv("enfoliate-taxa-row");
         row.style.display = "flex";
         row.style.flexWrap = "wrap";
         row.style.gap = "8px";

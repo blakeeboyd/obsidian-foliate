@@ -1,6 +1,6 @@
 # Navigation
 
-Portfolio provides several ways to move between your notes and find where entities are mentioned.
+Enfoliate provides several ways to move between your notes and find where entities are mentioned.
 
 ## Status bar
 
@@ -8,7 +8,7 @@ The status bar shows a compact count of taxa links in the active note. For examp
 
 Click the status bar to open the suggestions sidebar.
 
-The status bar updates automatically when you switch files. Toggle it in **Settings → Portfolio → Show status bar** (requires plugin reload).
+The status bar updates automatically when you switch files. Toggle it in **Settings → Enfoliate → Show status bar** (requires plugin reload).
 
 ## Jump-to-occurrence
 
@@ -31,13 +31,13 @@ Clicking repeatedly cycles through all occurrences. When you reach the last one,
 The jump highlight is a brief visual pulse that draws your eye to where the cursor landed.
 
 - **Default color:** yellow (`rgba(255, 215, 0, 0.45)`)
-- **Custom color:** set any color via the color picker in Settings → Portfolio
+- **Custom color:** set any color via the color picker in Settings → Enfoliate
 - **Duration:** holds for 1.5 seconds, then fades over 1 second
 - **Wikilinks:** when jumping to a `[[link|alias]]`, the highlight covers the entire wikilink, not just the alias text
 
 The highlight uses a CSS animation on `background-color`, so the text itself stays fully visible throughout the fade.
 
-Toggle the highlight in **Settings → Portfolio → Highlight on jump**.
+Toggle the highlight in **Settings → Enfoliate → Highlight on jump**.
 
 ## File navigation
 

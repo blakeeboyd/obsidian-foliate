@@ -1,8 +1,8 @@
-# Portfolio
+# Enfoliate
 
 Taxa-based knowledge organization for [Obsidian](https://obsidian.md). Inspired by [Stowe Boyd's Portfolio system](https://stoweboyd.com/).
 
-Portfolio uses prefix characters to classify knowledge files by type. Each prefix maps to a folder, so files are automatically organized as you create and link them.
+Enfoliate uses prefix characters to classify knowledge files by type. Each prefix maps to a folder, so files are automatically organized as you create and link them.
 
 ## Default taxa
 
@@ -22,9 +22,9 @@ All prefixes, labels, and folders are configurable in settings. [Full taxa syste
 
 ### Smart linking
 
-Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Portfolio creates the file in the right folder and replaces the selection with a wikilink. If no prefix is detected, a picker modal lets you choose the taxa type.
+Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Enfoliate creates the file in the right folder and replaces the selection with a wikilink. If no prefix is detected, a picker modal lets you choose the taxa type.
 
-Portfolio also provides real-time **editor autocomplete** — type a prefix character followed by a few letters to get suggestions from existing taxa files.
+Enfoliate also provides real-time **editor autocomplete** — type a prefix character followed by a few letters to get suggestions from existing taxa files.
 
 [Smart linking docs →](docs/smart-linking.md)
 
@@ -37,7 +37,7 @@ A sidebar panel with two sections for the active note:
 
 The sidebar refreshes on file switch, content edits, and selection changes. Select text to scope the scan to just that selection.
 
-> **Quote numeric aliases.** YAML reads an unquoted alias like `5.1` or `2024` as a number, not text. Portfolio ignores non-string aliases so they can't break matching — which also means they won't be searched. Quote them in frontmatter to keep them working as aliases:
+> **Quote numeric aliases.** YAML reads an unquoted alias like `5.1` or `2024` as a number, not text. Enfoliate ignores non-string aliases so they can't break matching — which also means they won't be searched. Quote them in frontmatter to keep them working as aliases:
 >
 > ```yaml
 > aliases:
@@ -73,26 +73,26 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 
 1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
 2. In BRAT settings, click "Add Beta plugin"
-3. Enter: `blakeeboyd/obsidian-portfolio`
+3. Enter: `blakeeboyd/obsidian-enfoliate`
 4. Enable the plugin in Obsidian settings
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/blakeeboyd/obsidian-portfolio/releases/latest)
-2. Create a folder `.obsidian/plugins/obsidian-portfolio/` in your vault
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/blakeeboyd/obsidian-enfoliate/releases/latest)
+2. Create a folder `.obsidian/plugins/obsidian-enfoliate/` in your vault
 3. Copy the three files into that folder
 4. Enable the plugin in Obsidian settings
 
 ### From source
 
 ```bash
-git clone https://github.com/blakeeboyd/obsidian-portfolio.git
-cd obsidian-portfolio
+git clone https://github.com/blakeeboyd/obsidian-enfoliate.git
+cd obsidian-enfoliate
 npm install
 npm run build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-portfolio/` folder.
+Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-enfoliate/` folder.
 
 ## Settings
 

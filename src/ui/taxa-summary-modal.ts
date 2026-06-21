@@ -18,7 +18,7 @@ export class TaxaSummaryModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.addClass("portfolio-taxa-summary");
+    contentEl.addClass("enfoliate-taxa-summary");
     contentEl.createEl("h2", { text: `Taxa in ${this.file.basename}` });
 
     const cache = this.app.metadataCache.getFileCache(this.file);
@@ -51,7 +51,7 @@ export class TaxaSummaryModal extends Modal {
       if (taxaLinks.length === 0) continue;
       hasAny = true;
 
-      const section = contentEl.createDiv("portfolio-summary-section");
+      const section = contentEl.createDiv("enfoliate-summary-section");
       section.createEl("h4", {
         text: `${mapping.prefix} ${mapping.label} (${taxaLinks.length})`,
       });
@@ -61,7 +61,7 @@ export class TaxaSummaryModal extends Modal {
         const li = list.createEl("li");
         const a = li.createEl("a", {
           text: taxaLink.displayName,
-          cls: "portfolio-summary-link",
+          cls: "enfoliate-summary-link",
         });
         a.addEventListener("click", (e) => {
           e.preventDefault();
@@ -74,7 +74,7 @@ export class TaxaSummaryModal extends Modal {
     if (!hasAny) {
       contentEl.createEl("p", {
         text: "No taxa links in this note.",
-        cls: "portfolio-empty-state",
+        cls: "enfoliate-empty-state",
       });
     }
   }

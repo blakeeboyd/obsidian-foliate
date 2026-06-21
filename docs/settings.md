@@ -1,6 +1,6 @@
 # Settings Reference
 
-All settings are in **Settings → Portfolio**.
+All settings are in **Settings → Enfoliate**.
 
 ## Taxa Mappings
 

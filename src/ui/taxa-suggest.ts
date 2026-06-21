@@ -7,7 +7,7 @@ import {
   EditorSuggestTriggerInfo,
   TFile,
 } from "obsidian";
-import { PortfolioSettings, TaxaMapping } from "../types";
+import { EnfoliateSettings, TaxaMapping } from "../types";
 import { stripPrefix } from "../taxa";
 
 interface TaxaSuggestion {
@@ -17,9 +17,9 @@ interface TaxaSuggestion {
 }
 
 export class TaxaSuggest extends EditorSuggest<TaxaSuggestion> {
-  private settings: PortfolioSettings;
+  private settings: EnfoliateSettings;
 
-  constructor(app: App, settings: PortfolioSettings) {
+  constructor(app: App, settings: EnfoliateSettings) {
     super(app);
     this.settings = settings;
   }
@@ -97,15 +97,15 @@ export class TaxaSuggest extends EditorSuggest<TaxaSuggestion> {
   }
 
   renderSuggestion(suggestion: TaxaSuggestion, el: HTMLElement): void {
-    const container = el.createDiv("portfolio-suggest-item");
+    const container = el.createDiv("enfoliate-suggest-item");
     container.createSpan({
       text: suggestion.taxon.prefix,
-      cls: "portfolio-suggest-prefix",
+      cls: "enfoliate-suggest-prefix",
     });
     container.createSpan({ text: " " });
     container.createSpan({
       text: suggestion.alias,
-      cls: "portfolio-suggest-name",
+      cls: "enfoliate-suggest-name",
     });
   }
 

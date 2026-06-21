@@ -1,11 +1,11 @@
-/* Portfolio Plugin Styles */
+/* Enfoliate Plugin Styles */
 
 /* Suggestions Sidebar */
-.workspace-leaf-content[data-type="portfolio-suggestions"] .view-content {
+.workspace-leaf-content[data-type="enfoliate-suggestions"] .view-content {
   padding: 0;
 }
 
-.portfolio-sticky-top {
+.enfoliate-sticky-top {
   position: sticky;
   top: 0;
   z-index: 30;
@@ -13,14 +13,14 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.portfolio-suggestions-header {
+.enfoliate-suggestions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
 }
 
-.portfolio-section-header {
+.enfoliate-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,7 +31,7 @@
   padding: 8px 12px 2px 12px;
 }
 
-.portfolio-collapse-all-btn {
+.enfoliate-collapse-all-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -43,36 +43,36 @@
   color: var(--text-muted);
 }
 
-.portfolio-collapse-all-btn:hover {
+.enfoliate-collapse-all-btn:hover {
   color: var(--text-normal);
 }
 
-.portfolio-collapse-all-btn svg {
+.enfoliate-collapse-all-btn svg {
   width: 15px;
   height: 15px;
 }
 
-.portfolio-search {
+.enfoliate-search {
   padding: 8px 12px 4px 12px;
 }
 
-.portfolio-search-input {
+.enfoliate-search-input {
   width: 100%;
   font-size: 12px;
 }
 
-.portfolio-suggestions-header h4 {
+.enfoliate-suggestions-header h4 {
   margin: 0;
   font-size: 14px;
 }
 
-.portfolio-scope-indicator {
+.enfoliate-scope-indicator {
   font-size: 11px;
   color: var(--text-muted);
   font-style: italic;
 }
 
-.portfolio-refresh-btn {
+.enfoliate-refresh-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -83,12 +83,12 @@
   align-items: center;
 }
 
-.portfolio-refresh-btn:hover {
+.enfoliate-refresh-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.portfolio-refresh-btn svg {
+.enfoliate-refresh-btn svg {
   width: 14px;
   height: 14px;
 }
@@ -96,11 +96,11 @@
 /* Wrappers use display:contents so their children (the headers) are direct
    layout children of the scrolling content element, which is what lets
    position:sticky engage for the nested section and category headers. */
-.portfolio-section {
+.enfoliate-section {
   display: contents;
 }
 
-.portfolio-section h5 {
+.enfoliate-section h5 {
   margin: 0;
   font-size: 11px;
   text-transform: uppercase;
@@ -108,16 +108,16 @@
   color: var(--text-muted);
 }
 
-.portfolio-taxa-group {
+.enfoliate-taxa-group {
   display: contents;
 }
 
-.portfolio-group-content {
+.enfoliate-group-content {
   padding: 0 12px;
   margin-bottom: 8px;
 }
 
-.portfolio-group-header {
+.enfoliate-group-header {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -130,22 +130,22 @@
   padding: 4px 12px 2px 12px;
 }
 
-.portfolio-group-header:hover .portfolio-group-label {
+.enfoliate-group-header:hover .enfoliate-group-label {
   color: var(--text-normal);
 }
 
-.portfolio-group-chevron {
+.enfoliate-group-chevron {
   display: inline-flex;
   align-items: center;
   color: var(--text-faint);
 }
 
-.portfolio-group-chevron svg {
+.enfoliate-group-chevron svg {
   width: 13px;
   height: 13px;
 }
 
-.portfolio-group-label {
+.enfoliate-group-label {
   margin: 0;
   font-size: 10px;
   font-weight: 600;
@@ -155,67 +155,67 @@
 }
 
 /* Suggestion rows: stacked layout */
-.portfolio-suggestion-row {
+.enfoliate-suggestion-row {
   padding: 4px 8px;
   border-radius: 4px;
   margin-bottom: 2px;
 }
 
-.portfolio-suggestion-row:hover {
+.enfoliate-suggestion-row:hover {
   background: var(--background-modifier-hover);
 }
 
-.portfolio-suggestion-top {
+.enfoliate-suggestion-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.portfolio-suggestion-info {
+.enfoliate-suggestion-info {
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 
-.portfolio-match-text {
+.enfoliate-match-text {
   font-weight: 500;
   font-size: 13px;
 }
 
-.portfolio-clickable {
+.enfoliate-clickable {
   cursor: pointer;
 }
 
-.portfolio-clickable:hover {
+.enfoliate-clickable:hover {
   text-decoration: underline;
   color: var(--text-accent);
 }
 
-.portfolio-suggestion-meta {
+.enfoliate-suggestion-meta {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 1px;
 }
 
-.portfolio-meta-chunk {
+.enfoliate-meta-chunk {
   white-space: nowrap;
   display: inline;
 }
 
-.portfolio-match-count {
+.enfoliate-match-count {
   display: block;
   font-size: 11px;
   color: var(--text-muted);
 }
 
-.portfolio-suggestion-actions {
+.enfoliate-suggestion-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
   align-items: center;
 }
 
-.portfolio-action-btn {
+.enfoliate-action-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -226,17 +226,17 @@
   align-items: center;
 }
 
-.portfolio-action-btn:hover {
+.enfoliate-action-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-accent);
 }
 
-.portfolio-action-btn svg {
+.enfoliate-action-btn svg {
   width: 14px;
   height: 14px;
 }
 
-.portfolio-link-all-btn {
+.enfoliate-link-all-btn {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 4px;
@@ -246,12 +246,12 @@
   color: var(--text-muted);
 }
 
-.portfolio-link-all-btn:hover {
+.enfoliate-link-all-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.portfolio-dismiss-btn {
+.enfoliate-dismiss-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -262,17 +262,17 @@
   align-items: center;
 }
 
-.portfolio-dismiss-btn:hover {
+.enfoliate-dismiss-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.portfolio-dismiss-btn svg {
+.enfoliate-dismiss-btn svg {
   width: 12px;
   height: 12px;
 }
 
-.portfolio-empty-state {
+.enfoliate-empty-state {
   font-size: 12px;
   color: var(--text-muted);
   font-style: italic;
@@ -280,7 +280,7 @@
 }
 
 /* Linked Taxa */
-.portfolio-linked-row {
+.enfoliate-linked-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -288,29 +288,29 @@
   border-radius: 4px;
 }
 
-.portfolio-linked-row:hover {
+.enfoliate-linked-row:hover {
   background: var(--background-modifier-hover);
 }
 
-.portfolio-linked-info {
+.enfoliate-linked-info {
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 
-.portfolio-linked-name {
+.enfoliate-linked-name {
   font-size: 13px;
   font-weight: 500;
 }
 
-.portfolio-linked-actions {
+.enfoliate-linked-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
   align-items: center;
 }
 
-.portfolio-go-btn {
+.enfoliate-go-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -321,17 +321,17 @@
   align-items: center;
 }
 
-.portfolio-go-btn:hover {
+.enfoliate-go-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-accent);
 }
 
-.portfolio-go-btn svg {
+.enfoliate-go-btn svg {
   width: 14px;
   height: 14px;
 }
 
-.portfolio-unlink-btn {
+.enfoliate-unlink-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -342,61 +342,61 @@
   align-items: center;
 }
 
-.portfolio-unlink-btn:hover {
+.enfoliate-unlink-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-error);
 }
 
-.portfolio-unlink-btn svg {
+.enfoliate-unlink-btn svg {
   width: 14px;
   height: 14px;
 }
 
 /* Jump Highlight */
-.portfolio-jump-highlight {
-  background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45));
+.enfoliate-jump-highlight {
+  background-color: var(--enfoliate-highlight-color, rgba(255, 215, 0, 0.45));
   border-radius: 2px;
-  animation: portfolio-highlight-fade var(--portfolio-highlight-duration, 2.5s) ease-out forwards;
+  animation: enfoliate-highlight-fade var(--enfoliate-highlight-duration, 2.5s) ease-out forwards;
 }
 
-@keyframes portfolio-highlight-fade {
-  0% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
-  60% { background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45)); }
+@keyframes enfoliate-highlight-fade {
+  0% { background-color: var(--enfoliate-highlight-color, rgba(255, 215, 0, 0.45)); }
+  60% { background-color: var(--enfoliate-highlight-color, rgba(255, 215, 0, 0.45)); }
   100% { background-color: transparent; }
 }
 
 /* Jump Highlight (reading mode — precise matched text via Custom Highlight API) */
-::highlight(portfolio-jump) {
-  background-color: var(--portfolio-highlight-color, rgba(255, 215, 0, 0.45));
+::highlight(enfoliate-jump) {
+  background-color: var(--enfoliate-highlight-color, rgba(255, 215, 0, 0.45));
   color: var(--text-normal);
 }
 
 /* Status Bar */
-.portfolio-status-bar {
+.enfoliate-status-bar {
   cursor: pointer;
 }
 
-.portfolio-status-bar:hover {
+.enfoliate-status-bar:hover {
   color: var(--text-normal);
 }
 
 /* Suggest Items */
-.portfolio-suggest-item {
+.enfoliate-suggest-item {
   display: flex;
   align-items: center;
 }
 
-.portfolio-suggest-prefix {
+.enfoliate-suggest-prefix {
   color: var(--text-muted);
   font-size: 12px;
   width: 16px;
 }
 
-.portfolio-suggest-name {
+.enfoliate-suggest-name {
   font-weight: 500;
 }
 
-.portfolio-ignore-btn {
+.enfoliate-ignore-btn {
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 4px;
@@ -406,31 +406,31 @@
   color: var(--text-muted);
 }
 
-.portfolio-ignore-btn:hover {
+.enfoliate-ignore-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
 /* Settings */
-.portfolio-taxa-mappings {
+.enfoliate-taxa-mappings {
   margin-bottom: 8px;
 }
 
-.portfolio-blocklist {
+.enfoliate-blocklist {
   margin-bottom: 8px;
 }
 
-.portfolio-blocklist-add {
+.enfoliate-blocklist-add {
   display: flex;
   gap: 8px;
   margin: 12px 0;
 }
 
-.portfolio-blocklist-add input {
+.enfoliate-blocklist-add input {
   flex: 1;
 }
 
-.portfolio-blocklist-row {
+.enfoliate-blocklist-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -439,11 +439,11 @@
   margin-bottom: 2px;
 }
 
-.portfolio-blocklist-row:hover {
+.enfoliate-blocklist-row:hover {
   background: var(--background-modifier-hover);
 }
 
-.portfolio-blocklist-row button {
+.enfoliate-blocklist-row button {
   background: none;
   border: none;
   cursor: pointer;
@@ -451,11 +451,11 @@
   padding: 2px 4px;
 }
 
-.portfolio-blocklist-row button:hover {
+.enfoliate-blocklist-row button:hover {
   color: var(--text-normal);
 }
 
-.portfolio-taxa-row input {
+.enfoliate-taxa-row input {
   border: 1px solid var(--background-modifier-border);
   border-radius: 4px;
   padding: 4px 8px;

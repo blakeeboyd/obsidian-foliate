@@ -1,6 +1,6 @@
 # Smart Linking
 
-Portfolio provides several ways to create taxa links without manually typing wikilinks or managing files.
+Enfoliate provides several ways to create taxa links without manually typing wikilinks or managing files.
 
 ## Create taxa link (command)
 
@@ -9,11 +9,11 @@ Portfolio provides several ways to create taxa links without manually typing wik
 
 What happens next depends on whether the selected text starts with a known taxa prefix:
 
-**Prefix detected:** Portfolio creates the file in the correct folder (if it doesn't already exist), adds the clean name as a frontmatter alias, and replaces the selection with a wikilink like `[[+Metaphor|Metaphor]]`.
+**Prefix detected:** Enfoliate creates the file in the correct folder (if it doesn't already exist), adds the clean name as a frontmatter alias, and replaces the selection with a wikilink like `[[+Metaphor|Metaphor]]`.
 
-**No prefix detected:** A picker modal opens listing all configured taxa types. Choose one, and Portfolio creates the file with the appropriate prefix and replaces the selection with a wikilink.
+**No prefix detected:** A picker modal opens listing all configured taxa types. Choose one, and Enfoliate creates the file with the appropriate prefix and replaces the selection with a wikilink.
 
-If the file already exists (either in the taxa folder or at the vault root before auto-move runs), Portfolio links to the existing file and adds the alias if it's not already present.
+If the file already exists (either in the taxa folder or at the vault root before auto-move runs), Enfoliate links to the existing file and adds the alias if it's not already present.
 
 ## Editor autocomplete
 
@@ -36,7 +36,7 @@ See [Suggestions Sidebar](suggestions-sidebar.md) for details.
 
 ## How linking works internally
 
-When you link text through any of these methods, Portfolio:
+When you link text through any of these methods, Enfoliate:
 
 1. Determines the clean name (strips the prefix if present)
 2. Builds the filename: `prefix + clean name`

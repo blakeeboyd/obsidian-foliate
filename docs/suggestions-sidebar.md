@@ -1,6 +1,6 @@
 # Suggestions Sidebar
 
-The suggestions sidebar is Portfolio's main analysis panel. It shows what's already linked in a note and what could be linked.
+The suggestions sidebar is Enfoliate's main analysis panel. It shows what's already linked in a note and what could be linked.
 
 Open it with the **Open suggestions sidebar** command, by clicking the status bar taxa count, or by enabling "Open suggestions on startup" in settings.
 
@@ -20,7 +20,7 @@ This section only appears when the note contains at least one taxa link.
 
 ### Unlinked Mentions
 
-Scans the note for text matching existing taxa files that aren't linked yet. Portfolio checks both filenames (without prefix) and frontmatter aliases.
+Scans the note for text matching existing taxa files that aren't linked yet. Enfoliate checks both filenames (without prefix) and frontmatter aliases.
 
 Matches are grouped by taxa type. Each match shows:
 
@@ -76,6 +76,6 @@ In **Reading mode** there is no editor to drive, so the jump scrolls the rendere
 
 ### Highlight settings
 
-- **Toggle highlight on jump** — enable/disable the highlight flash (Settings → Portfolio)
+- **Toggle highlight on jump** — enable/disable the highlight flash (Settings → Enfoliate)
 - **Highlight color** — choose a custom color or use the default yellow (`rgba(255, 215, 0, 0.45)`)
 - **Highlight duration** — how long the highlight stays before fading, 0.5 to 10 seconds (default 2.5)

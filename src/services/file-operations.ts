@@ -1,5 +1,5 @@
 import { App, Editor, Notice, TFile, Vault, moment } from "obsidian";
-import { TaxaMapping, PortfolioSettings } from "../types";
+import { TaxaMapping, EnfoliateSettings } from "../types";
 import { stripPrefix, addPrefix } from "../taxa";
 
 /**
@@ -14,7 +14,7 @@ export async function createTaxaLink(
   editor: Editor,
   selectedText: string,
   taxon: TaxaMapping,
-  settings: PortfolioSettings
+  settings: EnfoliateSettings
 ): Promise<void> {
   const hasPrefix = selectedText.startsWith(taxon.prefix);
   const cleanName = hasPrefix
@@ -62,7 +62,7 @@ export async function createTaxaLink(
 /**
  * Build the initial content for a new taxa file from the taxon's template, if
  * one is configured. The template engine is auto-detected:
- * - {{...}} tokens are always filled by Portfolio: {{title}} (also
+ * - {{...}} tokens are always filled by Enfoliate: {{title}} (also
  *   {{name}}/{{alias}}), {{prefix}}, {{label}}, and the core-Templates date
  *   tokens {{date}}, {{time}}, {{date:FORMAT}}, {{time:FORMAT}}.
  * - If the template also contains Templater syntax (<% ... %>), hasTemplater is
