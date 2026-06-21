@@ -100,7 +100,6 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Taxa Mappings | 7 defaults | Add, edit, or remove prefix/label/folder mappings |
 | Auto-Move | On | Automatically move files to taxa folders |
 | Create folders if missing | On | Create target folders that don't exist |
-| Auto-create folder for taxa | On | When a taxon has no folder set, create one named after the taxon |
 | Open sidebar on startup | Off | Auto-open the Enfoliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
 | Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Taxa entry |

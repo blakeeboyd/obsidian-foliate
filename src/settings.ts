@@ -257,20 +257,6 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
-      .setName("Auto-create folder for taxa")
-      .setDesc(
-        "When a taxon has no folder set, create and use a folder named after the taxon (its label) instead of failing or leaving the file at the vault root."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoCreateTaxaFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.autoCreateTaxaFolder = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
     // --- Sidebar ---
     containerEl.createEl("h2", { text: "Sidebar" });
 

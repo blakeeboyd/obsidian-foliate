@@ -9,7 +9,6 @@ export interface EnfoliateSettings {
   taxaMappings: TaxaMapping[];
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
-  autoCreateTaxaFolder: boolean;
   sidebarOpen: boolean;
   autoScan: boolean;
   matchLinkedAliases: boolean;

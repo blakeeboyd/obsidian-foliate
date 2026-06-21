@@ -5,7 +5,6 @@ import { EnfoliateSettingTab } from "./settings";
 import {
   createTaxaLink,
   ensureFolderExists,
-  resolveTaxaFolder,
 } from "./services/file-operations";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import {
@@ -17,7 +16,6 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
   autoMoveEnabled: true,
   createFolderIfMissing: true,
-  autoCreateTaxaFolder: true,
   sidebarOpen: false,
   autoScan: true,
   matchLinkedAliases: false,
@@ -160,14 +158,13 @@ export default class EnfoliatePlugin extends Plugin {
   }
 
   private async moveFileToTaxaFolder(file: TFile, taxon: TaxaMapping) {
-    const { folder, derived } = resolveTaxaFolder(taxon, this.settings);
-    // No configured folder and auto-create is off: leave the file where it is.
+    const folder = taxon.folder.trim();
+    // No folder configured for this taxon: leave the file where it is.
     if (!folder) return;
     // Already in the right folder.
     if (file.parent && file.parent.path === folder) return;
 
-    // Auto-derived folders must be created; configured paths honor the setting.
-    if (this.settings.createFolderIfMissing || derived) {
+    if (this.settings.createFolderIfMissing) {
       await ensureFolderExists(this.app.vault, folder);
     }
 

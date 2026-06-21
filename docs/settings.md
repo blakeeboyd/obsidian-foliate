@@ -26,7 +26,6 @@ Changes take effect immediately after saving.
 |---------|---------|-------------|
 | Enable auto-move | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
 | Create folders if missing | On | Create target folders that don't exist yet (including intermediate directories) |
-| Auto-create folder for taxa | On | When a taxon has no folder set, create and use a folder named after the taxon (its label) instead of failing or leaving the file at the vault root |
 
 ## Sidebar
 
