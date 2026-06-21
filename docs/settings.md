@@ -33,6 +33,7 @@ Changes take effect immediately after saving.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Open sidebar on startup | Off | Automatically open the Enfoliate sidebar when the plugin loads |
+| Auto-scan | On | Scan the active note automatically as you switch files, edit, and change selection. Turn off to scan only when you click **Scan** in the sidebar header |
 | Match aliases of linked files | Off | Under Linked Taxa, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Select text on jump | Off | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
 | Scope to selection | On | When you select text in the editor, narrow the sidebar to taxa within that selection. Off scans the whole note |

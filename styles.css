@@ -72,6 +72,13 @@
   font-style: italic;
 }
 
+.enfoliate-scan-btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* Wrappers use display:contents so their children (the headers) are direct
    layout children of the scrolling content element, which is what lets
    position:sticky engage for the nested section and category headers. */

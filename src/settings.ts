@@ -287,6 +287,21 @@ export class EnfoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Auto-scan")
+      .setDesc(
+        "Scan the active note automatically as you switch files, edit, and change selection. Turn off to scan only when you click Scan in the sidebar."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.autoScan)
+          .onChange(async (value) => {
+            this.plugin.settings.autoScan = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Match aliases of linked files")
       .setDesc(
         'Under Linked Taxa, fold in unlinked alias occurrences of an already-linked file so you can cycle through them (for example, "USA" where the linked file is United States).'

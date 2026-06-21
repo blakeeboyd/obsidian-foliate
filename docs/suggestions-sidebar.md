@@ -47,13 +47,15 @@ As you scroll, the title bar, the search box, the current section heading (Linke
 
 The **Filter taxa** box at the top of the panel narrows both Linked Taxa and Unlinked Mentions to entries whose name or alias contains what you type. Categories with no remaining matches are hidden, and a matching entry inside a collapsed category is revealed while the filter is active. Clearing the box restores the full list and your collapse state.
 
-## Refreshing
+## Scanning
 
-The sidebar refreshes automatically when you:
+With **Auto-scan** on (the default), the sidebar rescans automatically when you:
 
 - Switch to a different file
 - Edit the current file (debounced to 1 second)
 - Change your text selection
+
+Turn **Auto-scan** off (in settings) when you don't want the sidebar working on every keystroke and file switch — useful in large vaults. A **Scan** button then appears in the sidebar header; the panel only analyzes the active note when you click it.
 
 ## Selection scoping
 

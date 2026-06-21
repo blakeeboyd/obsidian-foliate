@@ -66,7 +66,7 @@ export class SuggestionsView extends ItemView {
     );
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (file === this.currentFile) {
+        if (this.plugin.settings.autoScan && file === this.currentFile) {
           this.debounceRefresh();
         }
       })
@@ -411,6 +411,7 @@ export class SuggestionsView extends ItemView {
     const editor = view.editor;
     let debounce: ReturnType<typeof setTimeout> | null = null;
     this.selectionEditorCallback = () => {
+      if (!this.plugin.settings.autoScan) return;
       if (!this.plugin.settings.scopeToSelection) return;
       if (debounce) clearTimeout(debounce);
       debounce = setTimeout(() => {
@@ -438,7 +439,59 @@ export class SuggestionsView extends ItemView {
     this.jumpIndex.clear();
     this.lastSelection = "";
 
-    this.refresh();
+    if (this.plugin.settings.autoScan) {
+      this.refresh();
+    } else {
+      this.renderScanPrompt();
+    }
+  }
+
+  /**
+   * Build the pinned header: the "Enfoliate" title, an optional selection-scope
+   * indicator, and — when auto-scan is off — a Scan button that runs a manual
+   * scan of the active note.
+   */
+  private buildStickyHeader(stickyTop: HTMLElement, isSelection: boolean) {
+    const header = stickyTop.createDiv("enfoliate-suggestions-header");
+    const titleEl = header.createEl("h4", { text: "Enfoliate" });
+    if (isSelection) {
+      titleEl.createSpan({
+        text: " (selection)",
+        cls: "enfoliate-scope-indicator",
+      });
+    }
+    if (!this.plugin.settings.autoScan) {
+      const scanBtn = header.createEl("button", {
+        cls: "enfoliate-scan-btn mod-cta",
+        text: "Scan",
+        attr: { "aria-label": "Scan the active note" },
+      });
+      scanBtn.addEventListener("click", () => this.refresh());
+    }
+  }
+
+  /**
+   * With auto-scan off, show the header (including the Scan button) and a prompt
+   * rather than scanning automatically when the active note changes.
+   */
+  private renderScanPrompt() {
+    const container = this.contentEl;
+    container.empty();
+    if (!this.currentFile) {
+      container.createEl("p", {
+        text: "Open a note to scan.",
+        cls: "enfoliate-empty-state",
+      });
+      return;
+    }
+    const stickyTop = container.createDiv("enfoliate-sticky-top");
+    this.buildStickyHeader(stickyTop, false);
+    container.createEl("p", {
+      text: "Auto-scan is off. Click Scan to analyze this note.",
+      cls: "enfoliate-empty-state",
+    });
+    this.updateStickyOffsets();
+    window.requestAnimationFrame(() => this.updateStickyOffsets());
   }
 
   async refresh() {
@@ -465,17 +518,7 @@ export class SuggestionsView extends ItemView {
     // Sticky top bar: title + search stay pinned as the list scrolls.
     const stickyTop = container.createDiv("enfoliate-sticky-top");
 
-    const header = stickyTop.createDiv("enfoliate-suggestions-header");
-    const titleEl = header.createEl("h4", { text: "Enfoliate" });
-    if (isSelection) {
-      titleEl.createSpan({
-        text: " (selection)",
-        cls: "enfoliate-scope-indicator",
-      });
-    }
-
-    // The sidebar refreshes automatically on file switch, edits (debounced),
-    // and selection changes, so no manual refresh control is needed.
+    this.buildStickyHeader(stickyTop, isSelection);
 
     // Search / filter box (optional)
     if (this.plugin.settings.showSearchBar) {
