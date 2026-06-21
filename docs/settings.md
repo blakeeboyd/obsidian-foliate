@@ -34,11 +34,18 @@ Changes take effect immediately after saving.
 |---------|---------|-------------|
 | Open sidebar on startup | Off | Automatically open the Enfoliate sidebar when the plugin loads |
 | Match aliases of linked files | Off | Under Linked Taxa, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
-| Highlight on jump | On | Flash a brief highlight when jumping to an occurrence |
-| Highlight duration | 2.5s | How long the jump highlight stays before fading (0.5–10 seconds) |
 | Select text on jump | Off | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
 | Scope to selection | On | When you select text in the editor, narrow the sidebar to taxa within that selection. Off scans the whole note |
 | Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |
+
+## Highlighting
+
+Settings for the flash highlight shown when you click a name in the sidebar to jump to its occurrence.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Highlight on jump | On | Flash a brief highlight when jumping to an occurrence |
+| Highlight duration | 2.5s | How long the jump highlight stays before fading (0.5-10 seconds) |
 | Highlight color | Yellow | Color picker for the jump highlight (reset button restores default) |
 
 ## Status Bar

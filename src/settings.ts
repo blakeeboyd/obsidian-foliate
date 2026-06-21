@@ -301,32 +301,6 @@ export class EnfoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Highlight on jump")
-      .setDesc("Briefly highlight the matched text in the editor when clicking a suggestion name.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.highlightOnJump)
-          .onChange(async (value) => {
-            this.plugin.settings.highlightOnJump = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Highlight duration")
-      .setDesc("How long the jump highlight stays before fading, in seconds.")
-      .addSlider((slider) =>
-        slider
-          .setLimits(0.5, 10, 0.5)
-          .setValue(this.plugin.settings.highlightDurationSeconds)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.highlightDurationSeconds = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName("Select text on jump")
       .setDesc("Select the matched text in the editor when jumping to an occurrence. Edit mode only.")
       .addToggle((toggle) =>
@@ -360,6 +334,35 @@ export class EnfoliateSettingTab extends PluginSettingTab {
             this.plugin.settings.showSearchBar = value;
             await this.plugin.saveSettings();
             this.plugin.refreshSuggestionsView();
+          })
+      );
+
+    // --- Highlighting ---
+    containerEl.createEl("h2", { text: "Highlighting" });
+
+    new Setting(containerEl)
+      .setName("Highlight on jump")
+      .setDesc("Briefly highlight the matched text in the editor when clicking a suggestion name.")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.highlightOnJump)
+          .onChange(async (value) => {
+            this.plugin.settings.highlightOnJump = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Highlight duration")
+      .setDesc("How long the jump highlight stays before fading, in seconds.")
+      .addSlider((slider) =>
+        slider
+          .setLimits(0.5, 10, 0.5)
+          .setValue(this.plugin.settings.highlightDurationSeconds)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.highlightDurationSeconds = value;
+            await this.plugin.saveSettings();
           })
       );
 
