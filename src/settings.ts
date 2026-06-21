@@ -387,6 +387,9 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           })
       );
 
+    // --- Click Actions ---
+    containerEl.createEl("h2", { text: "Click Actions" });
+
     new Setting(containerEl)
       .setName("Click action")
       .setDesc("What a click on a sidebar item does.")
