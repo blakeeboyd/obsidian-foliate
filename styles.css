@@ -54,23 +54,27 @@
 
 .enfoliate-search {
   padding: 8px 12px 4px 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  position: relative;
 }
 
 .enfoliate-search-input {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   font-size: 12px;
+  /* Leave room for the clear button overlaid on the right. */
+  padding-right: 26px;
 }
 
 .enfoliate-search-clear {
+  position: absolute;
+  top: 8px;
+  bottom: 4px;
+  right: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  padding: 2px;
+  height: auto;
+  min-height: 0;
+  padding: 0 2px;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -80,6 +84,7 @@
 
 .enfoliate-search-clear:hover {
   color: var(--text-normal);
+  background: transparent;
 }
 
 .enfoliate-search-clear svg {
