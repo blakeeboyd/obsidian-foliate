@@ -118,6 +118,11 @@ export class SuggestionsView extends ItemView {
     return { line: lines.length - 1, ch: lines[lines.length - 1].length };
   }
 
+  /** Open a note in a new (popout) window — used for Cmd/Ctrl+click on a sidebar item. */
+  private openInNewWindow(file: TFile) {
+    this.app.workspace.getLeaf("window").openFile(file);
+  }
+
   private async jumpToOccurrence(key: string, positions: (number | MatchPosition)[], content: string, noteFile: TFile, matchLength?: number) {
     const view = await this.findEditorForFile(noteFile);
     if (!view) return;
@@ -729,7 +734,13 @@ export class SuggestionsView extends ItemView {
       text: match.alias,
       cls: "enfoliate-match-text enfoliate-clickable",
     });
-    nameSpan.addEventListener("click", () => {
+    nameSpan.addEventListener("click", (evt) => {
+      // Cmd (macOS) / Ctrl (Windows/Linux) + click opens the taxa note in a new window.
+      if (evt.metaKey || evt.ctrlKey) {
+        const dest = this.app.vault.getAbstractFileByPath(match.filePath);
+        if (dest instanceof TFile) this.openInNewWindow(dest);
+        return;
+      }
       this.jumpToOccurrence(match.filePath, match.positions, fullContent, noteFile, match.matchText.length);
     });
 
@@ -965,7 +976,13 @@ export class SuggestionsView extends ItemView {
         });
         if (item.positions.length > 0) {
           const jumpKey = `linked:${item.link}`;
-          nameSpan.addEventListener("click", () => {
+          nameSpan.addEventListener("click", (evt) => {
+            // Cmd (macOS) / Ctrl (Windows/Linux) + click opens the linked note in a new window.
+            if (evt.metaKey || evt.ctrlKey) {
+              const dest = this.app.metadataCache.getFirstLinkpathDest(item.link, file.path);
+              if (dest) this.openInNewWindow(dest);
+              return;
+            }
             this.jumpToOccurrence(jumpKey, item.positions, content, file, item.displayName.length);
           });
           info.createSpan({

@@ -49,7 +49,7 @@ The sidebar refreshes on file switch, content edits, and selection changes. Sele
 
 ### Navigation
 
-- **Jump-to-occurrence** — click any taxa name in the sidebar to jump to the next occurrence, cycling through all positions with an optional highlight flash
+- **Jump-to-occurrence** — click any taxa name in the sidebar to jump to the next occurrence, cycling through all positions with an optional highlight flash. Cmd/Ctrl+click opens that note in a new window instead.
 
 [Navigation docs →](docs/navigation.md)
 

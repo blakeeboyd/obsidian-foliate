@@ -63,7 +63,7 @@ Select text in the editor to scope the scan to just that selection. Deselect to 
 
 ## Jump-to-occurrence
 
-Clicking a taxa name (in any section) jumps to the next occurrence in the document. Clicking again jumps to the next one, cycling through all positions. The jump:
+Clicking a taxa name (in any section) jumps to the next occurrence in the document. Clicking again jumps to the next one, cycling through all positions. **Cmd+click** (macOS) or **Ctrl+click** (Windows/Linux) instead opens that taxa note in a new window. The jump:
 
 1. Focuses the editor
 2. Sets the cursor at the occurrence

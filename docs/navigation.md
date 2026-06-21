@@ -11,6 +11,8 @@ In the [suggestions sidebar](suggestions-sidebar.md), clicking on any taxa name 
 
 Clicking repeatedly cycles through all occurrences. When you reach the last one, the next click wraps back to the first.
 
+**Cmd+click** (macOS) or **Ctrl+click** (Windows/Linux) on a name opens that taxa note in a new window instead of jumping.
+
 ### What happens on jump
 
 1. The editor pane is focused
