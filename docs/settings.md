@@ -26,18 +26,19 @@ Changes take effect immediately after saving.
 |---------|---------|-------------|
 | Enable auto-move | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
 | Create folders if missing | On | Create target folders that don't exist yet (including intermediate directories) |
+| Auto-create folder for taxa | On | When a taxon has no folder set, create and use a folder named after the taxon (its label) instead of failing or leaving the file at the vault root |
 
 ## Sidebar
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Open suggestions on startup | Off | Automatically open the suggestions sidebar when the plugin loads |
+| Open sidebar on startup | Off | Automatically open the Enfoliate sidebar when the plugin loads |
 | Match aliases of linked files | Off | Under Linked Taxa, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Highlight on jump | On | Flash a brief highlight when jumping to an occurrence |
 | Highlight duration | 2.5s | How long the jump highlight stays before fading (0.5–10 seconds) |
 | Select text on jump | Off | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
 | Scope to selection | On | When you select text in the editor, narrow the sidebar to taxa within that selection. Off scans the whole note |
-| Show search bar | On | Show the filter box at the top of the suggestions sidebar |
+| Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |
 | Highlight color | Yellow | Color picker for the jump highlight (reset button restores default) |
 
 ## Status Bar

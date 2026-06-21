@@ -1,13 +1,13 @@
 import { Notice, Plugin, TAbstractFile, TFile, MarkdownView } from "obsidian";
-import { EnfoliateSettings } from "./types";
+import { EnfoliateSettings, TaxaMapping } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, findTaxonByPrefix } from "./taxa";
 import { EnfoliateSettingTab } from "./settings";
 import {
   createTaxaLink,
   ensureFolderExists,
+  resolveTaxaFolder,
 } from "./services/file-operations";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
-import { TaxaSuggest } from "./ui/taxa-suggest";
 import {
   SuggestionsView,
   SUGGESTIONS_VIEW_TYPE,
@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
   autoMoveEnabled: true,
   createFolderIfMissing: true,
-  editorSuggestEnabled: true,
+  autoCreateTaxaFolder: true,
   sidebarOpen: false,
   statusBarEnabled: true,
   matchLinkedAliases: false,
@@ -34,17 +34,12 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
 export default class EnfoliatePlugin extends Plugin {
   settings: EnfoliateSettings = DEFAULT_SETTINGS;
   private statusBarEl: HTMLElement | null = null;
-  private taxaSuggest: TaxaSuggest | null = null;
 
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new EnfoliateSettingTab(this.app, this));
     this.registerCommands();
     this.registerAutoMover();
-    if (this.settings.editorSuggestEnabled) {
-      this.taxaSuggest = new TaxaSuggest(this.app, this.settings);
-      this.registerEditorSuggest(this.taxaSuggest);
-    }
     this.registerView(
       SUGGESTIONS_VIEW_TYPE,
       (leaf) => new SuggestionsView(leaf, this)
@@ -146,7 +141,7 @@ export default class EnfoliatePlugin extends Plugin {
 
     this.addCommand({
       id: "enfoliate-open-suggestions",
-      name: "Open suggestions sidebar",
+      name: "Open Enfoliate sidebar",
       callback: () => {
         this.activateSuggestionsView();
       },
@@ -178,21 +173,22 @@ export default class EnfoliatePlugin extends Plugin {
     );
     if (!taxon) return;
 
-    // Already in the right folder
-    if (file.parent && file.parent.path === taxon.folder) return;
-
     await this.moveFileToTaxaFolder(file, taxon);
   }
 
-  private async moveFileToTaxaFolder(
-    file: TFile,
-    taxon: { folder: string; label: string }
-  ) {
-    if (this.settings.createFolderIfMissing) {
-      await ensureFolderExists(this.app.vault, taxon.folder);
+  private async moveFileToTaxaFolder(file: TFile, taxon: TaxaMapping) {
+    const { folder, derived } = resolveTaxaFolder(taxon, this.settings);
+    // No configured folder and auto-create is off: leave the file where it is.
+    if (!folder) return;
+    // Already in the right folder.
+    if (file.parent && file.parent.path === folder) return;
+
+    // Auto-derived folders must be created; configured paths honor the setting.
+    if (this.settings.createFolderIfMissing || derived) {
+      await ensureFolderExists(this.app.vault, folder);
     }
 
-    const targetPath = `${taxon.folder}/${file.name}`;
+    const targetPath = `${folder}/${file.name}`;
 
     // Check for collision
     const existing = this.app.vault.getAbstractFileByPath(targetPath);
@@ -203,7 +199,7 @@ export default class EnfoliatePlugin extends Plugin {
 
     try {
       await this.app.fileManager.renameFile(file, targetPath);
-      new Notice(`Moved to ${taxon.folder}/`);
+      new Notice(`Moved to ${folder}/`);
     } catch (e) {
       new Notice(`Failed to move file: ${e}`);
     }

@@ -228,23 +228,6 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           })
       );
 
-    // --- Editor ---
-    containerEl.createEl("h2", { text: "Editor" });
-
-    new Setting(containerEl)
-      .setName("Enable taxa suggestions")
-      .setDesc(
-        "Show autocomplete suggestions when typing a taxa prefix character (e.g. @, +, ~). Requires plugin reload."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.editorSuggestEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.editorSuggestEnabled = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
     // --- Auto-Move ---
     containerEl.createEl("h2", { text: "Auto-Move" });
 
@@ -274,12 +257,26 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName("Auto-create folder for taxa")
+      .setDesc(
+        "When a taxon has no folder set, create and use a folder named after the taxon (its label) instead of failing or leaving the file at the vault root."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.autoCreateTaxaFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.autoCreateTaxaFolder = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Sidebar ---
     containerEl.createEl("h2", { text: "Sidebar" });
 
     new Setting(containerEl)
-      .setName("Open suggestions on startup")
-      .setDesc("Automatically open the suggestions sidebar when the plugin loads.")
+      .setName("Open sidebar on startup")
+      .setDesc("Automatically open the Enfoliate sidebar when the plugin loads.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.sidebarOpen)
@@ -355,7 +352,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show search bar")
-      .setDesc("Show the filter box at the top of the suggestions sidebar.")
+      .setDesc("Show the filter box at the top of the Enfoliate sidebar.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showSearchBar)

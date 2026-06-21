@@ -55,8 +55,6 @@ The sidebar refreshes automatically when you:
 - Edit the current file (debounced to 1 second)
 - Change your text selection
 
-Click the **↻** button in the header to refresh manually.
-
 ## Selection scoping
 
 Select text in the editor to scope the scan to just that selection. Deselect to revert to the full note. Turn this off with **Scope to selection** in settings to always scan the whole note regardless of selection.

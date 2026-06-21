@@ -72,27 +72,6 @@
   font-style: italic;
 }
 
-.enfoliate-refresh-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.enfoliate-refresh-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-
-.enfoliate-refresh-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
 /* Wrappers use display:contents so their children (the headers) are direct
    layout children of the scrolling content element, which is what lets
    position:sticky engage for the nested section and category headers. */
@@ -378,22 +357,6 @@
 
 .enfoliate-status-bar:hover {
   color: var(--text-normal);
-}
-
-/* Suggest Items */
-.enfoliate-suggest-item {
-  display: flex;
-  align-items: center;
-}
-
-.enfoliate-suggest-prefix {
-  color: var(--text-muted);
-  font-size: 12px;
-  width: 16px;
-}
-
-.enfoliate-suggest-name {
-  font-weight: 500;
 }
 
 .enfoliate-ignore-btn {

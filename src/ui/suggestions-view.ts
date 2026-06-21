@@ -50,7 +50,7 @@ export class SuggestionsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Enfoliate: Suggestions";
+    return "Enfoliate";
   }
 
   getIcon(): string {
@@ -466,7 +466,7 @@ export class SuggestionsView extends ItemView {
     const stickyTop = container.createDiv("enfoliate-sticky-top");
 
     const header = stickyTop.createDiv("enfoliate-suggestions-header");
-    const titleEl = header.createEl("h4", { text: "Enfoliate Suggestions" });
+    const titleEl = header.createEl("h4", { text: "Enfoliate" });
     if (isSelection) {
       titleEl.createSpan({
         text: " (selection)",
@@ -474,14 +474,8 @@ export class SuggestionsView extends ItemView {
       });
     }
 
-    const refreshBtn = header.createEl("button", {
-      cls: "enfoliate-refresh-btn",
-      attr: { "aria-label": "Refresh" },
-    });
-    setIcon(refreshBtn, "refresh-cw");
-    refreshBtn.addEventListener("click", () => {
-      this.refresh();
-    });
+    // The sidebar refreshes automatically on file switch, edits (debounced),
+    // and selection changes, so no manual refresh control is needed.
 
     // Search / filter box (optional)
     if (this.plugin.settings.showSearchBar) {

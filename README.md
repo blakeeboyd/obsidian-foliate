@@ -24,8 +24,6 @@ All prefixes, labels, and folders are configurable in settings. [Full taxa syste
 
 Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Enfoliate creates the file in the right folder and replaces the selection with a wikilink. If no prefix is detected, a picker modal lets you choose the taxa type.
 
-Enfoliate also provides real-time **editor autocomplete** — type a prefix character followed by a few letters to get suggestions from existing taxa files.
-
 [Smart linking docs →](docs/smart-linking.md)
 
 ### Suggestions sidebar
@@ -65,7 +63,7 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 |---------|-------------|
 | Create taxa link | Link selected text as a taxon |
 | Move current note to taxa folder | Move the active file based on its prefix |
-| Open suggestions sidebar | Show the suggestions panel |
+| Open Enfoliate sidebar | Show the Enfoliate panel |
 
 ## Installation
 
@@ -103,7 +101,8 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Taxa Mappings | 7 defaults | Add, edit, or remove prefix/label/folder mappings |
 | Auto-Move | On | Automatically move files to taxa folders |
 | Create folders if missing | On | Create target folders that don't exist |
-| Open suggestions on startup | Off | Auto-open the sidebar on plugin load |
+| Auto-create folder for taxa | On | When a taxon has no folder set, create one named after the taxon |
+| Open sidebar on startup | Off | Auto-open the Enfoliate sidebar on plugin load |
 | Show status bar | On | Taxa counts in the status bar (reload required) |
 | Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Taxa entry |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
@@ -113,7 +112,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 ## Documentation
 
 - [Taxa System](docs/taxa-system.md) — prefixes, folders, auto-move, aliases
-- [Smart Linking](docs/smart-linking.md) — link creation, autocomplete, how linking works
+- [Smart Linking](docs/smart-linking.md) — link creation, how linking works
 - [Suggestions Sidebar](docs/suggestions-sidebar.md) — linked taxa, unlinked mentions, actions, jump behavior
 - [Navigation](docs/navigation.md) — status bar, jump-to-occurrence, highlight, commands
 - [Settings Reference](docs/settings.md) — every setting explained

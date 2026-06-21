@@ -3,6 +3,33 @@ import { TaxaMapping, EnfoliateSettings } from "../types";
 import { stripPrefix, addPrefix } from "../taxa";
 
 /**
+ * The folder a taxon's files should live in. When the taxon has no folder
+ * configured and `autoCreateTaxaFolder` is on, fall back to a folder named
+ * after the taxon (its label, or prefix if unlabeled) so files get a home
+ * instead of erroring or landing at the vault root. `derived` is true when the
+ * name was generated this way, signaling the caller to create it regardless of
+ * the "Create folders if missing" setting. Returns an empty folder when there
+ * is no usable destination.
+ */
+export function resolveTaxaFolder(
+  taxon: TaxaMapping,
+  settings: EnfoliateSettings
+): { folder: string; derived: boolean } {
+  const configured = taxon.folder.trim();
+  if (configured) return { folder: configured, derived: false };
+  if (settings.autoCreateTaxaFolder) {
+    const name = sanitizeFolderName(taxon.label || taxon.prefix);
+    if (name) return { folder: name, derived: true };
+  }
+  return { folder: "", derived: false };
+}
+
+/** Strip characters illegal in a folder name and collapse surrounding space. */
+function sanitizeFolderName(raw: string): string {
+  return raw.replace(/[\\/:*?"<>|]/g, "").trim();
+}
+
+/**
  * Create a taxa link from selected text.
  * - Builds the filename with prefix
  * - Creates the file if it doesn't exist (in the taxa folder)
@@ -21,11 +48,13 @@ export async function createTaxaLink(
     ? stripPrefix(selectedText, taxon)
     : selectedText;
   const fileName = addPrefix(cleanName, taxon);
-  const filePath = `${taxon.folder}/${fileName}.md`;
+  const { folder, derived } = resolveTaxaFolder(taxon, settings);
+  const filePath = folder ? `${folder}/${fileName}.md` : `${fileName}.md`;
 
-  // Ensure folder exists
-  if (settings.createFolderIfMissing) {
-    await ensureFolderExists(app.vault, taxon.folder);
+  // Ensure folder exists. An auto-derived folder is always created; a
+  // configured path is created only when "Create folders if missing" is on.
+  if (folder && (settings.createFolderIfMissing || derived)) {
+    await ensureFolderExists(app.vault, folder);
   }
 
   // Create file if it doesn't exist

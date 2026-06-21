@@ -15,16 +15,6 @@ What happens next depends on whether the selected text starts with a known taxa 
 
 If the file already exists (either in the taxa folder or at the vault root before auto-move runs), Enfoliate links to the existing file and adds the alias if it's not already present.
 
-## Editor autocomplete
-
-Type a taxa prefix character followed by a few letters to trigger autocomplete suggestions. For example, typing `@Lo` might suggest `@Ada Lovelace` and `@Lorca`.
-
-The autocomplete searches:
-- Filenames in the taxon's folder (with prefix stripped for display)
-- Frontmatter aliases on those files
-
-Select a suggestion to insert a wikilink at the cursor. Up to 20 suggestions are shown at a time.
-
 ## Link from the suggestions sidebar
 
 The [suggestions sidebar](suggestions-sidebar.md) offers one-click linking for unlinked mentions:

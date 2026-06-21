@@ -49,6 +49,6 @@ The linked taxa section in the sidebar includes a **→** button next to each ta
 |---------|-------------|
 | **Create taxa link** | Link selected text as a taxon (with prefix detection or picker) |
 | **Move current note to taxa folder** | Move the active file to its taxa folder based on filename prefix |
-| **Open suggestions sidebar** | Show the suggestions panel in the right sidebar |
+| **Open Enfoliate sidebar** | Show the Enfoliate panel in the right sidebar |
 
 All commands are available from the command palette (`Ctrl/Cmd+P`).
