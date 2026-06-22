@@ -64,7 +64,7 @@
   padding-right: 26px;
 }
 
-.enfoliate-search-clear {
+.enfoliate-search button.enfoliate-search-clear {
   position: absolute;
   top: 8px;
   bottom: 4px;
@@ -74,23 +74,25 @@
   justify-content: center;
   height: auto;
   min-height: 0;
+  width: auto;
   padding: 0 2px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
   cursor: pointer;
   color: var(--text-muted);
 }
 
-.enfoliate-search-clear:hover,
-.enfoliate-search-clear:focus,
-.enfoliate-search-clear:focus-visible,
-.enfoliate-search-clear:active {
+/* Scoped + button-qualified so it beats theme button backgrounds in every state. */
+.enfoliate-search button.enfoliate-search-clear,
+.enfoliate-search button.enfoliate-search-clear:hover,
+.enfoliate-search button.enfoliate-search-clear:focus,
+.enfoliate-search button.enfoliate-search-clear:focus-visible,
+.enfoliate-search button.enfoliate-search-clear:active {
   background: transparent;
+  background-color: transparent;
+  border: none;
   box-shadow: none;
 }
 
-.enfoliate-search-clear:hover {
+.enfoliate-search button.enfoliate-search-clear:hover {
   color: var(--text-normal);
 }
 
