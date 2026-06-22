@@ -1,4 +1,4 @@
-import { ItemView, Menu, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "obsidian";
+import { Editor, ItemView, Menu, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "obsidian";
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type EnfoliatePlugin from "../main";
@@ -814,23 +814,70 @@ export class SuggestionsView extends ItemView {
     });
   }
 
+  /** An already-open source-mode editor for the file, or null. Never opens one. */
+  private findOpenEditor(noteFile: TFile): Editor | null {
+    let found: Editor | null = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (
+        !found &&
+        leaf.view instanceof MarkdownView &&
+        leaf.view.file === noteFile &&
+        leaf.view.getMode() === "source"
+      ) {
+        found = leaf.view.editor;
+      }
+    });
+    return found;
+  }
+
   /**
-   * Wrap the given (unlinked) occurrences with wikilinks to linkTarget, working
-   * back-to-front so earlier offsets stay valid. Used to link the remaining
-   * plain-text mentions of an already-linked file.
+   * Wrap the given occurrences with wikilinks to linkTarget. When the note has
+   * an open source-mode editor whose text still matches the captured offsets,
+   * apply through a single editor transaction so Ctrl/Cmd+Z undoes it; otherwise
+   * rewrite the file back-to-front via the vault.
    */
-  private async linkPositions(noteFile: TFile, linkTarget: string, positions: MatchPosition[]) {
+  private async applyLinks(noteFile: TFile, linkTarget: string, positions: MatchPosition[]) {
     if (positions.length === 0) return;
+    const wikilinkFor = (p: MatchPosition) => `[[${linkTarget}|${p.surface}]]`;
+
+    const editor = this.findOpenEditor(noteFile);
+    if (editor) {
+      const text = editor.getValue();
+      // Only trust the captured offsets if the editor text still matches them.
+      const aligned = positions.every(
+        (p) => text.substring(p.offset, p.offset + p.len) === p.surface
+      );
+      if (aligned) {
+        const changes = [...positions]
+          .sort((a, b) => a.offset - b.offset)
+          .map((p) => ({
+            from: editor.offsetToPos(p.offset),
+            to: editor.offsetToPos(p.offset + p.len),
+            text: wikilinkFor(p),
+          }));
+        editor.transaction({ changes });
+        return;
+      }
+    }
+
     const content = await this.app.vault.read(noteFile);
     let newContent = content;
-    const sorted = [...positions].sort((a, b) => b.offset - a.offset);
-    for (const p of sorted) {
+    for (const p of [...positions].sort((a, b) => b.offset - a.offset)) {
       newContent =
         newContent.substring(0, p.offset) +
-        `[[${linkTarget}|${p.surface}]]` +
+        wikilinkFor(p) +
         newContent.substring(p.offset + p.len);
     }
     await this.app.vault.modify(noteFile, newContent);
+  }
+
+  /**
+   * Link the given (unlinked) occurrences of an already-linked file — used by
+   * "Link all occurrences" on a Linked Mentions row.
+   */
+  private async linkPositions(noteFile: TFile, linkTarget: string, positions: MatchPosition[]) {
+    if (positions.length === 0) return;
+    await this.applyLinks(noteFile, linkTarget, positions);
     const n = positions.length;
     new Notice(`Linked ${n} ${n > 1 ? "occurrences" : "occurrence"}`);
     this.refresh();
@@ -928,33 +975,11 @@ export class SuggestionsView extends ItemView {
     noteFile: TFile,
     linkAll: boolean
   ) {
-    const content = await this.app.vault.read(noteFile);
-
     // Each occurrence links with its own surface form, so an alias hit becomes
     // [[Full Name|ZPD]] while a full-name hit links as itself.
-    const wikilinkFor = (p: MatchPosition) => `[[${match.fileName}|${p.surface}]]`;
-
-    let newContent: string;
-    if (linkAll) {
-      // Replace all occurrences, working backwards to preserve offsets
-      newContent = content;
-      const sortedPositions = [...match.positions].sort((a, b) => b.offset - a.offset);
-      for (const p of sortedPositions) {
-        const before = newContent.substring(0, p.offset);
-        const after = newContent.substring(p.offset + p.len);
-        newContent = before + wikilinkFor(p) + after;
-      }
-    } else {
-      // Replace first occurrence only
-      const p = match.positions[0];
-      newContent =
-        content.substring(0, p.offset) +
-        wikilinkFor(p) +
-        content.substring(p.offset + p.len);
-    }
-
-    await this.app.vault.modify(noteFile, newContent);
-    const count = linkAll ? match.positions.length : 1;
+    const positions = linkAll ? match.positions : [match.positions[0]];
+    await this.applyLinks(noteFile, match.fileName, positions);
+    const count = positions.length;
     new Notice(
       `Linked ${match.alias} (${count} ${count > 1 ? "occurrences" : "occurrence"})`
     );
