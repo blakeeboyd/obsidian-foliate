@@ -109,7 +109,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Shift+click action | Open in Split View | Same choices, for Shift+click |
 | Cmd/Ctrl+click action | Open in the current tab | Same choices, for Cmd/Ctrl+click |
 | Option/Alt+click action | Open in a new tab | Same choices, for Option/Alt+click |
-| Sidebar Buttons | Link, Link all, Link unlinked | Which row actions show as inline buttons; all actions are always available via right-click |
+| Sidebar Buttons | Link, Link all | Which row actions show as inline buttons; all actions are always available via right-click |
 | Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Mentions entry |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
 | Highlight color | Yellow | Custom color for the jump highlight |

@@ -73,7 +73,6 @@ export interface UnlinkedMatch {
 export const INLINE_ACTION_OPTIONS: { id: string; label: string }[] = [
   { id: "link", label: "Link (first occurrence)" },
   { id: "linkAll", label: "Link all occurrences" },
-  { id: "linkUnlinked", label: "Link unlinked mentions" },
   { id: "open", label: "Open note" },
   { id: "unlink", label: "Unlink" },
   { id: "ignore", label: "Always ignore" },

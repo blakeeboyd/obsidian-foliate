@@ -51,13 +51,12 @@ Bind each click and modifier-click on a sidebar item to an action. Every binding
 
 ## Sidebar Buttons
 
-A toggle per action controls whether it appears as an inline button on sidebar rows. Every action is always available by right-clicking a row, so these toggles only affect the inline buttons (to keep the panel uncluttered). Defaults on: **Link**, **Link all**, **Link unlinked mentions**.
+A toggle per action controls whether it appears as an inline button on sidebar rows. Every action is always available by right-clicking a row, so these toggles only affect the inline buttons (to keep the panel uncluttered). Defaults on: **Link**, **Link all**.
 
 | Action | Default | Where it applies |
 |--------|---------|------------------|
 | Link (first occurrence) | On | Unlinked Mentions |
-| Link all occurrences | On | Unlinked Mentions |
-| Link unlinked mentions | On | Linked Mentions (when a linked file still has plain-text mentions) |
+| Link all occurrences | On | Unlinked Mentions, and Linked Mentions when a linked file still has unlinked plain-text mentions |
 | Open note | Off | Both sections |
 | Unlink | Off | Linked Mentions |
 | Always ignore | Off | Unlinked Mentions |

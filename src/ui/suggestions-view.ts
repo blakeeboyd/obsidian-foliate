@@ -1124,8 +1124,8 @@ export class SuggestionsView extends ItemView {
         const rowActions: RowAction[] = [];
         if (unlinkedPositions.length > 0) {
           rowActions.push({
-            id: "linkUnlinked",
-            label: `Link ${unlinkedPositions.length} unlinked ${unlinkedPositions.length > 1 ? "mentions" : "mention"}`,
+            id: "linkAll",
+            label: "Link all occurrences",
             icon: "replace-all",
             run: () => this.linkPositions(file, item.link, unlinkedPositions),
           });
