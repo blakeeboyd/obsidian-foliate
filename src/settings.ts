@@ -413,7 +413,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
       .setDesc("What a click on a sidebar item does.")
       .addDropdown((dd) =>
         dd
-          .addOption("jump", "Jump to it in the document")
+          .addOption("jump", "Jump to term in the document")
           .addOption("replace", "Open in the current tab")
           .addOption("tab", "Open in a new tab")
           .addOption("window", "Open in a new window")
@@ -431,7 +431,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
       )
       .addDropdown((dd) =>
         dd
-          .addOption("jump", "Jump to it in the document")
+          .addOption("jump", "Jump to term in the document")
           .addOption("replace", "Open in the current tab")
           .addOption("tab", "Open in a new tab")
           .addOption("window", "Open in a new window")
