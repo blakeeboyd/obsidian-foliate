@@ -1053,7 +1053,7 @@ export class SuggestionsView extends ItemView {
         });
         setIcon(unlinkBtn, "unlink");
         unlinkBtn.addEventListener("click", async () => {
-          await this.unlinkTaxaFromNote(item.link, item.displayName, file);
+          await this.unlinkTaxaFromNote(item.link, item.title, file);
         });
       }
     }
