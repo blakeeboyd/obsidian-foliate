@@ -65,7 +65,9 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 |---------|-------------|
 | Create taxa link | Link selected text as a taxon |
 | Move current note to taxa folder | Move the active file based on its prefix |
+| Link all unlinked taxa in the current note | Wrap every unlinked taxa mention in the note in one pass |
 | Open Enfoliate sidebar | Show the Enfoliate panel |
+| Toggle auto-scan | Turn the sidebar's auto-scan on or off |
 
 ## Installation
 

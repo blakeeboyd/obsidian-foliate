@@ -7,6 +7,7 @@ import {
   createTaxaLink,
   ensureFolderExists,
 } from "./services/file-operations";
+import { findUnlinkedMatches } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import {
   SuggestionsView,
@@ -134,6 +135,81 @@ export default class EnfoliatePlugin extends Plugin {
         this.activateSuggestionsView();
       },
     });
+
+    this.addCommand({
+      id: "enfoliate-link-all-unlinked",
+      name: "Link all unlinked taxa in the current note",
+      callback: () => {
+        void this.linkAllUnlinked();
+      },
+    });
+
+    this.addCommand({
+      id: "enfoliate-toggle-auto-scan",
+      name: "Toggle auto-scan",
+      callback: async () => {
+        this.settings.autoScan = !this.settings.autoScan;
+        await this.saveSettings();
+        new Notice(`Auto-scan ${this.settings.autoScan ? "on" : "off"}.`);
+        this.refreshSuggestionsView();
+      },
+    });
+  }
+
+  /**
+   * Wrap every unlinked mention of an existing taxa file in the active note with
+   * a wikilink, in one pass. Overlapping matches across files are resolved by
+   * keeping the longest, so nothing gets double-wrapped or corrupted.
+   */
+  private async linkAllUnlinked() {
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.extension !== "md") {
+      new Notice("No active note.");
+      return;
+    }
+    const content = await this.app.vault.read(file);
+    // includeLinkedFiles: also catch the remaining plain-text mentions of files
+    // that are already linked somewhere in the note.
+    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
+
+    interface Occurrence {
+      offset: number;
+      len: number;
+      surface: string;
+      target: string;
+    }
+    const occurrences: Occurrence[] = [];
+    for (const match of matches) {
+      for (const p of match.positions) {
+        occurrences.push({ offset: p.offset, len: p.len, surface: p.surface, target: match.fileName });
+      }
+    }
+    if (occurrences.length === 0) {
+      new Notice("No unlinked taxa mentions found.");
+      return;
+    }
+
+    // Resolve overlaps across all files: longest first, drop any that overlaps a kept one.
+    occurrences.sort((a, b) => b.len - a.len || a.offset - b.offset);
+    const kept: Occurrence[] = [];
+    for (const o of occurrences) {
+      const overlaps = kept.some((k) => o.offset < k.offset + k.len && k.offset < o.offset + o.len);
+      if (!overlaps) kept.push(o);
+    }
+
+    // Replace back-to-front so earlier offsets stay valid.
+    kept.sort((a, b) => b.offset - a.offset);
+    let newContent = content;
+    for (const o of kept) {
+      newContent =
+        newContent.substring(0, o.offset) +
+        `[[${o.target}|${o.surface}]]` +
+        newContent.substring(o.offset + o.len);
+    }
+
+    await this.app.vault.modify(file, newContent);
+    new Notice(`Linked ${kept.length} taxa mention${kept.length > 1 ? "s" : ""}.`);
+    this.refreshSuggestionsView();
   }
 
   private registerAutoMover() {
