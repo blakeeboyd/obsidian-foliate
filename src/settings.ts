@@ -173,9 +173,11 @@ class HowToModal extends Modal {
       text: "Enfoliate organizes notes by taxa: prefix characters that mark a note's type (@ for people, + for concepts, and so on). In Taxa Mappings, define each prefix and the folder its files belong in. When you create or rename a note whose name starts with a prefix, Enfoliate moves it to that taxon's folder.",
     });
 
-    contentEl.createEl("p", {
-      text: "You can set a template file per taxon. New files of that type start from the template, with these tokens filled in: {{title}} (the note's name, also {{name}} or {{alias}}), {{prefix}} (the taxon's prefix character, such as @), and {{label}} (the taxon's name, such as People). Obsidian's built-in Templates tokens work too, including {{date}}, {{time}}, and formatted variants like {{date:YYYY-MM-DD}}. If Templater is installed, its <% %> commands run as well.",
-    });
+    const templates = contentEl.createEl("p");
+    templates.createEl("strong", { text: "Templates. " });
+    templates.appendText(
+      "You can set a template file per taxon. New files of that type start from the template, with these tokens filled in: {{title}} (the note's name, also {{name}} or {{alias}}), {{prefix}} (the taxon's prefix character, such as @), and {{label}} (the taxon's name, such as People). Obsidian's built-in Templates tokens work too, including {{date}}, {{time}}, and formatted variants like {{date:YYYY-MM-DD}}. If Templater is installed, its <% %> commands run as well."
+    );
 
     const note = contentEl.createEl("p");
     note.createEl("strong", { text: "No folder set? " });
