@@ -21,6 +21,9 @@ export type OpenMode = "replace" | "tab" | "split" | "window";
  */
 export type ClickAction = "jump" | "copy" | OpenMode;
 
+/** Order of entries within each taxa category in the sidebar. */
+export type SortOrder = "mentions-desc" | "mentions-asc" | "name-asc" | "name-desc";
+
 export interface EnfoliateSettings {
   taxaMappings: TaxaMapping[];
   autoMoveEnabled: boolean;
@@ -29,6 +32,7 @@ export interface EnfoliateSettings {
   sidebarOpen: boolean;
   autoScan: boolean;
   scopeToView: boolean;
+  sortOrder: SortOrder;
   clickAction: ClickAction;
   modClickAction: ClickAction;
   altClickAction: ClickAction;

@@ -1,6 +1,6 @@
 import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, TFile, TFolder } from "obsidian";
 import type EnfoliatePlugin from "./main";
-import { TaxaMapping, ClickAction, INLINE_ACTION_OPTIONS } from "./types";
+import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
 
 class ConfirmModal extends Modal {
@@ -379,6 +379,23 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.scopeToView)
           .onChange(async (value) => {
             this.plugin.settings.scopeToView = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Sort entries")
+      .setDesc("Order of entries within each taxa category in the sidebar.")
+      .addDropdown((dd) =>
+        dd
+          .addOption("mentions-desc", "Mentions, high to low")
+          .addOption("mentions-asc", "Mentions, low to high")
+          .addOption("name-asc", "Name, A to Z")
+          .addOption("name-desc", "Name, Z to A")
+          .setValue(this.plugin.settings.sortOrder)
+          .onChange(async (value) => {
+            this.plugin.settings.sortOrder = value as SortOrder;
             await this.plugin.saveSettings();
             this.plugin.refreshSuggestionsView();
           })

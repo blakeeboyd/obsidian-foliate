@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   sidebarOpen: false,
   autoScan: true,
   scopeToView: false,
+  sortOrder: "mentions-desc",
   clickAction: "jump",
   modClickAction: "replace",
   altClickAction: "tab",

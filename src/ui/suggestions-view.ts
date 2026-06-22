@@ -151,6 +151,25 @@ export class SuggestionsView extends ItemView {
     this.scrollHandler = handler;
   }
 
+  /** Sort entries within a category per the "Sort entries" setting. */
+  private sortEntries<T>(arr: T[], name: (t: T) => string, count: (t: T) => number): T[] {
+    const order = this.plugin.settings.sortOrder;
+    return [...arr].sort((a, b) => {
+      const na = name(a);
+      const nb = name(b);
+      switch (order) {
+        case "name-asc":
+          return na.localeCompare(nb);
+        case "name-desc":
+          return nb.localeCompare(na);
+        case "mentions-asc":
+          return count(a) - count(b) || na.localeCompare(nb);
+        default: // mentions-desc
+          return count(b) - count(a) || na.localeCompare(nb);
+      }
+    });
+  }
+
   /** First occurrence within the viewport (or at/after its top), else the first. */
   private firstVisible(positions: MatchPosition[]): MatchPosition {
     const range = this.visibleRange(this.currentFile);
@@ -724,7 +743,8 @@ export class SuggestionsView extends ItemView {
         keys.push(key);
         const groupContent = this.makeTaxaGroup(section, key, `${taxon.prefix} ${taxon.label}`);
 
-        for (const match of matches) {
+        const sorted = this.sortEntries(matches, (m) => m.fileName, (m) => m.positions.length);
+        for (const match of sorted) {
           this.renderUnlinkedMatch(groupContent, match, file, content);
         }
       }
@@ -1220,7 +1240,8 @@ export class SuggestionsView extends ItemView {
       keys.push(key);
       const groupContent = this.makeTaxaGroup(section, key, `${mapping.prefix} ${mapping.label}`);
 
-      for (const item of items) {
+      const sortedItems = this.sortEntries(items, (i) => i.title, (i) => i.positions.length);
+      for (const item of sortedItems) {
         const row = groupContent.createDiv("enfoliate-linked-row");
         row.dataset.search = `${item.title} ${item.matchName} ${item.link}`.toLowerCase();
         const info = row.createDiv("enfoliate-linked-info");
