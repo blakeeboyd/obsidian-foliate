@@ -607,14 +607,29 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Build the pinned header: the "Enfoliate" title and — when auto-scan is off
-   * — a Scan button that runs a manual scan of the active note.
+   * Build the pinned header: the "Enfoliate" title, a toggle for limiting to the
+   * visible area, and — when auto-scan is off — a Scan button.
    */
   private buildStickyHeader(stickyTop: HTMLElement) {
     const header = stickyTop.createDiv("enfoliate-suggestions-header");
     header.createEl("h4", { text: "Enfoliate" });
+
+    const controls = header.createDiv("enfoliate-header-controls");
+
+    const viewBtn = controls.createEl("button", {
+      cls: "enfoliate-action-btn",
+      attr: { "aria-label": "Limit to visible area" },
+    });
+    setIcon(viewBtn, "eye");
+    if (this.plugin.settings.scopeToView) viewBtn.addClass("is-active");
+    viewBtn.addEventListener("click", async () => {
+      this.plugin.settings.scopeToView = !this.plugin.settings.scopeToView;
+      await this.plugin.saveSettings();
+      this.refresh();
+    });
+
     if (!this.plugin.settings.autoScan) {
-      const scanBtn = header.createEl("button", {
+      const scanBtn = controls.createEl("button", {
         cls: "enfoliate-scan-btn mod-cta",
         text: "Scan",
         attr: { "aria-label": "Scan the active note" },

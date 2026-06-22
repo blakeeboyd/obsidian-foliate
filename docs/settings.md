@@ -39,8 +39,9 @@ Changes take effect immediately after saving.
 |---------|---------|-------------|
 | Open sidebar on startup | Off | Automatically open the Enfoliate sidebar when the plugin loads |
 | Auto-scan | On | Scan the active note automatically as you switch files and edit. Turn off to scan only when you click **Scan** in the sidebar header |
-| Limit to visible area | Off | Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Edit mode only; reading mode shows the whole note |
 | Sort entries | Mentions, high to low | Order of entries within each taxa category: by mention count (either direction) or by name (A to Z / Z to A) |
+
+The **Limit to visible area** toggle lives in the sidebar header (the eye button), not here.
 | Match aliases of linked files | Off | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Select text on jump | Off | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
 | Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |

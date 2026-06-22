@@ -115,6 +115,18 @@
   flex-shrink: 0;
 }
 
+.enfoliate-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Active state for the "Limit to visible area" toggle in the header. */
+.enfoliate-action-btn.is-active {
+  color: var(--text-accent);
+}
+
 /* Wrappers use display:contents so their children (the headers) are direct
    layout children of the scrolling content element, which is what lets
    position:sticky engage for the nested section and category headers. */

@@ -63,6 +63,10 @@ With **Auto-scan** on (the default), the sidebar rescans automatically when you:
 
 Turn **Auto-scan** off (in settings) to stop the sidebar from rescanning on every keystroke and file switch. A **Scan** button then appears in the sidebar header; the panel only analyzes the active note when you click it.
 
+## Limit to visible area
+
+The eye button in the sidebar header toggles **Limit to visible area**. When on (highlighted), both sections show only mentions whose occurrences are in the editor's current view, and the list re-scopes as you scroll. Edit mode only; reading mode shows the whole note.
+
 ## Jump-to-occurrence
 
 By default, clicking a taxa name (in any section) jumps to the next occurrence in the document, cycling through all positions. The click and each modifier-click (**Cmd/Ctrl**, **Option/Alt**, **Shift**) are configurable under **Settings → Enfoliate → Click Actions**: each can jump, open the note in the current tab, a new tab, Split View, or a new window, or copy a wikilink. When a click jumps, it:
