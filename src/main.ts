@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   modClickAction: "replace",
   altClickAction: "tab",
   shiftClickAction: "split",
-  inlineActions: ["link", "linkAll"],
+  inlineActions: ["link", "linkAll", "unlink"],
   matchLinkedAliases: false,
   blocklist: [],
   highlightOnJump: true,
