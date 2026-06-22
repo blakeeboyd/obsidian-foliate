@@ -158,6 +158,12 @@ export class SuggestionsView extends ItemView {
       jump();
       return;
     }
+    if (action === "copy") {
+      const wikilink = `[[${linkText}]]`;
+      navigator.clipboard.writeText(wikilink);
+      new Notice(`Copied ${wikilink}`);
+      return;
+    }
     const newLeaf = action === "replace" ? false : action;
     this.app.workspace.openLinkText(linkText, sourcePath, newLeaf, { active: true });
   }

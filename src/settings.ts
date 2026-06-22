@@ -195,7 +195,7 @@ class HowToModal extends Modal {
     const clicks = contentEl.createEl("p");
     clicks.createEl("strong", { text: "Clicking a term. " });
     clicks.appendText(
-      "By default, clicking a name jumps to its next occurrence in the note and Shift+click opens it in Split View. The click and each modifier-click (Shift, Cmd/Ctrl, Option/Alt) are configurable under Click Actions: each can jump, or open the note in the current tab, a new tab, Split View, or a new window."
+      "By default, clicking a name jumps to its next occurrence in the note and Shift+click opens it in Split View. The click and each modifier-click (Shift, Cmd/Ctrl, Option/Alt) are configurable under Click Actions: each can jump, open the note in the current tab, a new tab, Split View, or a new window, or copy a wikilink."
     );
 
     const scan = contentEl.createEl("p");
@@ -545,6 +545,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           .addOption("tab", "Open in a new tab")
           .addOption("split", "Open in Split View")
           .addOption("window", "Open in a new window")
+          .addOption("copy", "Copy wikilink")
           .setValue(get())
           .onChange(async (value) => {
             set(value as ClickAction);

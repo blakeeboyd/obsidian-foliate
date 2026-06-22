@@ -105,7 +105,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Create folders if missing | On | Create target folders that don't exist |
 | Open sidebar on startup | Off | Auto-open the Enfoliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
-| Click action | Jump to term in the document | What a click on a sidebar item does: jump, or open in current tab / new tab / Split View / new window |
+| Click action | Jump to term in the document | What a click on a sidebar item does: jump, open in current tab / new tab / Split View / new window, or copy a wikilink |
 | Shift+click action | Open in Split View | Same choices, for Shift+click |
 | Cmd/Ctrl+click action | Open in the current tab | Same choices, for Cmd/Ctrl+click |
 | Option/Alt+click action | Open in a new tab | Same choices, for Option/Alt+click |

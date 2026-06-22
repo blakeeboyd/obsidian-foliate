@@ -16,9 +16,10 @@ export type OpenMode = "replace" | "tab" | "split" | "window";
 
 /**
  * What a click (or modifier-click) on a sidebar item does: jump to the next
- * occurrence in the document, or open the note in one of the open modes.
+ * occurrence in the document, copy a wikilink to the note, or open the note in
+ * one of the open modes.
  */
-export type ClickAction = "jump" | OpenMode;
+export type ClickAction = "jump" | "copy" | OpenMode;
 
 export interface EnfoliateSettings {
   taxaMappings: TaxaMapping[];
