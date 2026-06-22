@@ -186,6 +186,24 @@ class HowToModal extends Modal {
       text: "Optionally set a template file per taxon. New files of that type start from the template, with {{title}}, {{prefix}}, and {{label}} substituted.",
     });
 
+    const sidebar = contentEl.createEl("p");
+    sidebar.createEl("strong", { text: "The sidebar. " });
+    sidebar.appendText(
+      "Open the Enfoliate sidebar to see two sections for the active note: Linked Taxa (taxa already linked here) and Unlinked Mentions (existing taxa files whose names appear in the note but aren't linked yet). Row buttons let you link, open, or ignore a mention."
+    );
+
+    const clicks = contentEl.createEl("p");
+    clicks.createEl("strong", { text: "Clicking a name. " });
+    clicks.appendText(
+      "By default, clicking a name jumps to its next occurrence in the note and Cmd/Ctrl+click opens the note. Both the click and Cmd/Ctrl+click actions are configurable under Click Actions (jump, or open in the current tab, a new tab, or a new window)."
+    );
+
+    const scan = contentEl.createEl("p");
+    scan.createEl("strong", { text: "Scanning. " });
+    scan.appendText(
+      "The sidebar scans the active note automatically. In a large vault you can turn off Auto-scan and scan on demand with the Scan button in the sidebar header."
+    );
+
     const note = contentEl.createEl("p");
     note.createEl("strong", { text: "No folder set? " });
     note.appendText(

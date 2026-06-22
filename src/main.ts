@@ -216,7 +216,14 @@ export default class EnfoliatePlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded = ((await this.loadData()) ?? {}) as Record<string, unknown>;
+    // Keep only keys the current settings shape knows about, so values left
+    // behind by removed features don't get rewritten to data.json.
+    const known: Record<string, unknown> = {};
+    for (const key of Object.keys(DEFAULT_SETTINGS)) {
+      if (key in loaded) known[key] = loaded[key];
+    }
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, known) as EnfoliateSettings;
   }
 
   async saveSettings() {
