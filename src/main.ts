@@ -7,7 +7,7 @@ import {
   createTaxaLink,
   ensureFolderExists,
 } from "./services/file-operations";
-import { findUnlinkedMatches } from "./services/unlinked-matcher";
+import { findUnlinkedMatches, findTaxaFileByText } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import {
   SuggestionsView,
@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   autoAddAlias: true,
   sidebarOpen: false,
   autoScan: true,
+  scopeToView: false,
   clickAction: "jump",
   modClickAction: "replace",
   altClickAction: "tab",
@@ -87,23 +88,38 @@ export default class EnfoliatePlugin extends Plugin {
           ).then(() => {
             this.refreshSuggestionsView();
           });
-        } else {
-          new TaxaPickerModal(
-            this.app,
-            this.settings.taxaMappings,
-            (taxon) => {
-              createTaxaLink(
-                this.app,
-                editor,
-                trimmed,
-                taxon,
-                this.settings
-              ).then(() => {
-                this.refreshSuggestionsView();
-              });
-            }
-          ).open();
+          return;
         }
+
+        // No prefix: if the selection matches exactly one existing taxa file
+        // (by name or alias), link straight to it instead of opening the picker.
+        const existing = findTaxaFileByText(
+          this.app,
+          trimmed,
+          this.settings.taxaMappings
+        );
+        if (existing) {
+          editor.replaceSelection(`[[${existing.file.basename}|${trimmed}]]`);
+          new Notice(`Linked ${trimmed} to ${existing.file.basename}`);
+          this.refreshSuggestionsView();
+          return;
+        }
+
+        new TaxaPickerModal(
+          this.app,
+          this.settings.taxaMappings,
+          (taxon) => {
+            createTaxaLink(
+              this.app,
+              editor,
+              trimmed,
+              taxon,
+              this.settings
+            ).then(() => {
+              this.refreshSuggestionsView();
+            });
+          }
+        ).open();
       },
     });
 

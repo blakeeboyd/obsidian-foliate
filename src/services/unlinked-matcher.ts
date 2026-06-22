@@ -50,6 +50,29 @@ export function findUnlinkedMatches(
 }
 
 /**
+ * Find the single existing taxa file whose name (without prefix) or one of its
+ * aliases equals `text`, case-insensitively. Returns the file and its taxon, or
+ * null when nothing matches or more than one does (ambiguous — leave it to the
+ * picker). Used to auto-pick the taxon when linking selected text.
+ */
+export function findTaxaFileByText(
+  app: App,
+  text: string,
+  taxaMappings: TaxaMapping[]
+): { file: TFile; taxon: TaxaMapping } | null {
+  const target = text.trim().toLowerCase();
+  if (!target) return null;
+  const hits: { file: TFile; taxon: TaxaMapping }[] = [];
+  for (const taxon of taxaMappings) {
+    for (const file of getTaxaFiles(app, taxon)) {
+      const terms = getSearchTerms(app, file, taxon).map((t) => t.toLowerCase());
+      if (terms.includes(target)) hits.push({ file, taxon });
+    }
+  }
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/**
  * Offset where the note body begins, i.e. just past the closing fence of a
  * YAML frontmatter block. Returns 0 when there is no frontmatter. Used to keep
  * matches out of the properties block, which can't be navigated or linked.

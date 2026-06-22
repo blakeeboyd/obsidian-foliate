@@ -28,6 +28,7 @@ export interface EnfoliateSettings {
   autoAddAlias: boolean;
   sidebarOpen: boolean;
   autoScan: boolean;
+  scopeToView: boolean;
   clickAction: ClickAction;
   modClickAction: ClickAction;
   altClickAction: ClickAction;
@@ -71,7 +72,7 @@ export interface UnlinkedMatch {
  * intentionally excluded — clicking a row name already jumps.
  */
 export const INLINE_ACTION_OPTIONS: { id: string; label: string }[] = [
-  { id: "link", label: "Link (first occurrence)" },
+  { id: "link", label: "Link (single occurrence)" },
   { id: "linkAll", label: "Link all occurrences" },
   { id: "unlink", label: "Unlink" },
   { id: "open", label: "Open note" },

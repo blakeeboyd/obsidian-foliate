@@ -52,6 +52,8 @@ export class SuggestionsView extends ItemView {
   private searchQuery = "";
   private stickyObserver: ResizeObserver | null = null;
   private jumpIndex: Map<string, number> = new Map();
+  private scrollEl: HTMLElement | null = null;
+  private scrollHandler: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: EnfoliatePlugin) {
     super(leaf);
@@ -96,6 +98,82 @@ export class SuggestionsView extends ItemView {
   async onClose() {
     this.stickyObserver?.disconnect();
     this.stickyObserver = null;
+    if (this.scrollEl && this.scrollHandler) {
+      this.scrollEl.removeEventListener("scroll", this.scrollHandler);
+    }
+    this.scrollEl = null;
+    this.scrollHandler = null;
+  }
+
+  /**
+   * The visible document offset range of the active editor for `noteFile`, or
+   * null when there's no source-mode editor to read (e.g. reading mode). Used to
+   * scope mentions to what's on screen and to pick the link target.
+   */
+  private visibleRange(noteFile: TFile | null): { from: number; to: number } | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view.file !== noteFile || view.getMode() !== "source") return null;
+    const cm = (view.editor as unknown as { cm?: EditorView }).cm;
+    if (!cm || !cm.scrollDOM) return null;
+    const rect = cm.scrollDOM.getBoundingClientRect();
+    const from = cm.posAtCoords({ x: rect.left + 4, y: rect.top + 4 });
+    const to = cm.posAtCoords({ x: rect.left + 4, y: rect.bottom - 4 });
+    if (from == null || to == null) return null;
+    return { from: Math.min(from, to), to: Math.max(from, to) };
+  }
+
+  /**
+   * Keep a scroll listener attached to the active editor when "Limit to visible
+   * area" is on, so the sidebar re-scopes as the user scrolls. Idempotent:
+   * removes any previous listener first.
+   */
+  private registerScrollListener() {
+    if (this.scrollEl && this.scrollHandler) {
+      this.scrollEl.removeEventListener("scroll", this.scrollHandler);
+    }
+    this.scrollEl = null;
+    this.scrollHandler = null;
+    if (!this.plugin.settings.scopeToView) return;
+
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view.file !== this.currentFile) return;
+    const cm = (view.editor as unknown as { cm?: EditorView }).cm;
+    const el = cm?.scrollDOM;
+    if (!el) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const handler = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => this.refresh(), 150);
+    };
+    el.addEventListener("scroll", handler);
+    this.scrollEl = el;
+    this.scrollHandler = handler;
+  }
+
+  /** First occurrence within the viewport (or at/after its top), else the first. */
+  private firstVisible(positions: MatchPosition[]): MatchPosition {
+    const range = this.visibleRange(this.currentFile);
+    if (range) {
+      const within = positions.find((p) => p.offset >= range.from && p.offset <= range.to);
+      if (within) return within;
+      const after = positions.find((p) => p.offset >= range.from);
+      if (after) return after;
+    }
+    return positions[0];
+  }
+
+  /**
+   * Which occurrence the single "Link" action should wrap: the one the user last
+   * jumped to for this term (if any), else the first in the viewport, else the
+   * first in the document.
+   */
+  private linkTargetPosition(key: string, positions: MatchPosition[]): MatchPosition {
+    const stored = this.jumpIndex.get(key);
+    if (stored != null && stored > 0 && positions.length > 0) {
+      return positions[(stored - 1) % positions.length];
+    }
+    return this.firstVisible(positions);
   }
 
   private async findEditorForFile(noteFile: TFile): Promise<MarkdownView | null> {
@@ -551,6 +629,9 @@ export class SuggestionsView extends ItemView {
   }
 
   async refresh() {
+    // Keep the scroll listener matched to the current setting and editor.
+    this.registerScrollListener();
+
     const container = this.contentEl;
     container.empty();
 
@@ -564,6 +645,8 @@ export class SuggestionsView extends ItemView {
     }
 
     const content = await this.app.vault.cachedRead(file);
+    // When "Limit to visible area" is on, scope mentions to the editor viewport.
+    const viewRange = this.plugin.settings.scopeToView ? this.visibleRange(file) : null;
 
     // Sticky top bar: title + search stay pinned as the list scrolls.
     const stickyTop = container.createDiv("enfoliate-sticky-top");
@@ -607,18 +690,28 @@ export class SuggestionsView extends ItemView {
     }
 
     // Linked Mentions (awaited so it renders above Unlinked Mentions)
-    await this.renderLinkedTaxa(container, file);
+    await this.renderLinkedTaxa(container, file, viewRange);
 
     // Layer 1: Unlinked Matches. Already-linked files are excluded here so a
     // file never appears in both sections; its unlinked alias occurrences
     // surface under Linked Mentions instead (when "Match aliases" is on).
-    const unlinkedMatches = findUnlinkedMatches(
+    let unlinkedMatches = findUnlinkedMatches(
       this.app,
       content,
       file,
       this.plugin.settings.taxaMappings,
       false
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
+
+    // Scope to the viewport: keep only occurrences on screen, drop empty matches.
+    if (viewRange) {
+      unlinkedMatches = unlinkedMatches
+        .map((m) => ({
+          ...m,
+          positions: m.positions.filter((p) => p.offset >= viewRange.from && p.offset <= viewRange.to),
+        }))
+        .filter((m) => m.positions.length > 0);
+    }
 
     if (unlinkedMatches.length > 0) {
       const { section, keys, collapseAllBtn } = this.makeSection(container, "Unlinked Mentions");
@@ -911,7 +1004,7 @@ export class SuggestionsView extends ItemView {
     const rowActions: RowAction[] = [
       {
         id: "link",
-        label: "Link first occurrence",
+        label: "Link this occurrence",
         icon: "replace",
         run: () => this.linkUnlinkedMatch(match, noteFile, false),
       },
@@ -975,8 +1068,11 @@ export class SuggestionsView extends ItemView {
     linkAll: boolean
   ) {
     // Each occurrence links with its own surface form, so an alias hit becomes
-    // [[Full Name|ZPD]] while a full-name hit links as itself.
-    const positions = linkAll ? match.positions : [match.positions[0]];
+    // [[Full Name|ZPD]] while a full-name hit links as itself. The single link
+    // targets the occurrence the user last jumped to, else the first in view.
+    const positions = linkAll
+      ? match.positions
+      : [this.linkTargetPosition(match.filePath, match.positions)];
     await this.applyLinks(noteFile, match.fileName, positions);
     const count = positions.length;
     new Notice(
@@ -1009,7 +1105,11 @@ export class SuggestionsView extends ItemView {
     this.refreshAfterMetadataUpdate(noteFile);
   }
 
-  private async renderLinkedTaxa(container: HTMLElement, file: TFile) {
+  private async renderLinkedTaxa(
+    container: HTMLElement,
+    file: TFile,
+    viewRange: { from: number; to: number } | null
+  ) {
     const cache = this.app.metadataCache.getFileCache(file);
     const links = cache?.links || [];
     const content = await this.app.vault.cachedRead(file);
@@ -1053,7 +1153,6 @@ export class SuggestionsView extends ItemView {
               }
               searchFrom = idx + wikiPattern.length;
             }
-            const linkedCount = byOffset.size;
 
             // Find plain text occurrences of the match name. Use the same
             // word-boundary-aware finder as unlinked detection so a short alias
@@ -1083,15 +1182,22 @@ export class SuggestionsView extends ItemView {
               }
             }
 
-            const positions = [...byOffset.values()].sort((a, b) => a.offset - b.offset);
-
-            items.push({
-              title,
-              matchName,
-              link: link.link,
-              positions,
-              unlinkedCount: positions.length - linkedCount,
-            });
+            const allPositions = [...byOffset.values()].sort((a, b) => a.offset - b.offset);
+            // When scoping to the viewport, keep only on-screen occurrences.
+            const positions = viewRange
+              ? allPositions.filter((p) => p.offset >= viewRange.from && p.offset <= viewRange.to)
+              : allPositions;
+            if (positions.length > 0) {
+              // Linked (wikilink) positions have surface "[[…"; the rest are unlinked.
+              const linkedVisible = positions.filter((p) => p.surface.startsWith("[[")).length;
+              items.push({
+                title,
+                matchName,
+                link: link.link,
+                positions,
+                unlinkedCount: positions.length - linkedVisible,
+              });
+            }
           }
           break;
         }

@@ -357,13 +357,28 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Auto-scan")
       .setDesc(
-        "Scan the active note automatically as you switch files, edit, and change selection. Turn off to scan only when you click Scan in the sidebar."
+        "Scan the active note automatically as you switch files and edit. Turn off to scan only when you click Scan in the sidebar."
       )
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autoScan)
           .onChange(async (value) => {
             this.plugin.settings.autoScan = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Limit to visible area")
+      .setDesc(
+        "Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Edit mode only; reading mode shows the whole note."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.scopeToView)
+          .onChange(async (value) => {
+            this.plugin.settings.scopeToView = value;
             await this.plugin.saveSettings();
             this.plugin.refreshSuggestionsView();
           })

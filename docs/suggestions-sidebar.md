@@ -29,7 +29,7 @@ Matches are grouped by taxa type. Each match shows its name and a count of unlin
 
 Available on every row (right-click for all of them; enable any as inline buttons under **Sidebar Buttons** in settings):
 
-- **Link:** wraps the first occurrence in a wikilink, preserving its surface form as the link alias (Unlinked Mentions)
+- **Link:** wraps one occurrence in a wikilink, preserving its surface form as the link alias (Unlinked Mentions). It targets the occurrence you last jumped to for that term; otherwise the first one in the editor's current view, or the first in the document
 - **Link all:** wraps every unlinked occurrence in wikilinks. On Unlinked Mentions that's all of them; on an already-linked file (Linked Mentions) it links the remaining plain-text mentions
 - **Open note:** opens the taxa file
 - **Jump to occurrence:** same as clicking the name (right-click menu only)
