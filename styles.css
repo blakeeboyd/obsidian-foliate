@@ -465,3 +465,8 @@
   background: var(--background-primary);
   color: var(--text-normal);
 }
+
+/* How-to guide modal: pull the title up so there's no extra gap at the top. */
+.enfoliate-howto h2:first-child {
+  margin-top: 0;
+}

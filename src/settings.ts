@@ -165,6 +165,7 @@ class HowToModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass("enfoliate-howto");
 
     contentEl.createEl("h2", { text: "How to use Enfoliate" });
 
@@ -173,8 +174,8 @@ class HowToModal extends Modal {
     });
     inspired.appendText("Built to work alongside ");
     inspired.createEl("a", {
-      text: "Stowe Boyd's Portfolio knowledge management system",
-      href: "https://www.workings.co/p/portfolio-a-knowledge-base-built",
+      text: "Stowe Boyd's Folio knowledge management system",
+      href: "https://stoweboyd.com/",
     });
     inspired.appendText(".");
 

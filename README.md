@@ -1,6 +1,6 @@
 # Enfoliate
 
-Taxa-based knowledge organization for [Obsidian](https://obsidian.md). Built to work alongside [Stowe Boyd's Portfolio system](https://stoweboyd.com/).
+Taxa-based knowledge organization for [Obsidian](https://obsidian.md). Built to work alongside [Stowe Boyd's Folio system](https://stoweboyd.com/).
 
 Enfoliate uses prefix characters to classify knowledge files by type. Each prefix maps to a folder, so files are automatically organized as you create and link them.
 
