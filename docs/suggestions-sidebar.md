@@ -8,7 +8,7 @@ Open it with the **Open Enfoliate sidebar** command, or by enabling "Open sideba
 
 The sidebar has two sections, top to bottom. Within each, every taxa category (`@ People`, `+ Concepts`, etc.) has a clickable header that collapses or expands its contents; the collapsed state persists across notes and restarts. Each section heading also has a collapse/expand-all button that toggles every category in that section at once.
 
-### Linked Taxa
+### Linked Mentions
 
 Shows all taxa currently linked in the active note, grouped by type. Each item displays:
 
@@ -37,15 +37,15 @@ Matching rules:
 - Markdown formatting characters (`*`, `_`, `~`, `` ` ``) treated as word boundaries, so bold/italic text is matched correctly
 - Existing wikilinks are excluded — text inside `[[ ]]` won't generate a match
 - Minimum term length of 2 characters
-- A file that is already linked anywhere in the note never appears under Unlinked Mentions — it is shown under Linked Taxa instead, so the same file is never listed twice. Its still-unlinked alias occurrences are surfaced there (see Linked Taxa above) when **Match aliases of linked files** is on.
+- A file that is already linked anywhere in the note never appears under Unlinked Mentions — it is shown under Linked Mentions instead, so the same file is never listed twice. Its still-unlinked alias occurrences are surfaced there (see Linked Mentions above) when **Match aliases of linked files** is on.
 
 ## Sticky headers
 
-As you scroll, the title bar, the search box, the current section heading (Linked Taxa / Unlinked Mentions), and the current category header stay pinned to the top of the panel, so you always know where you are. Hide the search box with **Show search bar** in settings.
+As you scroll, the title bar, the search box, the current section heading (Linked Mentions / Unlinked Mentions), and the current category header stay pinned to the top of the panel, so you always know where you are. Hide the search box with **Show search bar** in settings.
 
 ## Filtering
 
-The **Filter taxa** box at the top of the panel narrows both Linked Taxa and Unlinked Mentions to entries whose name or alias contains what you type. Categories with no remaining matches are hidden, and a matching entry inside a collapsed category is revealed while the filter is active. Clearing the box restores the full list and your collapse state.
+The **Filter taxa** box at the top of the panel narrows both Linked Mentions and Unlinked Mentions to entries whose name or alias contains what you type. Categories with no remaining matches are hidden, and a matching entry inside a collapsed category is revealed while the filter is active. Clearing the box restores the full list and your collapse state.
 
 ## Scanning
 

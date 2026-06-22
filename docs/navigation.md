@@ -6,7 +6,7 @@ Enfoliate provides several ways to move between your notes and find where entiti
 
 In the [suggestions sidebar](suggestions-sidebar.md), clicking on any taxa name jumps to its next occurrence in the editor. This works for:
 
-- **Linked taxa** — jumps through both wikilink instances (`[[...]]`) and plain text mentions of the same name
+- **Linked mentions** — jumps through both wikilink instances (`[[...]]`) and plain text mentions of the same name
 - **Unlinked mentions** — jumps through plain text occurrences that aren't linked yet
 
 Clicking repeatedly cycles through all occurrences. When you reach the last one, the next click wraps back to the first.
@@ -35,7 +35,7 @@ Toggle the highlight in **Settings → Enfoliate → Highlight on jump**.
 
 ## File navigation
 
-The linked taxa section in the sidebar includes a **→** button next to each taxa name. Clicking it opens that taxa file in the editor, the same as clicking a wikilink in the note body.
+The linked mentions section in the sidebar includes a **→** button next to each taxa name. Clicking it opens that taxa file in the editor, the same as clicking a wikilink in the note body.
 
 ## Commands
 

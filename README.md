@@ -33,7 +33,7 @@ Select text and run **Create taxa link** from the command palette. If the text s
 
 A sidebar panel with two sections for the active note:
 
-- **Linked taxa** — all taxa currently linked in the note, grouped by type. Click a name to jump through occurrences (wikilinks and plain text). Click → to open the taxa file.
+- **Linked mentions** — all taxa currently linked in the note, grouped by type. Click a name to jump through occurrences (wikilinks and plain text). Click → to open the taxa file.
 - **Unlinked mentions** — existing taxa files whose names or aliases appear in your note but aren't linked yet. Link individual mentions or all at once.
 
 The sidebar refreshes on file switch, content edits, and selection changes. Select text to scope the scan to just that selection.
@@ -107,7 +107,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
 | Click action | Jump to it in the document | What a click on a sidebar item does: jump, or open in current tab / new tab / new window |
 | Cmd/Ctrl+click action | Open in the current tab | What a modifier-click does: jump, or open in current tab / new tab / new window |
-| Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Taxa entry |
+| Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Mentions entry |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
 | Highlight color | Yellow | Custom color for the jump highlight |
 | Blocklist | — | Permanently ignored suggestion terms |
@@ -116,7 +116,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 
 - [Taxa System](docs/taxa-system.md) — prefixes, folders, auto-move, aliases
 - [Smart Linking](docs/smart-linking.md) — link creation, how linking works
-- [Suggestions Sidebar](docs/suggestions-sidebar.md) — linked taxa, unlinked mentions, actions, jump behavior
+- [Suggestions Sidebar](docs/suggestions-sidebar.md) — linked mentions, unlinked mentions, actions, jump behavior
 - [Navigation](docs/navigation.md) — jump-to-occurrence, highlight, commands
 - [Settings Reference](docs/settings.md) — every setting explained
 

@@ -581,12 +581,12 @@ export class SuggestionsView extends ItemView {
       });
     }
 
-    // Linked Taxa (awaited so it renders above Unlinked Mentions)
+    // Linked Mentions (awaited so it renders above Unlinked Mentions)
     await this.renderLinkedTaxa(container, file);
 
     // Layer 1: Unlinked Matches. Already-linked files are excluded here so a
     // file never appears in both sections; its unlinked alias occurrences
-    // surface under Linked Taxa instead (when "Match aliases" is on).
+    // surface under Linked Mentions instead (when "Match aliases" is on).
     const unlinkedMatches = findUnlinkedMatches(
       this.app,
       textToAnalyze,
@@ -716,7 +716,7 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Create a section (Linked Taxa / Unlinked Mentions) with a heading and a
+   * Create a section (Linked Mentions / Unlinked Mentions) with a heading and a
    * collapse/expand-all button. Returns the section element plus a keys array
    * to fill with each category's collapse key and the button to wire afterward.
    */
@@ -993,7 +993,7 @@ export class SuggestionsView extends ItemView {
 
     if (!hasAny) return;
 
-    const { section, keys, collapseAllBtn } = this.makeSection(container, "Linked Taxa");
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Linked Mentions");
 
     for (const [mapping, items] of grouped) {
       if (items.length === 0) continue;

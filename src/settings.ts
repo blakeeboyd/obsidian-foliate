@@ -189,7 +189,7 @@ class HowToModal extends Modal {
     const sidebar = contentEl.createEl("p");
     sidebar.createEl("strong", { text: "The sidebar. " });
     sidebar.appendText(
-      "Open the Enfoliate sidebar to see two sections for the active note: Linked Taxa (taxa already linked here) and Unlinked Mentions (existing taxa files whose names appear in the note but aren't linked yet). Row buttons let you link, open, or ignore a mention."
+      "Open the Enfoliate sidebar to see two sections for the active note: Linked Mentions (taxa already linked here) and Unlinked Mentions (existing taxa files whose names appear in the note but aren't linked yet). Row buttons let you link, open, or ignore a mention."
     );
 
     const clicks = contentEl.createEl("p");
@@ -357,7 +357,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Match aliases of linked files")
       .setDesc(
-        'Under Linked Taxa, fold in unlinked alias occurrences of an already-linked file so you can cycle through them (for example, "USA" where the linked file is United States).'
+        'Under Linked Mentions, fold in unlinked alias occurrences of an already-linked file so you can cycle through them (for example, "USA" where the linked file is United States).'
       )
       .addToggle((toggle) =>
         toggle
