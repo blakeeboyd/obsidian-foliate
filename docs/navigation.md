@@ -11,7 +11,7 @@ In the [suggestions sidebar](suggestions-sidebar.md), clicking on any taxa name 
 
 Clicking repeatedly cycles through all occurrences. When you reach the last one, the next click wraps back to the first.
 
-Jumping is the default action for a plain click, but the click and each modifier-click are configurable in **Settings → Enfoliate → Click Actions**: plain click, **Cmd/Ctrl+click**, **Option/Alt+click**, and **Shift+click**. Each can jump in the document or open the note in the current tab, a new tab, a split, or a new window. Defaults: click jumps, Cmd/Ctrl opens in the current tab, Option/Alt in a new tab, Shift in a new window. With several modifiers held, precedence is Cmd/Ctrl, then Option/Alt, then Shift.
+Jumping is the default action for a plain click, but the click and each modifier-click are configurable in **Settings → Enfoliate → Click Actions**: plain click, **Cmd/Ctrl+click**, **Option/Alt+click**, and **Shift+click**. Each can jump in the document or open the note in the current tab, a new tab, Split View, or a new window. Defaults: click jumps, Shift opens in Split View, Cmd/Ctrl in the current tab, Option/Alt in a new tab. With several modifiers held, precedence is Cmd/Ctrl, then Option/Alt, then Shift.
 
 ### What happens on jump
 

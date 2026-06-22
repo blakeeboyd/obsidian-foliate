@@ -195,7 +195,7 @@ class HowToModal extends Modal {
     const clicks = contentEl.createEl("p");
     clicks.createEl("strong", { text: "Clicking a term. " });
     clicks.appendText(
-      "By default, clicking a name jumps to its next occurrence in the note and Cmd/Ctrl+click opens it. The click and each modifier-click (Cmd/Ctrl, Option/Alt, Shift) are configurable under Click Actions: each can jump, or open the note in the current tab, a new tab, a split, or a new window."
+      "By default, clicking a name jumps to its next occurrence in the note and Shift+click opens it in Split View. The click and each modifier-click (Shift, Cmd/Ctrl, Option/Alt) are configurable under Click Actions: each can jump, or open the note in the current tab, a new tab, Split View, or a new window."
     );
 
     const scan = contentEl.createEl("p");
@@ -421,6 +421,13 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     );
     this.addClickActionSetting(
       containerEl,
+      "Shift+click action",
+      "What a Shift + click does.",
+      () => this.plugin.settings.shiftClickAction,
+      (v) => (this.plugin.settings.shiftClickAction = v)
+    );
+    this.addClickActionSetting(
+      containerEl,
       "Cmd/Ctrl+click action",
       "What a Cmd (macOS) / Ctrl (Windows/Linux) + click does.",
       () => this.plugin.settings.modClickAction,
@@ -432,13 +439,6 @@ export class EnfoliateSettingTab extends PluginSettingTab {
       "What an Option (macOS) / Alt (Windows/Linux) + click does.",
       () => this.plugin.settings.altClickAction,
       (v) => (this.plugin.settings.altClickAction = v)
-    );
-    this.addClickActionSetting(
-      containerEl,
-      "Shift+click action",
-      "What a Shift + click does.",
-      () => this.plugin.settings.shiftClickAction,
-      (v) => (this.plugin.settings.shiftClickAction = v)
     );
 
     // --- Sidebar Buttons ---
@@ -543,7 +543,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           .addOption("jump", "Jump to term in the document")
           .addOption("replace", "Open in the current tab")
           .addOption("tab", "Open in a new tab")
-          .addOption("split", "Open in a split")
+          .addOption("split", "Open in Split View")
           .addOption("window", "Open in a new window")
           .setValue(get())
           .onChange(async (value) => {

@@ -70,7 +70,7 @@ Select text in the editor to scope the scan to just that selection. Deselect to 
 
 ## Jump-to-occurrence
 
-By default, clicking a taxa name (in any section) jumps to the next occurrence in the document, cycling through all positions. The click and each modifier-click (**Cmd/Ctrl**, **Option/Alt**, **Shift**) are configurable under **Settings → Enfoliate → Click Actions**: each can jump, or open the note in the current tab, a new tab, a split, or a new window. When a click jumps, it:
+By default, clicking a taxa name (in any section) jumps to the next occurrence in the document, cycling through all positions. The click and each modifier-click (**Cmd/Ctrl**, **Option/Alt**, **Shift**) are configurable under **Settings → Enfoliate → Click Actions**: each can jump, or open the note in the current tab, a new tab, Split View, or a new window. When a click jumps, it:
 
 1. Focuses the editor
 2. Sets the cursor at the occurrence

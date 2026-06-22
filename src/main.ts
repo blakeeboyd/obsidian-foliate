@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   clickAction: "jump",
   modClickAction: "replace",
   altClickAction: "tab",
-  shiftClickAction: "window",
+  shiftClickAction: "split",
   inlineActions: ["link", "linkAll", "linkUnlinked"],
   matchLinkedAliases: false,
   blocklist: [],
