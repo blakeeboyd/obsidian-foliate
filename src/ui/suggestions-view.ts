@@ -1131,12 +1131,6 @@ export class SuggestionsView extends ItemView {
         }
         rowActions.push(
           {
-            id: "open",
-            label: "Open note",
-            icon: "external-link",
-            run: () => this.app.workspace.openLinkText(item.link, file.path, false),
-          },
-          {
             id: "jump",
             label: "Jump to occurrence",
             icon: "crosshair",
@@ -1152,6 +1146,12 @@ export class SuggestionsView extends ItemView {
             label: "Unlink",
             icon: "unlink",
             run: () => this.unlinkTaxaFromNote(item.link, item.title, file),
+          },
+          {
+            id: "open",
+            label: "Open note",
+            icon: "external-link",
+            run: () => this.app.workspace.openLinkText(item.link, file.path, false),
           }
         );
         this.renderRowActions(row, linkedActions, rowActions);

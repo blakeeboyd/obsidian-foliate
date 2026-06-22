@@ -62,8 +62,8 @@ A toggle per action controls whether it appears as an inline button on sidebar r
 |--------|---------|------------------|
 | Link (first occurrence) | On | Unlinked Mentions |
 | Link all occurrences | On | Unlinked Mentions, and Linked Mentions when a linked file still has unlinked plain-text mentions |
-| Open note | Off | Both sections |
 | Unlink | On | Linked Mentions |
+| Open note | Off | Both sections |
 | Always ignore | Off | Unlinked Mentions |
 | Dismiss | Off | Unlinked Mentions |
 
