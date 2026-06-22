@@ -387,12 +387,6 @@
   100% { background-color: transparent; }
 }
 
-/* Jump Highlight (reading mode — precise matched text via Custom Highlight API) */
-::highlight(enfoliate-jump) {
-  background-color: var(--enfoliate-highlight-color, rgba(255, 215, 0, 0.45));
-  color: var(--text-normal);
-}
-
 .enfoliate-ignore-btn {
   font-size: 10px;
   padding: 2px 6px;

@@ -231,23 +231,41 @@ export class SuggestionsView extends ItemView {
         ? this.countLinksBefore(content, key, from, offset)
         : this.countMatchesBefore(content, key, from, offset);
 
-    const place = (target: Range) => {
+    // Wrap the matched text in a real span using the same class (and fade
+    // animation) as the editor highlight, so reading mode matches edit mode for
+    // color and fade. A span is also far more stable than a Custom Highlight
+    // API Range, which invalidates when the preview relayouts. Returns true once
+    // a highlight is placed.
+    const place = (target: Range): boolean => {
       target.startContainer.parentElement?.scrollIntoView({ block: "center" });
-      const HighlightCtor = (window as any).Highlight;
-      const highlights = (CSS as any).highlights;
-      if (!HighlightCtor || !highlights) return;
+      const span = document.createElement("span");
+      span.className = "enfoliate-jump-highlight";
       const color = this.plugin.settings.highlightColor;
-      if (color) document.body.style.setProperty("--enfoliate-highlight-color", color);
-      highlights.set("enfoliate-jump", new HighlightCtor(target));
+      if (color) span.style.setProperty("--enfoliate-highlight-color", color);
+      span.style.setProperty(
+        "--enfoliate-highlight-duration",
+        `${this.plugin.settings.highlightDurationSeconds}s`
+      );
+      try {
+        target.surroundContents(span);
+      } catch {
+        return false; // range crosses element boundaries; can't wrap cleanly
+      }
       window.setTimeout(() => {
-        highlights.delete("enfoliate-jump");
-        if (color) document.body.style.removeProperty("--enfoliate-highlight-color");
+        // Unwrap, restoring the original text. Skip if Obsidian already
+        // re-rendered the section (span detached).
+        const parent = span.parentElement;
+        if (!parent) return;
+        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+        parent.removeChild(span);
+        parent.normalize();
       }, this.highlightMs());
+      return true;
     };
 
-    const highlight = () => {
+    const highlight = (): boolean => {
       const root = preview?.containerEl as HTMLElement | undefined;
-      if (!root) return;
+      if (!root) return false;
 
       // Prefer resolving within the section containing the target line. Reading
       // view renders lazily, so a global count is unreliable; within one fully
@@ -257,24 +275,31 @@ export class SuggestionsView extends ItemView {
         const ranges = findRanges(section.el);
         if (ranges.length) {
           const index = countBefore(this.offsetOfLine(content, section.lineStart));
-          place(ranges[Math.min(index, ranges.length - 1)]);
-          return;
+          return place(ranges[Math.min(index, ranges.length - 1)]);
         }
       }
 
       // Fallback: search the whole preview so highlighting still works even if
       // the section lookup comes up empty.
       const ranges = findRanges(root);
-      if (!ranges.length) return;
+      if (!ranges.length) return false;
       const index = countBefore(bodyStartOffset(content));
-      place(ranges[Math.min(index, ranges.length - 1)]);
+      return place(ranges[Math.min(index, ranges.length - 1)]);
     };
 
-    // Render the target first (applyScroll), then highlight on the next tick.
+    // Render the target first (applyScroll), then highlight. Reading view
+    // renders lazily after the scroll, so retry until the section exists.
     if (preview && typeof preview.applyScroll === "function") {
       preview.applyScroll(line);
     }
-    if (wantsHighlight) window.setTimeout(highlight, 60);
+    if (wantsHighlight) {
+      let attempts = 0;
+      const attempt = () => {
+        if (highlight()) return;
+        if (++attempts < 6) window.setTimeout(attempt, 80);
+      };
+      window.setTimeout(attempt, 50);
+    }
   }
 
   /**
