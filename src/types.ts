@@ -29,6 +29,7 @@ export interface EnfoliateSettings {
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
   autoAddAlias: boolean;
+  sidebarEnabled: boolean;
   sidebarOpen: boolean;
   autoScan: boolean;
   scopeToView: boolean;

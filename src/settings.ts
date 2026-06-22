@@ -314,9 +314,9 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: "Auto-Move" });
 
     new Setting(containerEl)
-      .setName("Enable auto-move")
+      .setName("Auto-Move File On Creation")
       .setDesc(
-        "Automatically move files to taxa folders when created or renamed."
+        "Automatically move files to taxa folders when created or renamed with a taxa prefix."
       )
       .addToggle((toggle) =>
         toggle
@@ -341,6 +341,20 @@ export class EnfoliateSettingTab extends PluginSettingTab {
 
     // --- Sidebar ---
     containerEl.createEl("h2", { text: "Sidebar" });
+
+    new Setting(containerEl)
+      .setName("Enable Sidebar")
+      .setDesc(
+        "Make the Enfoliate sidebar available. Turn off to use the plugin's commands and auto-move without the sidebar. Requires plugin reload."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.sidebarEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.sidebarEnabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Open sidebar on startup")

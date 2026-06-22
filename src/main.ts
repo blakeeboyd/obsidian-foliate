@@ -19,7 +19,8 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   autoMoveEnabled: true,
   createFolderIfMissing: true,
   autoAddAlias: true,
-  sidebarOpen: false,
+  sidebarEnabled: true,
+  sidebarOpen: true,
   autoScan: true,
   scopeToView: false,
   sortOrder: "mentions-desc",
@@ -28,11 +29,11 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   altClickAction: "menu",
   shiftClickAction: "split",
   inlineActions: ["link", "linkAll", "unlink"],
-  matchLinkedAliases: false,
+  matchLinkedAliases: true,
   blocklist: [],
   highlightOnJump: true,
   highlightDurationSeconds: 2.5,
-  selectOnJump: false,
+  selectOnJump: true,
   showSearchBar: true,
   collapsedCategories: [],
   highlightColor: "",
@@ -47,15 +48,17 @@ export default class EnfoliatePlugin extends Plugin {
     this.addSettingTab(new EnfoliateSettingTab(this.app, this));
     this.registerCommands();
     this.registerAutoMover();
-    this.registerView(
-      SUGGESTIONS_VIEW_TYPE,
-      (leaf) => new SuggestionsView(leaf, this)
-    );
-    this.app.workspace.onLayoutReady(() => {
-      if (this.settings.sidebarOpen) {
-        this.activateSuggestionsView();
-      }
-    });
+    if (this.settings.sidebarEnabled) {
+      this.registerView(
+        SUGGESTIONS_VIEW_TYPE,
+        (leaf) => new SuggestionsView(leaf, this)
+      );
+      this.app.workspace.onLayoutReady(() => {
+        if (this.settings.sidebarOpen) {
+          this.activateSuggestionsView();
+        }
+      });
+    }
   }
 
   async onunload() {
@@ -344,6 +347,10 @@ export default class EnfoliatePlugin extends Plugin {
   }
 
   async activateSuggestionsView() {
+    if (!this.settings.sidebarEnabled) {
+      new Notice("Enable the sidebar in Enfoliate settings first (requires reload).");
+      return;
+    }
     const leaves = this.app.workspace.getLeavesOfType(SUGGESTIONS_VIEW_TYPE);
     if (leaves.length > 0) {
       this.app.workspace.revealLeaf(leaves[0]);

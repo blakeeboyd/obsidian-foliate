@@ -30,21 +30,22 @@ Changes take effect immediately after saving.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable auto-move | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
+| Auto-Move File On Creation | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
 | Create folders if missing | On | Create target folders that don't exist yet (including intermediate directories) |
 
 ## Sidebar
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Open sidebar on startup | Off | Automatically open the Enfoliate sidebar when the plugin loads |
+| Enable Sidebar | On | Make the Enfoliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
+| Open sidebar on startup | On | Automatically open the Enfoliate sidebar when the plugin loads |
 | Auto-scan | On | Scan the active note automatically as you switch files and edit. Turn off to scan only when you click **Scan** in the sidebar header |
 | Sort entries | Mentions, high to low | Order of entries within each taxa category: by mention count (either direction) or by name (A to Z / Z to A) |
+| Match aliases of linked files | On | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
+| Select text on jump | On | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
+| Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |
 
 The **Limit to visible area** toggle lives in the sidebar header (the eye button), not here.
-| Match aliases of linked files | Off | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
-| Select text on jump | Off | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
-| Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |
 
 ## Click Actions
 

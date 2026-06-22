@@ -105,9 +105,10 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 |---------|---------|-------------|
 | Taxa Mappings | 8 prefixes, no folders | Add, edit, or remove prefix/label/folder mappings |
 | Auto-add alias | On | On link creation, add the linked name to the target file's aliases |
-| Auto-Move | On | Automatically move files to taxa folders |
+| Auto-Move File On Creation | On | Automatically move files to taxa folders when created or renamed |
 | Create folders if missing | On | Create target folders that don't exist |
-| Open sidebar on startup | Off | Auto-open the Enfoliate sidebar on plugin load |
+| Enable Sidebar | On | Make the sidebar available (requires reload); off uses commands + auto-move only |
+| Open sidebar on startup | On | Auto-open the Enfoliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
 | Sort entries | Mentions, high to low | Order entries within each category by mention count or name |
 | Click action | Jump to term in the document | What a click on a sidebar item does: jump, open in current tab / new tab / Split View / new window, copy a wikilink, or open the options menu |
@@ -115,7 +116,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Cmd/Ctrl+click action | Open in the current tab | Same choices, for Cmd/Ctrl+click |
 | Option/Alt+click action | Open options menu | Same choices, for Option/Alt+click |
 | Sidebar Buttons | Link, Link all, Unlink | Which row actions show as inline buttons; all actions are always available via right-click |
-| Match aliases of linked files | Off | Fold unlinked alias mentions of already-linked files into their Linked Mentions entry |
+| Match aliases of linked files | On | Fold unlinked alias mentions of already-linked files into their Linked Mentions entry |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
 | Highlight color | Yellow | Custom color for the jump highlight |
 | Blocklist | (none) | Permanently ignored suggestion terms |
