@@ -61,9 +61,11 @@ export function bodyStartOffset(content: string): number {
 
 /**
  * Find all unlinked occurrences of a single taxa file's name and aliases in the
- * text, deduped by offset (keeping the longest term at each offset). Positions
- * inside existing [[ ]] wikilinks, or before bodyStart (i.e. in frontmatter),
- * are excluded. Used both for unlinked-mention detection and for folding alias
+ * text. Overlapping matches are resolved by keeping the longest and dropping any
+ * that overlaps it, so an alias that sits inside a longer name occurrence (e.g.
+ * "Moeller" within "Hans-Georg Moeller") is not linked twice. Positions inside
+ * existing [[ ]] wikilinks, or before bodyStart (i.e. in frontmatter), are
+ * excluded. Used both for unlinked-mention detection and for folding alias
  * mentions into an already-linked file's entry.
  */
 export function findFileMatchPositions(
@@ -74,26 +76,34 @@ export function findFileMatchPositions(
   bodyStart = 0
 ): MatchPosition[] {
   const searchTerms = getSearchTerms(app, taxaFile, taxon);
-  // Keyed by offset so overlapping terms dedupe; keep the longest match.
-  const byOffset = new Map<number, MatchPosition>();
+  const candidates: MatchPosition[] = [];
 
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
 
     for (const offset of findUnlinkedPositions(noteContent, term)) {
       if (offset < bodyStart) continue;
-      const existing = byOffset.get(offset);
-      if (!existing || term.length > existing.len) {
-        byOffset.set(offset, {
-          offset,
-          len: term.length,
-          surface: noteContent.substring(offset, offset + term.length),
-        });
-      }
+      candidates.push({
+        offset,
+        len: term.length,
+        surface: noteContent.substring(offset, offset + term.length),
+      });
     }
   }
 
-  return [...byOffset.values()].sort((a, b) => a.offset - b.offset);
+  // Resolve overlaps: take the longest match first, then drop any candidate
+  // whose [offset, offset+len) range overlaps an already-kept one. This also
+  // dedupes exact-offset collisions. Ranges that don't overlap are all kept.
+  candidates.sort((a, b) => b.len - a.len || a.offset - b.offset);
+  const kept: MatchPosition[] = [];
+  for (const c of candidates) {
+    const overlaps = kept.some(
+      (k) => c.offset < k.offset + k.len && k.offset < c.offset + c.len
+    );
+    if (!overlaps) kept.push(c);
+  }
+
+  return kept.sort((a, b) => a.offset - b.offset);
 }
 
 /**
