@@ -40,6 +40,7 @@ Available on every row (right-click for all of them; enable any as inline button
 Matching rules:
 - Case-insensitive
 - Word boundaries respected (won't match "art" inside "party")
+- Hyphens are treated as part of a word, so "Sub" won't match the fragment in "Sub-branch"; a hyphenated term like "Hans-Georg Moeller" still matches as a whole
 - Markdown formatting characters (`*`, `_`, `~`, `` ` ``) treated as word boundaries, so bold/italic text is matched correctly
 - Existing wikilinks are excluded — text inside `[[ ]]` won't generate a match
 - Minimum term length of 2 characters

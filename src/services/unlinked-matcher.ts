@@ -170,6 +170,11 @@ function getSearchTerms(
  * Case-insensitive matching with word boundary checks, so a short term like
  * "AI" never matches inside a word ("faithful", "claim"). Exported so the
  * sidebar's linked-file plain-text scan uses the same boundary rules.
+ *
+ * The hyphen "-" is treated as a word character (not a boundary), so a term
+ * like "Sub" does not match the fragment in "Sub-branch"; a hyphenated taxa
+ * term ("Hans-Georg Moeller") still matches as a whole. The em dash "—", which
+ * separates clauses rather than joining words, remains a boundary.
  */
 export function findUnlinkedPositions(text: string, term: string): number[] {
   const positions: number[] = [];
@@ -186,9 +191,9 @@ export function findUnlinkedPositions(text: string, term: string): number[] {
     const charBefore = idx > 0 ? text[idx - 1] : " ";
     const charAfter =
       idx + termLen < text.length ? text[idx + termLen] : " ";
-    const isWordBoundaryBefore = /[\s,;:!?([\]"'\-—*_~`]/.test(charBefore) || idx === 0;
+    const isWordBoundaryBefore = /[\s,;:!?([\]"'—*_~`]/.test(charBefore) || idx === 0;
     const isWordBoundaryAfter =
-      /[\s,;:!?)\]"'\-—.*_~`]/.test(charAfter) ||
+      /[\s,;:!?)\]"'—.*_~`]/.test(charAfter) ||
       idx + termLen === text.length;
 
     if (isWordBoundaryBefore && isWordBoundaryAfter) {
