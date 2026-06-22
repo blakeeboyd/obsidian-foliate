@@ -166,6 +166,7 @@ class HowToModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("enfoliate-howto");
+    this.modalEl.addClass("enfoliate-howto-modal");
 
     contentEl.createEl("h2", { text: "How to use Enfoliate" });
 

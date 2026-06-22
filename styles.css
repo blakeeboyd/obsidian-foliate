@@ -373,11 +373,15 @@
 
 .enfoliate-howto::-webkit-scrollbar-track {
   background: transparent;
-  /* Inset top and bottom so the scrollbar clears the modal's rounded corners. */
-  margin: 14px 0;
 }
 
 .enfoliate-howto::-webkit-scrollbar-thumb {
   background: var(--background-modifier-border);
   border-radius: 3px;
+}
+
+/* Clip the modal to its rounded corners so the content scrollbar doesn't paint
+   into the transparent corner region (looking like it sticks out top/bottom). */
+.enfoliate-howto-modal {
+  overflow: hidden;
 }
