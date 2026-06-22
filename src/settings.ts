@@ -169,16 +169,6 @@ class HowToModal extends Modal {
 
     contentEl.createEl("h2", { text: "How to use Enfoliate" });
 
-    const inspired = contentEl.createEl("p", {
-      cls: "setting-item-description",
-    });
-    inspired.appendText("Built to work alongside ");
-    inspired.createEl("a", {
-      text: "Stowe Boyd's Folio knowledge management system",
-      href: "https://stoweboyd.com/",
-    });
-    inspired.appendText(".");
-
     contentEl.createEl("p", {
       text: "Enfoliate organizes notes by taxa: prefix characters that mark a note's type (@ for people, + for concepts, and so on). In Taxa Mappings, define each prefix and the folder its files belong in. When you create or rename a note whose name starts with a prefix, Enfoliate moves it to that taxon's folder.",
     });
@@ -210,6 +200,16 @@ class HowToModal extends Modal {
     note.appendText(
       "If a taxon has no folder specified, its new files are created at the vault root and are not auto-moved. Set a folder to keep that type organized."
     );
+
+    const inspired = contentEl.createEl("p", {
+      cls: "setting-item-description",
+    });
+    inspired.appendText("Built to work alongside ");
+    inspired.createEl("a", {
+      text: "Stowe Boyd's Folio knowledge management system",
+      href: "https://www.workings.co/p/folio-how-notetaking-becomes-knowledge?utm_source=publication-search",
+    });
+    inspired.appendText(".");
 
     const credit = contentEl.createEl("p", {
       cls: "setting-item-description",
