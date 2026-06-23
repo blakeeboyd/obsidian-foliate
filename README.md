@@ -129,6 +129,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 - [Suggestions Sidebar](docs/suggestions-sidebar.md): linked mentions, unlinked mentions, actions, jump behavior
 - [Navigation](docs/navigation.md): jump-to-occurrence, highlight, commands
 - [Settings Reference](docs/settings.md): every setting explained
+- [Changelog](CHANGELOG.md): version history
 
 ## Development
 
