@@ -25,7 +25,7 @@ All prefixes, labels, and folders are configurable in settings. [Full taxa syste
 
 ### Smart linking
 
-Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Enfoliate creates the file in the right folder and replaces the selection with a wikilink. If no prefix is detected, a picker modal lets you choose the taxa type.
+Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Enfoliate creates the file in the right folder and replaces the selection with a wikilink. If there's no prefix but the selection matches an existing taxa file, it links straight to that file; otherwise a picker lets you choose the taxa type.
 
 [Smart linking docs →](docs/smart-linking.md)
 
@@ -49,7 +49,8 @@ Right-click any row for its full set of actions (link, open, unlink, ignore, dis
 
 ### Navigation
 
-- **Click actions:** click a taxa name to jump to its next occurrence (cycling through all positions with an optional highlight flash) or to open the note. Each click modifier is configurable: jump in the document, or open in the current tab, a new tab, or a new window. By default a click jumps and Cmd/Ctrl+click opens in the current tab.
+- **Click actions:** the plain click and each modifier-click (Cmd/Ctrl, Option/Alt, Shift) are configurable: jump to the next occurrence (cycling through all positions with an optional highlight flash), open the note (current tab, new tab, Split View, or new window), copy a wikilink, or open the options menu. Defaults: click jumps, Cmd/Ctrl opens in the current tab, Option/Alt opens the options menu, Shift opens in Split View.
+- **Limit to visible area:** an eye toggle in the sidebar header scopes the list to occurrences in the editor's current view, updating as you scroll.
 
 [Navigation docs →](docs/navigation.md)
 
