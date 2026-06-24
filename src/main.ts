@@ -1,24 +1,26 @@
-import { Notice, Plugin, TAbstractFile, TFile, MarkdownView, addIcon } from "obsidian";
-import { EnfoliateSettings, TaxaMapping } from "./types";
+import { Editor, EditorPosition, Notice, Plugin, TAbstractFile, TFile, MarkdownView, addIcon } from "obsidian";
+import { FoliateSettings, TaxaMapping } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, findTaxonByPrefix } from "./taxa";
-import { EnfoliateSettingTab } from "./settings";
-import { ENFOLIATE_ICON_ID, ENFOLIATE_ICON_SVG } from "./icon";
+import { FoliateSettingTab } from "./settings";
+import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
   createTaxaLink,
   ensureFolderExists,
 } from "./services/file-operations";
-import { findUnlinkedMatches, findTaxaFileByText } from "./services/unlinked-matcher";
+import { findUnlinkedMatches, findTaxaFileByText, findTaxaFilesByText } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
+import { FilePickerModal } from "./ui/file-picker-modal";
 import {
   SuggestionsView,
   SUGGESTIONS_VIEW_TYPE,
 } from "./ui/suggestions-view";
 
-const DEFAULT_SETTINGS: EnfoliateSettings = {
+const DEFAULT_SETTINGS: FoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
   autoMoveEnabled: true,
   createFolderIfMissing: true,
   autoAddAlias: true,
+  linkUnderCursorFallback: true,
   sidebarEnabled: true,
   sidebarOpen: true,
   autoScan: true,
@@ -39,13 +41,13 @@ const DEFAULT_SETTINGS: EnfoliateSettings = {
   highlightColor: "",
 };
 
-export default class EnfoliatePlugin extends Plugin {
-  settings: EnfoliateSettings = DEFAULT_SETTINGS;
+export default class FoliatePlugin extends Plugin {
+  settings: FoliateSettings = DEFAULT_SETTINGS;
 
   async onload() {
     await this.loadSettings();
-    addIcon(ENFOLIATE_ICON_ID, ENFOLIATE_ICON_SVG);
-    this.addSettingTab(new EnfoliateSettingTab(this.app, this));
+    addIcon(FOLIATE_ICON_ID, FOLIATE_ICON_SVG);
+    this.addSettingTab(new FoliateSettingTab(this.app, this));
     this.registerCommands();
     this.registerAutoMover();
     if (this.settings.sidebarEnabled) {
@@ -67,68 +69,30 @@ export default class EnfoliatePlugin extends Plugin {
 
   private registerCommands() {
     this.addCommand({
-      id: "enfoliate-create-taxa-link",
+      id: "foliate-create-taxa-link",
       name: "Create taxa link",
-      editorCallback: (editor, view) => {
+      editorCallback: (editor) => {
         const selection = editor.getSelection();
-        if (!selection || selection.trim().length === 0) {
-          new Notice("Select text first.");
+        if (selection && selection.trim().length > 0) {
+          // Selection present: link it (creating the file via the picker when
+          // nothing matches), exactly as before.
+          this.linkSelectedText(editor, selection.trim());
           return;
         }
 
-        const trimmed = selection.trim();
-        const detectedTaxon = findTaxonByPrefix(
-          trimmed,
-          this.settings.taxaMappings
-        );
-
-        if (detectedTaxon) {
-          createTaxaLink(
-            this.app,
-            editor,
-            trimmed,
-            detectedTaxon,
-            this.settings
-          ).then(() => {
-            this.refreshSuggestionsView();
-          });
+        // No selection. When the fallback is enabled, act on the cursor: link an
+        // existing taxa mention under it, or fall back to the word under it.
+        if (this.settings.linkUnderCursorFallback) {
+          this.linkUnderCursor(editor);
           return;
         }
 
-        // No prefix: if the selection matches exactly one existing taxa file
-        // (by name or alias), link straight to it instead of opening the picker.
-        const existing = findTaxaFileByText(
-          this.app,
-          trimmed,
-          this.settings.taxaMappings
-        );
-        if (existing) {
-          editor.replaceSelection(`[[${existing.file.basename}|${trimmed}]]`);
-          new Notice(`Linked ${trimmed} to ${existing.file.basename}`);
-          this.refreshSuggestionsView();
-          return;
-        }
-
-        new TaxaPickerModal(
-          this.app,
-          this.settings.taxaMappings,
-          (taxon) => {
-            createTaxaLink(
-              this.app,
-              editor,
-              trimmed,
-              taxon,
-              this.settings
-            ).then(() => {
-              this.refreshSuggestionsView();
-            });
-          }
-        ).open();
+        new Notice("Select text first.");
       },
     });
 
     this.addCommand({
-      id: "enfoliate-move-current-note",
+      id: "foliate-move-current-note",
       name: "Move current note to taxa folder",
       callback: () => {
         const file = this.app.workspace.getActiveFile();
@@ -149,15 +113,15 @@ export default class EnfoliatePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "enfoliate-open-suggestions",
-      name: "Open Enfoliate sidebar",
+      id: "foliate-open-suggestions",
+      name: "Open Foliate sidebar",
       callback: () => {
         this.activateSuggestionsView();
       },
     });
 
     this.addCommand({
-      id: "enfoliate-link-all-unlinked",
+      id: "foliate-link-all-unlinked",
       name: "Link all unlinked taxa in the current note",
       callback: () => {
         void this.linkAllUnlinked();
@@ -165,45 +129,7 @@ export default class EnfoliatePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "enfoliate-link-under-cursor",
-      name: "Link taxa mention under the cursor",
-      editorCallback: (editor) => {
-        const file = this.app.workspace.getActiveFile();
-        if (!file) return;
-        const content = editor.getValue();
-        const cursor = editor.posToOffset(editor.getCursor());
-
-        // Find the taxa mention whose span contains the cursor, preferring the
-        // longest (so a full phrase like "artificial intelligence" wins over a
-        // shorter alias). The matcher already yields whole-term spans.
-        const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
-        let best: { offset: number; len: number; surface: string; target: string } | null = null;
-        for (const match of matches) {
-          for (const p of match.positions) {
-            if (cursor >= p.offset && cursor <= p.offset + p.len) {
-              if (!best || p.len > best.len) {
-                best = { offset: p.offset, len: p.len, surface: p.surface, target: match.fileName };
-              }
-            }
-          }
-        }
-
-        if (!best) {
-          new Notice("No taxa mention under the cursor.");
-          return;
-        }
-        // replaceRange is a single editor edit, so Ctrl/Cmd+Z undoes it.
-        editor.replaceRange(
-          `[[${best.target}|${best.surface}]]`,
-          editor.offsetToPos(best.offset),
-          editor.offsetToPos(best.offset + best.len)
-        );
-        this.refreshSuggestionsView();
-      },
-    });
-
-    this.addCommand({
-      id: "enfoliate-toggle-auto-scan",
+      id: "foliate-toggle-auto-scan",
       name: "Toggle auto-scan",
       callback: async () => {
         this.settings.autoScan = !this.settings.autoScan;
@@ -212,6 +138,181 @@ export default class EnfoliatePlugin extends Plugin {
         this.refreshSuggestionsView();
       },
     });
+  }
+
+  /**
+   * Link a piece of selected text. If it carries a taxa prefix, create/link that
+   * taxon's file. If it matches exactly one existing taxa file (name or alias),
+   * link straight to it. Otherwise open the picker so the user can choose a
+   * taxon and a new file is created. This is the original "Create taxa link"
+   * behavior, factored out so the cursor fallback can share the matched-file and
+   * prefix paths.
+   */
+  private linkSelectedText(editor: Editor, text: string) {
+    const detectedTaxon = findTaxonByPrefix(text, this.settings.taxaMappings);
+    if (detectedTaxon) {
+      createTaxaLink(this.app, editor, text, detectedTaxon, this.settings).then(() => {
+        this.refreshSuggestionsView();
+      });
+      return;
+    }
+
+    const existing = findTaxaFileByText(this.app, text, this.settings.taxaMappings);
+    if (existing) {
+      editor.replaceSelection(`[[${existing.file.basename}|${text}]]`);
+      new Notice(`Linked ${text} to ${existing.file.basename}`);
+      this.refreshSuggestionsView();
+      return;
+    }
+
+    new TaxaPickerModal(this.app, this.settings.taxaMappings, (taxon) => {
+      createTaxaLink(this.app, editor, text, taxon, this.settings).then(() => {
+        this.refreshSuggestionsView();
+      });
+    }).open();
+  }
+
+  /**
+   * No-selection fallback for "Create taxa link". First try to link an existing
+   * taxa mention (name or alias, possibly multi-word) whose span sits under the
+   * cursor, preferring the longest. If none, select the single word under the
+   * cursor and link it only when it already matches a taxa file or carries a
+   * taxa prefix. A bare word that matches nothing is left alone (no file is
+   * created from an unselected word, by design).
+   */
+  private linkUnderCursor(editor: Editor) {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) return;
+    const content = editor.getValue();
+    const cursor = editor.posToOffset(editor.getCursor());
+
+    // Find taxa mentions whose span contains the cursor, preferring the longest
+    // (so a full phrase like "artificial intelligence" wins over a shorter
+    // alias). The matcher yields whole-term spans, one set per candidate file.
+    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
+    let bestLen = -1;
+    let span: { offset: number; surface: string } | null = null;
+    const targets: string[] = []; // distinct file names matching at the best span
+    for (const match of matches) {
+      for (const p of match.positions) {
+        if (cursor >= p.offset && cursor <= p.offset + p.len) {
+          if (p.len > bestLen) {
+            // A longer span supersedes shorter ones: reset the candidate set.
+            bestLen = p.len;
+            span = { offset: p.offset, surface: p.surface };
+            targets.length = 0;
+            targets.push(match.fileName);
+          } else if (p.len === bestLen && !targets.includes(match.fileName)) {
+            targets.push(match.fileName);
+          }
+        }
+      }
+    }
+
+    if (span) {
+      const replace = (target: string) => {
+        // replaceRange is a single editor edit, so Ctrl/Cmd+Z undoes it.
+        editor.replaceRange(
+          `[[${target}|${span!.surface}]]`,
+          editor.offsetToPos(span!.offset),
+          editor.offsetToPos(span!.offset + bestLen)
+        );
+        this.refreshSuggestionsView();
+      };
+      if (targets.length === 1) {
+        replace(targets[0]);
+      } else {
+        // Same text maps to several files: let the user pick which to link.
+        this.pickTaxaFile(targets, (basename) => replace(basename));
+      }
+      return;
+    }
+
+    // No existing mention under the cursor: fall back to the word the cursor is
+    // in. Only link it when it has a prefix or matches a file; a word that
+    // matches nothing is left alone, and the cursor isn't moved.
+    const word = this.wordUnderCursor(editor);
+    if (!word) {
+      new Notice("No taxa mention under the cursor.");
+      return;
+    }
+
+    const hasPrefix = findTaxonByPrefix(word.text, this.settings.taxaMappings) !== null;
+    const fileHits = findTaxaFilesByText(this.app, word.text, this.settings.taxaMappings);
+    if (!hasPrefix && fileHits.length === 0) {
+      new Notice("No taxa mention under the cursor.");
+      return;
+    }
+
+    // More than one existing file matches the word: pick which to link to,
+    // linking it in place under the word's range.
+    if (fileHits.length > 1) {
+      this.pickTaxaFile(
+        fileHits.map((h) => h.file.basename),
+        (basename) => {
+          editor.replaceRange(
+            `[[${basename}|${word.text}]]`,
+            word.from,
+            word.to
+          );
+          this.refreshSuggestionsView();
+        }
+      );
+      return;
+    }
+
+    // Single match (or a prefix to create from): select the word and route
+    // through the selection path, which links or opens the picker as needed.
+    editor.setSelection(word.from, word.to);
+    this.linkSelectedText(editor, word.text);
+  }
+
+  /**
+   * Open a file picker over the given taxa file basenames (each "PrefixName"),
+   * calling back with the chosen basename. Resolves each basename to its TFile so
+   * the picker can show the containing folder. Skips straight to the callback if
+   * only one resolves.
+   */
+  private pickTaxaFile(basenames: string[], onChoose: (basename: string) => void) {
+    const files: TFile[] = [];
+    for (const name of [...new Set(basenames)]) {
+      const f = this.app.metadataCache.getFirstLinkpathDest(name, "");
+      if (f) files.push(f);
+    }
+    if (files.length === 0) return;
+    if (files.length === 1) {
+      onChoose(files[0].basename);
+      return;
+    }
+    new FilePickerModal(this.app, files, (file) => onChoose(file.basename)).open();
+  }
+
+  /**
+   * The word the cursor sits in, with its range, or null when the cursor isn't
+   * on a word. Word characters are letters, digits, hyphen, and the taxa prefix
+   * characters, so a prefixed token like "@Ada" is taken whole. Does not move
+   * the cursor or selection.
+   */
+  private wordUnderCursor(
+    editor: Editor
+  ): { text: string; from: EditorPosition; to: EditorPosition } | null {
+    const pos = editor.getCursor();
+    const line = editor.getLine(pos.line);
+    const prefixes = this.settings.taxaMappings.map((m) => m.prefix).join("");
+    const isWord = (ch: string) =>
+      /[\p{L}\p{N}\-]/u.test(ch) || prefixes.includes(ch);
+
+    let start = pos.ch;
+    let end = pos.ch;
+    while (start > 0 && isWord(line[start - 1])) start--;
+    while (end < line.length && isWord(line[end])) end++;
+    if (start === end) return null;
+
+    return {
+      text: line.slice(start, end),
+      from: { line: pos.line, ch: start },
+      to: { line: pos.line, ch: end },
+    };
   }
 
   /**
@@ -348,7 +449,7 @@ export default class EnfoliatePlugin extends Plugin {
 
   async activateSuggestionsView() {
     if (!this.settings.sidebarEnabled) {
-      new Notice("Enable the sidebar in Enfoliate settings first (requires reload).");
+      new Notice("Enable the sidebar in Foliate settings first (requires reload).");
       return;
     }
     const leaves = this.app.workspace.getLeavesOfType(SUGGESTIONS_VIEW_TYPE);
@@ -384,7 +485,7 @@ export default class EnfoliatePlugin extends Plugin {
     for (const key of Object.keys(DEFAULT_SETTINGS)) {
       if (key in loaded) known[key] = loaded[key];
     }
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, known) as EnfoliateSettings;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, known) as FoliateSettings;
   }
 
   async saveSettings() {

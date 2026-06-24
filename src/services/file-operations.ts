@@ -1,5 +1,5 @@
 import { App, Editor, Notice, TFile, Vault, moment } from "obsidian";
-import { TaxaMapping, EnfoliateSettings } from "../types";
+import { TaxaMapping, FoliateSettings } from "../types";
 import { stripPrefix, addPrefix } from "../taxa";
 
 /**
@@ -14,12 +14,39 @@ export async function createTaxaLink(
   editor: Editor,
   selectedText: string,
   taxon: TaxaMapping,
-  settings: EnfoliateSettings
+  settings: FoliateSettings
 ): Promise<void> {
   const hasPrefix = selectedText.startsWith(taxon.prefix);
   const cleanName = hasPrefix
     ? stripPrefix(selectedText, taxon)
     : selectedText;
+
+  const file = await createTaxaFile(app, cleanName, taxon, settings);
+  if (!file) return;
+
+  // Replace selection with wikilink
+  const fileName = addPrefix(cleanName, taxon);
+  const wikilink = `[[${fileName}|${cleanName}]]`;
+  editor.replaceSelection(wikilink);
+
+  new Notice(`Linked ${cleanName} as ${taxon.label}`);
+}
+
+/**
+ * Create (or reuse) the taxa file for `cleanName` in `taxon`'s folder, applying
+ * the taxon template, Templater, and alias just as createTaxaLink does, but
+ * without touching any editor. Used when a link to a missing file already exists
+ * in a note and the user wants to bring the file into being. Returns the file,
+ * or null if creation failed (a Notice is shown on failure).
+ *
+ * `cleanName` is the name without the taxa prefix; the prefix is added here.
+ */
+export async function createTaxaFile(
+  app: App,
+  cleanName: string,
+  taxon: TaxaMapping,
+  settings: FoliateSettings
+): Promise<TFile | null> {
   const fileName = addPrefix(cleanName, taxon);
   const folder = taxon.folder.trim();
   const filePath = folder ? `${folder}/${fileName}.md` : `${fileName}.md`;
@@ -29,43 +56,42 @@ export async function createTaxaLink(
     await ensureFolderExists(app.vault, folder);
   }
 
-  // Create file if it doesn't exist
-  let file = app.vault.getAbstractFileByPath(filePath);
-  if (!file) {
-    // Also check if it exists in the root (before auto-move)
-    file = app.vault.getAbstractFileByPath(`${fileName}.md`);
-  }
+  // Reuse the file if it already exists (in the taxa folder or at the root,
+  // before auto-move).
+  let file =
+    app.vault.getAbstractFileByPath(filePath) ??
+    app.vault.getAbstractFileByPath(`${fileName}.md`);
 
   if (!file) {
     try {
-      const tmpl = await renderTemplate(app, taxon, cleanName);
+      const tmpl = await renderTemplate(app, taxon, cleanName, fileName);
       const newFile = await app.vault.create(filePath, tmpl.content);
       // If the template uses Templater syntax, let Templater process the file
       // before we touch the frontmatter, so its <% %> commands resolve.
       if (tmpl.hasTemplater) await runTemplater(app, newFile);
       if (settings.autoAddAlias) await addAliasToFile(app, newFile, cleanName);
-      file = newFile;
+      return newFile;
     } catch (e) {
       new Notice(`Failed to create ${fileName}: ${e}`);
-      return;
+      return null;
     }
-  } else if (file instanceof TFile) {
-    if (settings.autoAddAlias) await addAliasToFile(app, file, cleanName);
   }
 
-  // Replace selection with wikilink
-  const wikilink = `[[${fileName}|${cleanName}]]`;
-  editor.replaceSelection(wikilink);
-
-  new Notice(`Linked ${cleanName} as ${taxon.label}`);
+  if (file instanceof TFile) {
+    if (settings.autoAddAlias) await addAliasToFile(app, file, cleanName);
+    return file;
+  }
+  return null;
 }
 
 /**
  * Build the initial content for a new taxa file from the taxon's template, if
  * one is configured. The template engine is auto-detected:
- * - {{...}} tokens are always filled by Enfoliate: {{title}} (also
- *   {{name}}/{{alias}}), {{prefix}}, {{label}}, and the core-Templates date
- *   tokens {{date}}, {{time}}, {{date:FORMAT}}, {{time:FORMAT}}.
+ * - {{...}} tokens are always filled by Foliate: {{title}} resolves to the
+ *   actual file name (prefix included, e.g. "@Ada Lovelace"), while
+ *   {{name}}/{{alias}} resolve to the stripped name without the prefix. Also
+ *   {{prefix}}, {{label}}, and the core-Templates date tokens {{date}},
+ *   {{time}}, {{date:FORMAT}}, {{time:FORMAT}}.
  * - If the template also contains Templater syntax (<% ... %>), hasTemplater is
  *   set so the caller can run Templater on the created file.
  * Returns empty content when there is no template (or it can't be read).
@@ -73,7 +99,8 @@ export async function createTaxaLink(
 async function renderTemplate(
   app: App,
   taxon: TaxaMapping,
-  name: string
+  name: string,
+  fileName: string
 ): Promise<{ content: string; hasTemplater: boolean }> {
   if (!taxon.template) return { content: "", hasTemplater: false };
   const tmpl = app.vault.getAbstractFileByPath(taxon.template);
@@ -87,7 +114,8 @@ async function renderTemplate(
     .replace(/\{\{\s*time\s*:\s*([^}]+?)\s*\}\}/gi, (_m, fmt) => moment().format(fmt))
     .replace(/\{\{\s*date\s*\}\}/gi, moment().format("YYYY-MM-DD"))
     .replace(/\{\{\s*time\s*\}\}/gi, moment().format("HH:mm"))
-    .replace(/\{\{\s*(title|name|alias)\s*\}\}/gi, name)
+    .replace(/\{\{\s*title\s*\}\}/gi, fileName)
+    .replace(/\{\{\s*(name|alias)\s*\}\}/gi, name)
     .replace(/\{\{\s*prefix\s*\}\}/gi, taxon.prefix)
     .replace(/\{\{\s*label\s*\}\}/gi, taxon.label);
   return { content, hasTemplater: raw.includes("<%") };

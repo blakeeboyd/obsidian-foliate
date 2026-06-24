@@ -1,6 +1,6 @@
 # Smart Linking
 
-Enfoliate provides several ways to create taxa links without manually typing wikilinks or managing files.
+Taxa links can be created from the command palette, the suggestions sidebar, or a context menu, without manually typing wikilinks or managing files.
 
 ## Create taxa link (command)
 
@@ -9,13 +9,13 @@ Enfoliate provides several ways to create taxa links without manually typing wik
 
 What happens next depends on whether the selected text starts with a known taxa prefix:
 
-**Prefix detected:** Enfoliate creates the file in the correct folder (if it doesn't already exist), adds the clean name as a frontmatter alias, and replaces the selection with a wikilink like `[[+Metaphor|Metaphor]]`.
+**Prefix detected:** Foliate creates the file in the correct folder (if it doesn't already exist), adds the clean name as a frontmatter alias, and replaces the selection with a wikilink like `[[+Metaphor|Metaphor]]`.
 
-**Matches an existing taxon:** If the selection has no prefix but matches exactly one existing taxa file (by name or alias), Enfoliate links straight to it, skipping the picker. For example, selecting "Ada Lovelace" links to `@Ada Lovelace`.
+**Matches an existing taxon:** If the selection has no prefix but matches exactly one existing taxa file (by name or alias), Foliate links straight to it, skipping the picker. For example, selecting "Ada Lovelace" links to `@Ada Lovelace`.
 
-**No prefix and no match:** A picker modal opens listing all configured taxa types. Choose one, and Enfoliate creates the file with the appropriate prefix and replaces the selection with a wikilink.
+**No prefix and no match:** A picker modal opens listing all configured taxa types. Choose one, and Foliate creates the file with the appropriate prefix and replaces the selection with a wikilink.
 
-If the file already exists (either in the taxa folder or at the vault root before auto-move runs), Enfoliate links to the existing file and adds the alias if it's not already present.
+If the file already exists (either in the taxa folder or at the vault root before auto-move runs), Foliate links to the existing file and adds the alias if it's not already present.
 
 ## Link from the suggestions sidebar
 
@@ -28,7 +28,7 @@ See [Suggestions Sidebar](suggestions-sidebar.md) for details.
 
 ## How linking works internally
 
-When you link text through any of these methods, Enfoliate:
+When you link text through any of these methods, Foliate:
 
 1. Determines the clean name (strips the prefix if present)
 2. Builds the filename: `prefix + clean name`

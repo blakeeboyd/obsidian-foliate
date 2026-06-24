@@ -1,12 +1,51 @@
 # Changelog
 
-All notable changes to Enfoliate are documented here. The format follows
+All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
 _Nothing yet._
+
+## 0.4.0 - 2026-06-24
+
+### Added
+
+- Linked Mentions now flags links whose target file doesn't exist yet: the title
+  is dimmed (matching Obsidian's unresolved-link style) with a "No file yet"
+  tooltip, and the row shows a **Create file** button that builds the file in the
+  taxon's folder using its template, the same way "Create taxa link" does. Once
+  created, the marker clears on the next refresh.
+
+### Changed
+
+- "Create taxa link" now works without a selection. With nothing selected it acts
+  on the cursor: it links an existing taxa term whose span covers the cursor, or
+  the word the cursor sits in when that word matches a taxa file or carries a taxa
+  prefix. A word that matches nothing is left alone (no file is created from an
+  unselected word). When the word matches more than one existing taxa file, a
+  picker lists the candidates so you choose which to link. This is governed by a
+  new **Link word under cursor when nothing is selected** setting, on by default.
+- The settings tab's "Open guide" button is now a link to the GitHub page (with
+  the Folio attribution beside it); the in-app How-to modal was removed in favor
+  of the README and docs.
+- Removed the standalone "Link taxa mention under the cursor" command; its
+  behavior is now folded into "Create taxa link" via the setting above. Any hotkey
+  bound to the old command will need rebinding to "Create taxa link".
+- Renamed the plugin from Enfoliate to **Foliate**. Display name, manifest/package
+  id (`obsidian-foliate`), command IDs, view type, CSS classes, and internal
+  symbols all updated. The deployed plugin folder and source repo were renamed to
+  match; existing settings (`data.json`) are preserved.
+
+### Fixed
+
+- Unlinked-mention detection no longer matches inside code (fenced blocks and
+  inline spans), markdown links (`[label](url)`), or bare/autolink URLs, where
+  wrapping a wikilink would break the syntax or make no sense.
+- `{{title}}` in a per-taxon template now resolves to the actual file name with
+  its taxa prefix (e.g. `@Ada Lovelace`) instead of the stripped name. `{{name}}`
+  and `{{alias}}` continue to resolve to the stripped name without the prefix.
 
 ## 0.3.0 - 2026-06-22
 
@@ -46,13 +85,13 @@ _Nothing yet._
 
 ## 0.2.0 - 2026-06-22
 
-First BRAT-installable release. Enfoliate (formerly "Portfolio") is taxa-based knowledge organization for Obsidian, built to work alongside Stowe Boyd's Folio system.
+First BRAT-installable release. Foliate (formerly "Portfolio") is taxa-based knowledge organization for Obsidian, built to work alongside Stowe Boyd's Folio system.
 
 ### Added
 
 - Taxa system: prefix characters classify notes by type and map each prefix to a folder.
 - Auto-move: files created or renamed with a taxa prefix move to the matching folder; optional folder creation.
-- Commands: Create taxa link (prefix detection or picker), Move current note to taxa folder, Link all unlinked taxa in the current note, Link taxa mention under the cursor, Open Enfoliate sidebar, Toggle auto-scan.
+- Commands: Create taxa link (prefix detection or picker), Move current note to taxa folder, Link all unlinked taxa in the current note, Link taxa mention under the cursor, Open Foliate sidebar, Toggle auto-scan.
 - Suggestions sidebar with Linked Mentions and Unlinked Mentions, grouped by taxon, with jump-to-occurrence and a flash highlight (edit and reading mode).
 - Per-row actions via inline buttons and a right-click menu, with configurable inline buttons.
 - Configurable click and modifier-click actions: jump, or open in the current tab, a new tab, Split View, or a new window, or copy a wikilink.

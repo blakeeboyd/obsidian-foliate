@@ -24,11 +24,12 @@ export type ClickAction = "jump" | "copy" | "menu" | OpenMode;
 /** Order of entries within each taxa category in the sidebar. */
 export type SortOrder = "mentions-desc" | "mentions-asc" | "name-asc" | "name-desc";
 
-export interface EnfoliateSettings {
+export interface FoliateSettings {
   taxaMappings: TaxaMapping[];
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
   autoAddAlias: boolean;
+  linkUnderCursorFallback: boolean;
   sidebarEnabled: boolean;
   sidebarOpen: boolean;
   autoScan: boolean;

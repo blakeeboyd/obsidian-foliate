@@ -1,6 +1,6 @@
 {
-  "name": "obsidian-enfoliate",
-  "version": "0.3.0",
+  "name": "obsidian-foliate",
+  "version": "0.4.0",
   "description": "Taxa-based knowledge organization for Obsidian",
   "main": "main.js",
   "scripts": {

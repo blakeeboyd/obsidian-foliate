@@ -1,8 +1,8 @@
 # Suggestions Sidebar
 
-The suggestions sidebar is Enfoliate's main analysis panel. It shows what's already linked in a note and what could be linked.
+The suggestions sidebar shows what's already linked in a note and what could be linked.
 
-Open it with the **Open Enfoliate sidebar** command, or by enabling "Open sidebar on startup" in settings.
+Open it with the **Open Foliate sidebar** command, or by enabling "Open sidebar on startup" in settings.
 
 ## Sections
 
@@ -21,7 +21,7 @@ When an already-linked file still has unlinked plain-text mentions, **Link all o
 
 ### Unlinked Mentions
 
-Scans the note for text matching existing taxa files that aren't linked yet. Enfoliate checks both filenames (without prefix) and frontmatter aliases.
+Scans the note for text matching existing taxa files that aren't linked yet. Foliate checks both filenames (without prefix) and frontmatter aliases.
 
 Matches are grouped by taxa type. Each match shows its name and a count of unlinked occurrences.
 
@@ -69,7 +69,7 @@ The eye button in the sidebar header toggles **Limit to visible area**. When on 
 
 ## Jump-to-occurrence
 
-By default, clicking a taxa name (in any section) jumps to the next occurrence in the document, cycling through all positions. The click and each modifier-click (**Cmd/Ctrl**, **Option/Alt**, **Shift**) are configurable under **Settings → Enfoliate → Click Actions**: each can jump, open the note in the current tab, a new tab, Split View, or a new window, or copy a wikilink. When a click jumps, it:
+By default, clicking a taxa name (in any section) jumps to the next occurrence in the document, cycling through all positions. The click and each modifier-click (**Cmd/Ctrl**, **Option/Alt**, **Shift**) are configurable under **Settings → Foliate → Click Actions**: each can jump, open the note in the current tab, a new tab, Split View, or a new window, or copy a wikilink. When a click jumps, it:
 
 1. Focuses the editor
 2. Sets the cursor at the occurrence
@@ -82,6 +82,6 @@ In **Reading mode** there is no editor to drive, so the jump scrolls the rendere
 
 ### Highlight settings
 
-- **Toggle highlight on jump:** enable/disable the highlight flash (Settings → Enfoliate)
+- **Toggle highlight on jump:** enable/disable the highlight flash (Settings → Foliate)
 - **Highlight color:** choose a custom color or use the default yellow (`rgba(255, 215, 0, 0.45)`)
 - **Highlight duration:** how long the highlight stays before fading, 0.5 to 10 seconds (default 2.5)

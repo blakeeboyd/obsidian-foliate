@@ -1,12 +1,12 @@
-# Enfoliate
+# Foliate
 
 Taxa-based knowledge organization for [Obsidian](https://obsidian.md). Built to work alongside [Stowe Boyd's Folio system](https://www.workings.co/p/folio-how-notetaking-becomes-knowledge).
 
-Enfoliate uses prefix characters to classify knowledge files by type. Each prefix maps to a folder, so files are automatically organized as you create and link them.
+Foliate uses prefix characters to classify knowledge files by type. Each prefix maps to a folder, so files are automatically organized as you create and link them.
 
 ## Default taxa
 
-Enfoliate ships with these prefixes and labels. Folders start unset; assign one per taxon in settings. A taxon with no folder leaves its files at the vault root and isn't auto-moved.
+Foliate ships with these prefixes and labels. Folders start unset; assign one per taxon in settings. A taxon with no folder leaves its files at the vault root and isn't auto-moved.
 
 | Prefix | Label         | Default folder |
 |--------|---------------|----------------|
@@ -25,7 +25,7 @@ All prefixes, labels, and folders are configurable in settings. [Full taxa syste
 
 ### Smart linking
 
-Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Enfoliate creates the file in the right folder and replaces the selection with a wikilink. If there's no prefix but the selection matches an existing taxa file, it links straight to that file; otherwise a picker lets you choose the taxa type.
+Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Foliate creates the file in the right folder and replaces the selection with a wikilink. If there's no prefix but the selection matches an existing taxa file, it links straight to that file; otherwise a picker lets you choose the taxa type.
 
 [Smart linking docs →](docs/smart-linking.md)
 
@@ -38,7 +38,7 @@ A sidebar panel with two sections for the active note:
 
 Right-click any row for its full set of actions (link, open, unlink, ignore, dismiss, …); choose which of those also show as inline buttons under **Sidebar Buttons** in settings. The sidebar refreshes on file switch and content edits.
 
-> **Quote numeric aliases.** YAML reads an unquoted alias like `5.1` or `2024` as a number, not text. Enfoliate ignores non-string aliases, so they won't be searched. Quote them in frontmatter to keep them working as aliases:
+> **Quote numeric aliases.** YAML reads an unquoted alias like `5.1` or `2024` as a number, not text. Foliate ignores non-string aliases, so they won't be searched. Quote them in frontmatter to keep them working as aliases:
 >
 > ```yaml
 > aliases:
@@ -64,11 +64,10 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 
 | Command | Description |
 |---------|-------------|
-| Create taxa link | Link selected text as a taxon |
-| Link taxa mention under the cursor | Link the existing taxa term at the cursor (whole phrase, no selection needed) |
+| Create taxa link | Link selected text as a taxon. With nothing selected, acts on the cursor (see "Link word under cursor" setting): links an existing taxa term at the cursor, or the word it sits in when that matches a taxa file |
 | Move current note to taxa folder | Move the active file based on its prefix |
 | Link all unlinked taxa in the current note | Wrap every unlinked taxa mention in the note in one pass |
-| Open Enfoliate sidebar | Show the Enfoliate panel |
+| Open Foliate sidebar | Show the Foliate panel |
 | Toggle auto-scan | Turn the sidebar's auto-scan on or off |
 
 ## Installation
@@ -77,26 +76,26 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 
 1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat)
 2. In BRAT settings, click "Add Beta plugin"
-3. Enter: `blakeeboyd/obsidian-enfoliate`
+3. Enter: `blakeeboyd/obsidian-foliate`
 4. Enable the plugin in Obsidian settings
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/blakeeboyd/obsidian-enfoliate/releases/latest)
-2. Create a folder `.obsidian/plugins/obsidian-enfoliate/` in your vault
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/blakeeboyd/obsidian-foliate/releases/latest)
+2. Create a folder `.obsidian/plugins/obsidian-foliate/` in your vault
 3. Copy the three files into that folder
 4. Enable the plugin in Obsidian settings
 
 ### From source
 
 ```bash
-git clone https://github.com/blakeeboyd/obsidian-enfoliate.git
-cd obsidian-enfoliate
+git clone https://github.com/blakeeboyd/obsidian-foliate.git
+cd obsidian-foliate
 npm install
 npm run build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-enfoliate/` folder.
+Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-foliate/` folder.
 
 ## Settings
 
@@ -109,7 +108,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Auto-Move File On Creation | On | Automatically move files to taxa folders when created or renamed |
 | Create folders if missing | On | Create target folders that don't exist |
 | Enable Sidebar | On | Make the sidebar available (requires reload); off uses commands + auto-move only |
-| Open sidebar on startup | On | Auto-open the Enfoliate sidebar on plugin load |
+| Open sidebar on startup | On | Auto-open the Foliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
 | Limit to visible area | Off | Only show mentions in the editor's current view; also toggleable from the sidebar header (synced) |
 | Sort entries | Mentions, high to low | Order entries within each category by mention count or name |
@@ -139,6 +138,10 @@ npm install
 npm run dev    # watch mode
 npm run build  # production build
 ```
+
+## Credits
+
+Booklet icon by Jamie Serra from [the Noun Project](https://thenounproject.com/icon/booklet-1624270/).
 
 ## License
 

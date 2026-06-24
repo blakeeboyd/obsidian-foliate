@@ -1,11 +1,12 @@
 import { Editor, ItemView, Menu, Notice, TFile, WorkspaceLeaf, MarkdownView, setIcon } from "obsidian";
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
-import type EnfoliatePlugin from "../main";
+import type FoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
+import { createTaxaFile } from "../services/file-operations";
 import { stripPrefix } from "../taxa";
-import { ENFOLIATE_ICON_ID } from "../icon";
+import { FOLIATE_ICON_ID } from "../icon";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
 const clearHighlight = StateEffect.define<null>();
@@ -17,7 +18,7 @@ const highlightField = StateField.define<DecorationSet>({
   update(decorations, tr) {
     for (const effect of tr.effects) {
       if (effect.is(addHighlight)) {
-        const mark = Decoration.mark({ class: "enfoliate-jump-highlight" });
+        const mark = Decoration.mark({ class: "foliate-jump-highlight" });
         return Decoration.set([mark.range(effect.value.from, effect.value.to)]);
       }
       if (effect.is(clearHighlight)) {
@@ -29,7 +30,7 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-export const SUGGESTIONS_VIEW_TYPE = "enfoliate-suggestions";
+export const SUGGESTIONS_VIEW_TYPE = "foliate-suggestions";
 
 /**
  * An action available on a sidebar row. Rendered as an inline button when its
@@ -43,10 +44,14 @@ interface RowAction {
   icon: string;
   run: () => void | Promise<void>;
   inline?: boolean;
+  // Show as an inline button regardless of the user's inlineActions allowlist.
+  // For intrinsic affordances (e.g. "Create file" on an unresolved row) that
+  // aren't user-configurable inline actions.
+  forceInline?: boolean;
 }
 
 export class SuggestionsView extends ItemView {
-  plugin: EnfoliatePlugin;
+  plugin: FoliatePlugin;
   private dismissed: Set<string> = new Set();
   private currentFile: TFile | null = null;
   private searchQuery = "";
@@ -55,7 +60,7 @@ export class SuggestionsView extends ItemView {
   private scrollEl: HTMLElement | null = null;
   private scrollHandler: (() => void) | null = null;
 
-  constructor(leaf: WorkspaceLeaf, plugin: EnfoliatePlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: FoliatePlugin) {
     super(leaf);
     this.plugin = plugin;
   }
@@ -65,11 +70,11 @@ export class SuggestionsView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Enfoliate";
+    return "Foliate";
   }
 
   getIcon(): string {
-    return ENFOLIATE_ICON_ID;
+    return FOLIATE_ICON_ID;
   }
 
   async onOpen() {
@@ -364,11 +369,11 @@ export class SuggestionsView extends ItemView {
     const place = (target: Range): boolean => {
       target.startContainer.parentElement?.scrollIntoView({ block: "center" });
       const span = document.createElement("span");
-      span.className = "enfoliate-jump-highlight";
+      span.className = "foliate-jump-highlight";
       const color = this.plugin.settings.highlightColor;
-      if (color) span.style.setProperty("--enfoliate-highlight-color", color);
+      if (color) span.style.setProperty("--foliate-highlight-color", color);
       span.style.setProperty(
-        "--enfoliate-highlight-duration",
+        "--foliate-highlight-duration",
         `${this.plugin.settings.highlightDurationSeconds}s`
       );
       try {
@@ -568,10 +573,10 @@ export class SuggestionsView extends ItemView {
     const el = cm.dom.closest(".cm-editor") as HTMLElement | null;
     if (el) {
       el.style.setProperty(
-        "--enfoliate-highlight-duration",
+        "--foliate-highlight-duration",
         `${this.plugin.settings.highlightDurationSeconds}s`
       );
-      if (color) el.style.setProperty("--enfoliate-highlight-color", color);
+      if (color) el.style.setProperty("--foliate-highlight-color", color);
     }
 
     cm.dispatch({ effects: addHighlight.of({ from: fromOffset, to: toOffset }) });
@@ -579,8 +584,8 @@ export class SuggestionsView extends ItemView {
     setTimeout(() => {
       cm.dispatch({ effects: clearHighlight.of(null) });
       if (el) {
-        el.style.removeProperty("--enfoliate-highlight-duration");
-        if (color) el.style.removeProperty("--enfoliate-highlight-color");
+        el.style.removeProperty("--foliate-highlight-duration");
+        if (color) el.style.removeProperty("--foliate-highlight-color");
       }
     }, this.highlightMs());
   }
@@ -635,17 +640,17 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Build the pinned header: the "Enfoliate" title, a toggle for limiting to the
+   * Build the pinned header: the "Foliate" title, a toggle for limiting to the
    * visible area, and — when auto-scan is off — a Scan button.
    */
   private buildStickyHeader(stickyTop: HTMLElement) {
-    const header = stickyTop.createDiv("enfoliate-suggestions-header");
-    header.createEl("h4", { text: "Enfoliate" });
+    const header = stickyTop.createDiv("foliate-suggestions-header");
+    header.createEl("h4", { text: "Foliate" });
 
-    const controls = header.createDiv("enfoliate-header-controls");
+    const controls = header.createDiv("foliate-header-controls");
 
     const viewBtn = controls.createEl("button", {
-      cls: "enfoliate-action-btn",
+      cls: "foliate-action-btn",
       attr: { "aria-label": "Limit to visible area" },
     });
     setIcon(viewBtn, "eye");
@@ -658,7 +663,7 @@ export class SuggestionsView extends ItemView {
 
     if (!this.plugin.settings.autoScan) {
       const scanBtn = controls.createEl("button", {
-        cls: "enfoliate-scan-btn mod-cta",
+        cls: "foliate-scan-btn mod-cta",
         text: "Scan",
         attr: { "aria-label": "Scan the active note" },
       });
@@ -676,15 +681,15 @@ export class SuggestionsView extends ItemView {
     if (!this.currentFile) {
       container.createEl("p", {
         text: "Open a note to scan.",
-        cls: "enfoliate-empty-state",
+        cls: "foliate-empty-state",
       });
       return;
     }
-    const stickyTop = container.createDiv("enfoliate-sticky-top");
+    const stickyTop = container.createDiv("foliate-sticky-top");
     this.buildStickyHeader(stickyTop);
     container.createEl("p", {
       text: "Auto-scan is off. Click Scan to analyze this note.",
-      cls: "enfoliate-empty-state",
+      cls: "foliate-empty-state",
     });
     this.updateStickyOffsets();
     window.requestAnimationFrame(() => this.updateStickyOffsets());
@@ -701,7 +706,7 @@ export class SuggestionsView extends ItemView {
     if (!file) {
       container.createEl("p", {
         text: "Open a note to see suggestions.",
-        cls: "enfoliate-empty-state",
+        cls: "foliate-empty-state",
       });
       return;
     }
@@ -711,23 +716,23 @@ export class SuggestionsView extends ItemView {
     const viewRange = this.plugin.settings.scopeToView ? this.visibleRange(file) : null;
 
     // Sticky top bar: title + search stay pinned as the list scrolls.
-    const stickyTop = container.createDiv("enfoliate-sticky-top");
+    const stickyTop = container.createDiv("foliate-sticky-top");
 
     this.buildStickyHeader(stickyTop);
 
     // Search / filter box (optional)
     if (this.plugin.settings.showSearchBar) {
-      const searchWrap = stickyTop.createDiv("enfoliate-search");
+      const searchWrap = stickyTop.createDiv("foliate-search");
       const searchInput = searchWrap.createEl("input", {
         type: "text",
-        cls: "enfoliate-search-input",
+        cls: "foliate-search-input",
         attr: { placeholder: "Filter taxa..." },
       });
       searchInput.value = this.searchQuery;
 
       // Clear button — shown only while there's a query.
       const clearBtn = searchWrap.createEl("button", {
-        cls: "enfoliate-search-clear",
+        cls: "foliate-search-clear",
         attr: { "aria-label": "Clear search" },
       });
       setIcon(clearBtn, "x");
@@ -809,10 +814,10 @@ export class SuggestionsView extends ItemView {
    * stack flush beneath each other.
    */
   private updateStickyOffsets() {
-    const stickyTop = this.contentEl.querySelector<HTMLElement>(".enfoliate-sticky-top");
+    const stickyTop = this.contentEl.querySelector<HTMLElement>(".foliate-sticky-top");
     if (!stickyTop) return;
     const topH = stickyTop.offsetHeight;
-    const sectionHeader = this.contentEl.querySelector<HTMLElement>(".enfoliate-section-header");
+    const sectionHeader = this.contentEl.querySelector<HTMLElement>(".foliate-section-header");
     const sectionH = sectionHeader ? sectionHeader.offsetHeight : 0;
     this.contentEl.style.setProperty("--ptf-sticky-top", `${topH}px`);
     this.contentEl.style.setProperty("--ptf-sticky-section", `${topH + sectionH}px`);
@@ -825,9 +830,9 @@ export class SuggestionsView extends ItemView {
    */
   private applyFilter() {
     const query = this.searchQuery.trim().toLowerCase();
-    const groups = this.contentEl.querySelectorAll<HTMLElement>(".enfoliate-taxa-group");
+    const groups = this.contentEl.querySelectorAll<HTMLElement>(".foliate-taxa-group");
     groups.forEach((group) => {
-      const content = group.querySelector<HTMLElement>(".enfoliate-group-content");
+      const content = group.querySelector<HTMLElement>(".foliate-group-content");
       const rows = group.querySelectorAll<HTMLElement>("[data-search]");
       let anyVisible = false;
       rows.forEach((row) => {
@@ -851,14 +856,14 @@ export class SuggestionsView extends ItemView {
     });
 
     // Hide a section heading entirely when all its categories are filtered out.
-    const sections = this.contentEl.querySelectorAll<HTMLElement>(".enfoliate-section");
+    const sections = this.contentEl.querySelectorAll<HTMLElement>(".foliate-section");
     sections.forEach((section) => {
       if (!query) {
         section.style.display = "";
         return;
       }
       const visible = Array.from(
-        section.querySelectorAll<HTMLElement>(".enfoliate-taxa-group")
+        section.querySelectorAll<HTMLElement>(".foliate-taxa-group")
       ).some((g) => g.style.display !== "none");
       section.style.display = visible ? "" : "none";
     });
@@ -870,16 +875,16 @@ export class SuggestionsView extends ItemView {
    * so it survives the sidebar's frequent re-renders.
    */
   private makeTaxaGroup(parent: HTMLElement, key: string, labelText: string): HTMLElement {
-    const groupEl = parent.createDiv("enfoliate-taxa-group");
+    const groupEl = parent.createDiv("foliate-taxa-group");
     groupEl.dataset.collapseKey = key;
     const isCollapsed = this.plugin.settings.collapsedCategories.includes(key);
 
-    const header = groupEl.createDiv("enfoliate-group-header enfoliate-clickable");
-    const chevron = header.createSpan({ cls: "enfoliate-group-chevron" });
+    const header = groupEl.createDiv("foliate-group-header foliate-clickable");
+    const chevron = header.createSpan({ cls: "foliate-group-chevron" });
     setIcon(chevron, isCollapsed ? "chevron-right" : "chevron-down");
-    header.createSpan({ text: labelText, cls: "enfoliate-group-label" });
+    header.createSpan({ text: labelText, cls: "foliate-group-label" });
 
-    const content = groupEl.createDiv("enfoliate-group-content");
+    const content = groupEl.createDiv("foliate-group-content");
     if (isCollapsed) content.style.display = "none";
 
     header.addEventListener("click", async () => {
@@ -905,11 +910,11 @@ export class SuggestionsView extends ItemView {
     container: HTMLElement,
     title: string
   ): { section: HTMLElement; keys: string[]; collapseAllBtn: HTMLElement } {
-    const section = container.createDiv("enfoliate-section");
-    const head = section.createDiv("enfoliate-section-header");
+    const section = container.createDiv("foliate-section");
+    const head = section.createDiv("foliate-section-header");
     head.createEl("h5", { text: title });
     const collapseAllBtn = head.createEl("button", {
-      cls: "enfoliate-collapse-all-btn",
+      cls: "foliate-collapse-all-btn",
     });
     return { section, keys: [], collapseAllBtn };
   }
@@ -945,9 +950,9 @@ export class SuggestionsView extends ItemView {
   private renderRowActions(row: HTMLElement, container: HTMLElement, actions: RowAction[]) {
     for (const action of actions) {
       if (action.inline === false) continue;
-      if (!this.plugin.settings.inlineActions.includes(action.id)) continue;
+      if (!action.forceInline && !this.plugin.settings.inlineActions.includes(action.id)) continue;
       const btn = container.createEl("button", {
-        cls: "enfoliate-action-btn",
+        cls: "foliate-action-btn",
         attr: { "aria-label": action.label },
       });
       setIcon(btn, action.icon);
@@ -1038,20 +1043,20 @@ export class SuggestionsView extends ItemView {
     noteFile: TFile,
     fullContent: string
   ) {
-    const row = container.createDiv("enfoliate-suggestion-row");
+    const row = container.createDiv("foliate-suggestion-row");
     row.dataset.search = `${match.fileName} ${match.alias} ${match.matchText}`.toLowerCase();
 
     // Top line: name + action buttons
-    const top = row.createDiv("enfoliate-suggestion-top");
+    const top = row.createDiv("foliate-suggestion-top");
 
-    const info = top.createDiv("enfoliate-suggestion-info");
+    const info = top.createDiv("foliate-suggestion-info");
     const nameSpan = info.createSpan({
       // Show the file's title including its taxa prefix, not the bare alias.
       text: match.fileName,
-      cls: "enfoliate-match-text enfoliate-clickable",
+      cls: "foliate-match-text foliate-clickable",
     });
 
-    const actionsEl = top.createDiv("enfoliate-suggestion-actions");
+    const actionsEl = top.createDiv("foliate-suggestion-actions");
 
     const rowActions: RowAction[] = [
       {
@@ -1117,10 +1122,10 @@ export class SuggestionsView extends ItemView {
     this.renderRowActions(row, actionsEl, rowActions);
 
     // Bottom line: metadata
-    const meta = row.createDiv("enfoliate-suggestion-meta");
+    const meta = row.createDiv("foliate-suggestion-meta");
     meta.createSpan({
       text: `(${match.positions.length} ${match.positions.length > 1 ? "mentions" : "mention"})`,
-      cls: "enfoliate-meta-chunk",
+      cls: "foliate-meta-chunk",
     });
   }
 
@@ -1167,6 +1172,29 @@ export class SuggestionsView extends ItemView {
     this.refreshAfterMetadataUpdate(noteFile);
   }
 
+  /**
+   * Create the file for a wikilink whose target doesn't exist yet, using the
+   * taxon's folder and template (same path as "Create taxa link", minus the
+   * editor). The row's "no file yet" marker comes from getFirstLinkpathDest,
+   * which resolves against the file list as soon as the file exists on disk, so
+   * we refresh immediately rather than waiting on the metadata-resolution pass.
+   */
+  private async createMissingTaxaFile(
+    link: string,
+    mapping: TaxaMapping
+  ) {
+    // Reduce the link to its base name: drop any folder path and a trailing
+    // #heading or ^block ref, then strip the taxon prefix.
+    const base = (link.split("#")[0].split("/").pop() ?? link).trim();
+    const cleanName = stripPrefix(base, mapping);
+    const created = await createTaxaFile(this.app, cleanName, mapping, this.plugin.settings);
+    if (!created) return;
+    new Notice(`Created ${created.basename}`);
+    // createTaxaFile awaited vault.create, so the file now exists and the link
+    // resolves; refresh right away to clear the marker and show "Open note".
+    this.refresh();
+  }
+
   private async renderLinkedTaxa(
     container: HTMLElement,
     file: TFile,
@@ -1182,6 +1210,8 @@ export class SuggestionsView extends ItemView {
       title: string; // file basename incl. prefix, shown in the sidebar
       matchName: string; // link display text / alias, used to find plain-text occurrences
       link: string;
+      mapping: TaxaMapping; // the taxon this link belongs to (for "Create file")
+      exists: boolean; // false when the link points to a file that doesn't exist yet
       positions: MatchPosition[];
       unlinkedCount: number;
     }
@@ -1256,6 +1286,8 @@ export class SuggestionsView extends ItemView {
                 title,
                 matchName,
                 link: link.link,
+                mapping,
+                exists: dest !== null,
                 positions,
                 unlinkedCount: positions.length - linkedVisible,
               });
@@ -1284,13 +1316,20 @@ export class SuggestionsView extends ItemView {
 
       const sortedItems = this.sortEntries(items, (i) => i.title, (i) => i.positions.length);
       for (const item of sortedItems) {
-        const row = groupContent.createDiv("enfoliate-linked-row");
+        const row = groupContent.createDiv("foliate-linked-row");
         row.dataset.search = `${item.title} ${item.matchName} ${item.link}`.toLowerCase();
-        const info = row.createDiv("enfoliate-linked-info");
+        const info = row.createDiv("foliate-linked-info");
         const nameSpan = info.createSpan({
           text: item.title,
-          cls: "enfoliate-linked-name enfoliate-clickable",
+          cls: "foliate-linked-name foliate-clickable",
         });
+        // A link whose target file doesn't exist yet: dim it and say so on hover,
+        // matching how Obsidian renders unresolved links.
+        if (!item.exists) {
+          nameSpan.addClass("foliate-unresolved");
+          nameSpan.setAttribute("aria-label", "No file yet");
+          nameSpan.title = "No file yet";
+        }
         const jumpKey = `linked:${item.link}`;
         if (item.positions.length > 0) {
           info.createSpan({
@@ -1298,16 +1337,29 @@ export class SuggestionsView extends ItemView {
               item.unlinkedCount > 0
                 ? ` (${item.positions.length}, ${item.unlinkedCount} unlinked)`
                 : ` (${item.positions.length})`,
-            cls: "enfoliate-match-count",
+            cls: "foliate-match-count",
           });
         }
 
-        const linkedActions = row.createDiv("enfoliate-linked-actions");
+        const linkedActions = row.createDiv("foliate-linked-actions");
 
         // Plain-text (not-yet-linked) occurrences of this already-linked file.
         const unlinkedPositions = item.positions.filter((p) => !p.surface.startsWith("[["));
 
         const rowActions: RowAction[] = [];
+        // The link points to a file that doesn't exist yet: offer to create it,
+        // the same way the "Create taxa link" command would. Shown inline so the
+        // button is always visible on these rows.
+        if (!item.exists) {
+          rowActions.push({
+            id: "create",
+            label: "Create file",
+            icon: "file-plus",
+            inline: true,
+            forceInline: true,
+            run: () => this.createMissingTaxaFile(item.link, item.mapping),
+          });
+        }
         if (unlinkedPositions.length > 0) {
           rowActions.push({
             id: "linkAll",
@@ -1333,14 +1385,17 @@ export class SuggestionsView extends ItemView {
             label: "Unlink",
             icon: "unlink",
             run: () => this.unlinkTaxaFromNote(item.link, item.title, file),
-          },
-          {
+          }
+        );
+        // "Open note" only makes sense once the file exists.
+        if (item.exists) {
+          rowActions.push({
             id: "open",
             label: "Open note",
             icon: "external-link",
             run: () => this.app.workspace.openLinkText(item.link, file.path, false),
-          }
-        );
+          });
+        }
         nameSpan.addEventListener("click", (evt) => {
           this.handleItemClick(
             evt,

@@ -1,6 +1,6 @@
 # Settings Reference
 
-All settings are in **Settings → Enfoliate**.
+All settings are in **Settings → Foliate**.
 
 ## Taxa Mappings
 
@@ -25,6 +25,7 @@ Changes take effect immediately after saving.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Auto-add alias | On | When you create a taxa link, add the linked name to the target file's `aliases` so plain-text mentions resolve and surface as unlinked mentions. Turn off to leave the target file's frontmatter untouched |
+| Link word under cursor when nothing is selected | On | Lets "Create taxa link" work without a selection: it acts on the cursor, linking an existing taxa term whose span covers it, or the word it sits in when that matches a taxa file or carries a prefix. A word that matches nothing is left alone (no file is created from an unselected word). Turn off to require a selection |
 
 ## Auto-Move
 
@@ -37,14 +38,14 @@ Changes take effect immediately after saving.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable Sidebar | On | Make the Enfoliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
-| Open sidebar on startup | On | Automatically open the Enfoliate sidebar when the plugin loads |
+| Enable Sidebar | On | Make the Foliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
+| Open sidebar on startup | On | Automatically open the Foliate sidebar when the plugin loads |
 | Auto-scan | On | Scan the active note automatically as you switch files and edit. Turn off to scan only when you click **Scan** in the sidebar header |
 | Limit to visible area | Off | Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Edit mode only. Also toggleable from the eye button in the sidebar header (the two stay in sync) |
 | Sort entries | Mentions, high to low | Order of entries within each taxa category: by mention count (either direction) or by name (A to Z / Z to A) |
 | Match aliases of linked files | On | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Select text on jump | On | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
-| Show search bar | On | Show the filter box at the top of the Enfoliate sidebar |
+| Show search bar | On | Show the filter box at the top of the Foliate sidebar |
 
 ## Click Actions
 

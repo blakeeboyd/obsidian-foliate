@@ -1,5 +1,5 @@
 import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, TFile, TFolder } from "obsidian";
-import type EnfoliatePlugin from "./main";
+import type FoliatePlugin from "./main";
 import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
 
@@ -38,10 +38,10 @@ class ConfirmModal extends Modal {
 }
 
 class BlocklistModal extends Modal {
-  private plugin: EnfoliatePlugin;
+  private plugin: FoliatePlugin;
   private onChangeCb?: () => void;
 
-  constructor(app: App, plugin: EnfoliatePlugin, onChange?: () => void) {
+  constructor(app: App, plugin: FoliatePlugin, onChange?: () => void) {
     super(app);
     this.plugin = plugin;
     this.onChangeCb = onChange;
@@ -61,7 +61,7 @@ class BlocklistModal extends Modal {
       cls: "setting-item-description",
     });
 
-    const addRow = contentEl.createDiv("enfoliate-blocklist-add");
+    const addRow = contentEl.createDiv("foliate-blocklist-add");
     const input = addRow.createEl("input", {
       type: "text",
       placeholder: "Add a term to block",
@@ -82,7 +82,7 @@ class BlocklistModal extends Modal {
       if (e.key === "Enter") addTerm();
     });
 
-    const list = contentEl.createDiv("enfoliate-blocklist");
+    const list = contentEl.createDiv("foliate-blocklist");
     const blocklist = this.plugin.settings.blocklist;
 
     if (blocklist.length === 0) {
@@ -92,7 +92,7 @@ class BlocklistModal extends Modal {
       });
     } else {
       for (let i = 0; i < blocklist.length; i++) {
-        const row = list.createDiv("enfoliate-blocklist-row");
+        const row = list.createDiv("foliate-blocklist-row");
         row.createSpan({ text: blocklist[i] });
         const deleteBtn = row.createEl("button", { text: "✕" });
         deleteBtn.addEventListener("click", async () => {
@@ -161,73 +161,10 @@ class FileSuggest extends AbstractInputSuggest<TFile> {
   }
 }
 
-class HowToModal extends Modal {
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("enfoliate-howto");
-    this.modalEl.addClass("enfoliate-howto-modal");
+export class FoliateSettingTab extends PluginSettingTab {
+  plugin: FoliatePlugin;
 
-    contentEl.createEl("h2", { text: "How to use Enfoliate" });
-
-    contentEl.createEl("p", {
-      text: "Enfoliate organizes notes by taxa: prefix characters that mark a note's type (@ for people, + for concepts, and so on). In Taxa Mappings, define each prefix and the folder its files belong in. When you create or rename a note whose name starts with a prefix, Enfoliate moves it to that taxon's folder.",
-    });
-
-    const templates = contentEl.createEl("p");
-    templates.createEl("strong", { text: "Templates. " });
-    templates.appendText(
-      "You can set a template file per taxon. New files of that type start from the template, with these tokens filled in: {{title}} (the note's name, also {{name}} or {{alias}}), {{prefix}} (the taxon's prefix character, such as @), and {{label}} (the taxon's name, such as People). Obsidian's built-in Templates tokens work too, including {{date}}, {{time}}, and formatted variants like {{date:YYYY-MM-DD}}. If Templater is installed, its <% %> commands run as well."
-    );
-
-    const note = contentEl.createEl("p");
-    note.createEl("strong", { text: "No folder set? " });
-    note.appendText(
-      "If a taxon has no folder specified, its new files are created at the vault root and are not auto-moved. Set a folder to keep that type organized."
-    );
-
-    const sidebar = contentEl.createEl("p");
-    sidebar.createEl("strong", { text: "The sidebar. " });
-    sidebar.appendText(
-      "Open the Enfoliate sidebar to see two sections for the active note: Linked Mentions (taxa already linked in the document) and Unlinked Mentions (existing taxa files whose names appear in the note but aren't linked yet). Right-click a row for its full set of actions (link, open, unlink, ignore, dismiss). You can choose which options show as inline buttons under Sidebar Buttons in settings."
-    );
-
-    const clicks = contentEl.createEl("p");
-    clicks.createEl("strong", { text: "Clicking a term. " });
-    clicks.appendText(
-      "By default, clicking a term in the sidebar jumps to the next occurrence in the document. To open a term found in the sidebar, different options are available using modifier keys. These are all configurable under the 'Click Actions' section in the settings menu."
-    );
-
-    const inspired = contentEl.createEl("p", {
-      cls: "setting-item-description",
-    });
-    inspired.appendText("Built to work alongside ");
-    inspired.createEl("a", {
-      text: "Stowe Boyd's Folio knowledge management system",
-      href: "https://www.workings.co/p/folio-how-notetaking-becomes-knowledge?utm_source=publication-search",
-    });
-    inspired.appendText(".");
-
-    const credit = contentEl.createEl("p", {
-      cls: "setting-item-description",
-    });
-    credit.appendText("Icon by Jamie Serra from ");
-    credit.createEl("a", {
-      text: "the Noun Project",
-      href: "https://thenounproject.com/icon/booklet-1624270/",
-    });
-    credit.appendText(".");
-  }
-
-  onClose() {
-    this.contentEl.empty();
-  }
-}
-
-export class EnfoliateSettingTab extends PluginSettingTab {
-  plugin: EnfoliatePlugin;
-
-  constructor(app: App, plugin: EnfoliatePlugin) {
+  constructor(app: App, plugin: FoliatePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -237,21 +174,25 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     // --- Title ---
-    containerEl.createEl("h1", { text: "Enfoliate" });
+    containerEl.createEl("h1", { text: "Foliate" });
 
-    new Setting(containerEl)
-      .setName("How to use Enfoliate")
-      .setDesc("Taxa basics, templates, and where files go.")
-      .addButton((btn) =>
-        btn.setButtonText("Open guide").onClick(() => {
-          new HowToModal(this.app).open();
-        })
-      );
+    const intro = containerEl.createEl("p", { cls: "setting-item-description" });
+    intro.appendText("Taxa basics, templates, and the full guide are on ");
+    intro.createEl("a", {
+      text: "GitHub",
+      href: "https://github.com/blakeeboyd/obsidian-foliate",
+    });
+    intro.appendText(". Built to work alongside ");
+    intro.createEl("a", {
+      text: "Stowe Boyd's Folio knowledge management system",
+      href: "https://www.workings.co/p/folio-how-notetaking-becomes-knowledge?utm_source=publication-search",
+    });
+    intro.appendText(".");
 
     // --- Taxa Mappings ---
     containerEl.createEl("h2", { text: "Taxa Mappings" });
 
-    const mappingsContainer = containerEl.createDiv("enfoliate-taxa-mappings");
+    const mappingsContainer = containerEl.createDiv("foliate-taxa-mappings");
     this.renderTaxaMappings(mappingsContainer);
 
     new Setting(containerEl)
@@ -310,6 +251,20 @@ export class EnfoliateSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName("Link word under cursor when nothing is selected")
+      .setDesc(
+        "When you run \"Create taxa link\" with no text selected, act on the cursor instead: link an existing taxa mention under it, or the word the cursor sits in if it matches a taxa file. A word that matches nothing is left alone."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.linkUnderCursorFallback)
+          .onChange(async (value) => {
+            this.plugin.settings.linkUnderCursorFallback = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Auto-Move ---
     containerEl.createEl("h2", { text: "Auto-Move" });
 
@@ -345,7 +300,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Enable Sidebar")
       .setDesc(
-        "Make the Enfoliate sidebar available. Turn off to use the plugin's commands and auto-move without the sidebar. Requires plugin reload."
+        "Make the Foliate sidebar available. Turn off to use the plugin's commands and auto-move without the sidebar. Requires plugin reload."
       )
       .addToggle((toggle) =>
         toggle
@@ -358,7 +313,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Open sidebar on startup")
-      .setDesc("Automatically open the Enfoliate sidebar when the plugin loads.")
+      .setDesc("Automatically open the Foliate sidebar when the plugin loads.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.sidebarOpen)
@@ -443,7 +398,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show search bar")
-      .setDesc("Show the filter box at the top of the Enfoliate sidebar.")
+      .setDesc("Show the filter box at the top of the Foliate sidebar.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showSearchBar)
@@ -608,7 +563,7 @@ export class EnfoliateSettingTab extends PluginSettingTab {
     container.empty();
     this.plugin.settings.taxaMappings.forEach(
       (mapping: TaxaMapping, index: number) => {
-        const row = container.createDiv("enfoliate-taxa-row");
+        const row = container.createDiv("foliate-taxa-row");
         row.style.display = "flex";
         row.style.flexWrap = "wrap";
         row.style.gap = "8px";

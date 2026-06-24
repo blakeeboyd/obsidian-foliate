@@ -60,8 +60,23 @@ export function findTaxaFileByText(
   text: string,
   taxaMappings: TaxaMapping[]
 ): { file: TFile; taxon: TaxaMapping } | null {
+  const hits = findTaxaFilesByText(app, text, taxaMappings);
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/**
+ * Every existing taxa file whose name (without prefix) or one of its aliases
+ * equals `text`, case-insensitively. Unlike findTaxaFileByText this returns all
+ * matches, so callers can disambiguate (e.g. open a picker) when a word maps to
+ * more than one file.
+ */
+export function findTaxaFilesByText(
+  app: App,
+  text: string,
+  taxaMappings: TaxaMapping[]
+): { file: TFile; taxon: TaxaMapping }[] {
   const target = text.trim().toLowerCase();
-  if (!target) return null;
+  if (!target) return [];
   const hits: { file: TFile; taxon: TaxaMapping }[] = [];
   for (const taxon of taxaMappings) {
     for (const file of getTaxaFiles(app, taxon)) {
@@ -69,7 +84,7 @@ export function findTaxaFileByText(
       if (terms.includes(target)) hits.push({ file, taxon });
     }
   }
-  return hits.length === 1 ? hits[0] : null;
+  return hits;
 }
 
 /**
@@ -87,9 +102,9 @@ export function bodyStartOffset(content: string): number {
  * text. Overlapping matches are resolved by keeping the longest and dropping any
  * that overlaps it, so an alias that sits inside a longer name occurrence (e.g.
  * "Moeller" within "Hans-Georg Moeller") is not linked twice. Positions inside
- * existing [[ ]] wikilinks, or before bodyStart (i.e. in frontmatter), are
- * excluded. Used both for unlinked-mention detection and for folding alias
- * mentions into an already-linked file's entry.
+ * existing [[ ]] wikilinks, code, or markdown/bare links, or before bodyStart
+ * (i.e. in frontmatter), are excluded. Used both for unlinked-mention detection
+ * and for folding alias mentions into an already-linked file's entry.
  */
 export function findFileMatchPositions(
   app: App,
@@ -100,11 +115,14 @@ export function findFileMatchPositions(
 ): MatchPosition[] {
   const searchTerms = getSearchTerms(app, taxaFile, taxon);
   const candidates: MatchPosition[] = [];
+  // Compute the excluded regions (code, links) once for this file's whole scan
+  // rather than re-deriving them per search term.
+  const excluded = findExcludedRegions(noteContent);
 
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
 
-    for (const offset of findUnlinkedPositions(noteContent, term)) {
+    for (const offset of findUnlinkedPositions(noteContent, term, excluded)) {
       if (offset < bodyStart) continue;
       candidates.push({
         offset,
@@ -189,18 +207,28 @@ function getSearchTerms(
 }
 
 /**
- * Find positions of a term in text that aren't inside wikilinks.
- * Case-insensitive matching with word boundary checks, so a short term like
- * "AI" never matches inside a word ("faithful", "claim"). Exported so the
- * sidebar's linked-file plain-text scan uses the same boundary rules.
+ * Find positions of a term in text that aren't inside wikilinks, code, or
+ * markdown/bare links. Case-insensitive matching with word boundary checks, so
+ * a short term like "AI" never matches inside a word ("faithful", "claim").
+ * Exported so the sidebar's linked-file plain-text scan uses the same rules.
  *
  * The hyphen "-" is treated as a word character (not a boundary), so a term
  * like "Sub" does not match the fragment in "Sub-branch"; a hyphenated taxa
  * term ("Hans-Georg Moeller") still matches as a whole. The em dash "—", which
  * separates clauses rather than joining words, remains a boundary.
+ *
+ * `excluded` is the set of regions (code spans/blocks, markdown links, bare
+ * URLs) to skip. Callers that scan many terms over the same text should compute
+ * it once via findExcludedRegions and pass it in; when omitted it is derived
+ * here so single-shot callers stay correct.
  */
-export function findUnlinkedPositions(text: string, term: string): number[] {
+export function findUnlinkedPositions(
+  text: string,
+  term: string,
+  excluded?: Region[]
+): number[] {
   const positions: number[] = [];
+  const regions = excluded ?? findExcludedRegions(text);
   const lowerText = text.toLowerCase();
   const lowerTerm = term.toLowerCase();
   const termLen = term.length;
@@ -220,8 +248,8 @@ export function findUnlinkedPositions(text: string, term: string): number[] {
       idx + termLen === text.length;
 
     if (isWordBoundaryBefore && isWordBoundaryAfter) {
-      // Check if we're inside a wikilink
-      if (!isInsideWikilink(text, idx)) {
+      // Skip matches inside wikilinks, code, or links.
+      if (!isInsideWikilink(text, idx) && !isInExcludedRegion(idx, idx + termLen, regions)) {
         positions.push(idx);
       }
     }
@@ -230,6 +258,84 @@ export function findUnlinkedPositions(text: string, term: string): number[] {
   }
 
   return positions;
+}
+
+/** A half-open [start, end) span of the note to keep matches out of. */
+export interface Region {
+  start: number;
+  end: number;
+}
+
+/**
+ * Build the list of regions where a wikilink doesn't belong: fenced code blocks,
+ * inline code spans, markdown links ([label](url), the whole construct), and
+ * bare/autolink URLs. Wikilinks themselves are handled separately by
+ * isInsideWikilink. Regions may be returned unsorted and possibly overlapping;
+ * isInExcludedRegion does a plain containment test so that's fine.
+ *
+ * Code is matched first and its spans suppress link/URL detection inside them by
+ * being part of the same returned set (a URL inside a code span is already
+ * excluded by the code region, so double-counting is harmless).
+ */
+export function findExcludedRegions(text: string): Region[] {
+  const regions: Region[] = [];
+
+  // Fenced code blocks: ``` or ~~~ runs, from an opening fence to the matching
+  // closing fence on its own line (or end of text if never closed).
+  const fenceOpen = /^[ \t]*(`{3,}|~{3,})[^\n]*\n/gm;
+  let fm: RegExpExecArray | null;
+  while ((fm = fenceOpen.exec(text)) !== null) {
+    const marker = fm[1];
+    const blockStart = fm.index;
+    const afterOpen = fenceOpen.lastIndex;
+    // Find the closing fence of the same type on its own line.
+    const closeRe = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`, "m");
+    const rest = text.slice(afterOpen);
+    const cm = rest.match(closeRe);
+    const blockEnd =
+      cm && cm.index !== undefined
+        ? afterOpen + cm.index + cm[0].length
+        : text.length;
+    regions.push({ start: blockStart, end: blockEnd });
+    fenceOpen.lastIndex = blockEnd;
+  }
+
+  // Inline code spans: `code` (allow multi-backtick runs `` ` ``).
+  const inlineCode = /(`+)(?:[^`]|(?!\1)`)*?\1/g;
+  let im: RegExpExecArray | null;
+  while ((im = inlineCode.exec(text)) !== null) {
+    regions.push({ start: im.index, end: im.index + im[0].length });
+  }
+
+  // Markdown links: [label](url) and [label][ref] — exclude the whole construct
+  // (label and target). Image embeds ![alt](url) are covered by the same span
+  // plus the leading "!".
+  const mdLink = /!?\[[^\]\n]*\]\((?:[^()\n]*|\([^()\n]*\))*\)/g;
+  let lm: RegExpExecArray | null;
+  while ((lm = mdLink.exec(text)) !== null) {
+    regions.push({ start: lm.index, end: lm.index + lm[0].length });
+  }
+
+  // Autolinks <https://…> and bare URLs (http/https/www) not already inside a
+  // markdown link. The bare-URL run stops at whitespace or a closing bracket.
+  const urls = /<[a-z][a-z0-9+.-]*:\/\/[^>\s]+>|(?:https?:\/\/|www\.)[^\s)\]<>"']+/gi;
+  let um: RegExpExecArray | null;
+  while ((um = urls.exec(text)) !== null) {
+    regions.push({ start: um.index, end: um.index + um[0].length });
+  }
+
+  return regions;
+}
+
+/**
+ * Whether [start, end) overlaps any excluded region. A match is rejected if any
+ * part of it lands inside a region.
+ */
+function isInExcludedRegion(start: number, end: number, regions: Region[]): boolean {
+  for (const r of regions) {
+    if (start < r.end && r.start < end) return true;
+  }
+  return false;
 }
 
 /**

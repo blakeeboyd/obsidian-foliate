@@ -1,18 +1,18 @@
-# CLAUDE.md — obsidian-enfoliate
+# CLAUDE.md — obsidian-foliate
 
 ## Project Locations
 
-- **Source code:** `/Users/harrisgb/Documents/GitHub/obsidian-enfoliate/`
-- **Deployed plugin:** `/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-enfoliate/`
+- **Source code:** `/Users/harrisgb/Documents/GitHub/obsidian-foliate/`
+- **Deployed plugin:** `/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-foliate/`
 
 ## Build & Deploy
 
 ```bash
-cd /Users/harrisgb/Documents/GitHub/obsidian-enfoliate
+cd /Users/harrisgb/Documents/GitHub/obsidian-foliate
 npx tsc --noEmit   # typecheck (esbuild does not)
 npm run build      # produces main.js
 # copy the built artifacts into the vault plugin folder:
-DST=/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-enfoliate
+DST=/Users/harrisgb/Documents/Obsidian/EtchedInterim/.obsidian/plugins/obsidian-foliate
 cp main.js manifest.json styles.css "$DST/"
 ```
 
@@ -32,7 +32,7 @@ There is no LLM/Ollama integration, editor autocomplete, or status bar (all remo
 ## Key Files
 
 - `src/main.ts` — plugin entry, commands, auto-mover, sidebar activation, settings load/save
-- `src/settings.ts` — settings tab UI and modals (How-to guide, Blocklist, Confirm, folder/file suggesters)
+- `src/settings.ts` — settings tab UI and modals (Blocklist, Confirm, folder/file suggesters)
 - `src/types.ts` — interfaces and the `ClickAction` / `OpenMode` / `SortOrder` types and `INLINE_ACTION_OPTIONS`
 - `src/taxa.ts` — default taxa mappings and prefix helpers
 - `src/icon.ts` — the registered booklet icon (from The Noun Project)
