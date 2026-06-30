@@ -3,7 +3,7 @@ import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type FoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
-import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
+import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
 import { createTaxaFile } from "../services/file-operations";
 import { stripPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
@@ -1231,6 +1231,8 @@ export class SuggestionsView extends ItemView {
     const links = cache?.links || [];
     const content = await this.app.vault.cachedRead(file);
     const bodyStart = bodyStartOffset(content);
+    // Computed once for all linked files' alias scans below.
+    const excluded = findExcludedRegions(content);
 
     // Group linked taxa by mapping, collecting positions
     interface LinkedItem {
@@ -1296,7 +1298,7 @@ export class SuggestionsView extends ItemView {
             // Fold in unlinked occurrences of this file's other aliases
             // (e.g. "ZPD" for an already-linked Zone of Proximal Development).
             if (this.plugin.settings.matchLinkedAliases && dest) {
-              for (const mp of findFileMatchPositions(this.app, content, dest, mapping, bodyStart)) {
+              for (const mp of findFileMatchPositions(this.app, content, dest, mapping, bodyStart, excluded)) {
                 if (!byOffset.has(mp.offset)) byOffset.set(mp.offset, mp);
               }
             }

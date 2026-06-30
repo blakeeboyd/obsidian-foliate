@@ -20,17 +20,25 @@ export function findUnlinkedMatches(
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
 
-  for (const taxon of taxaMappings) {
-    const taxaFiles = getTaxaFiles(app, taxon);
+  // Both of these depend only on the note text, not on any taxa file, so
+  // compute them once for the whole scan. Recomputing findExcludedRegions per
+  // taxa file (thousands of times) was the dominant cost of a refresh.
+  const excluded = findExcludedRegions(noteContent);
+  const bodyStart = bodyStartOffset(noteContent);
 
-    const bodyStart = bodyStartOffset(noteContent);
+  // One vault file-list scan, partitioned by folder, instead of one per taxon.
+  const filesByFolder = getTaxaFilesByFolder(app, taxaMappings);
+
+  for (const taxon of taxaMappings) {
+    const taxaFiles = filesByFolder.get(taxon) ?? [];
+
     for (const taxaFile of taxaFiles) {
       // Skip self-references
       if (taxaFile.path === noteFile.path) continue;
       // Skip already-linked files unless we're surfacing their aliases
       if (!includeLinkedFiles && alreadyLinked.has(taxaFile.path)) continue;
 
-      const positions = findFileMatchPositions(app, noteContent, taxaFile, taxon, bodyStart);
+      const positions = findFileMatchPositions(app, noteContent, taxaFile, taxon, bodyStart, excluded);
       if (positions.length > 0) {
         matches.push({
           matchText: positions[0].surface,
@@ -111,13 +119,15 @@ export function findFileMatchPositions(
   noteContent: string,
   taxaFile: TFile,
   taxon: TaxaMapping,
-  bodyStart = 0
+  bodyStart = 0,
+  excludedRegions?: Region[]
 ): MatchPosition[] {
   const searchTerms = getSearchTerms(app, taxaFile, taxon);
   const candidates: MatchPosition[] = [];
-  // Compute the excluded regions (code, links) once for this file's whole scan
-  // rather than re-deriving them per search term.
-  const excluded = findExcludedRegions(noteContent);
+  // The excluded regions (code, links) depend only on the note text. Callers
+  // scanning many files over the same note pass them in (computed once);
+  // single-shot callers let us derive them here so they stay correct.
+  const excluded = excludedRegions ?? findExcludedRegions(noteContent);
 
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
@@ -174,6 +184,33 @@ function getTaxaFiles(app: App, taxon: TaxaMapping): TFile[] {
   return app.vault.getMarkdownFiles().filter((f) =>
     f.path.startsWith(taxon.folder + "/")
   );
+}
+
+/**
+ * Partition the vault's markdown files by taxon in a single pass over
+ * getMarkdownFiles(), so a full-scan caller pays one file-list walk instead of
+ * one per taxon. Taxa with no configured folder map to an empty list (they
+ * match nothing, same as getTaxaFiles). A file under more than one taxon folder
+ * is assigned to each, matching the per-taxon filter's behavior.
+ */
+function getTaxaFilesByFolder(
+  app: App,
+  taxaMappings: TaxaMapping[]
+): Map<TaxaMapping, TFile[]> {
+  const byFolder = new Map<TaxaMapping, TFile[]>();
+  const withFolder: { taxon: TaxaMapping; prefix: string }[] = [];
+  for (const taxon of taxaMappings) {
+    byFolder.set(taxon, []);
+    if (taxon.folder) withFolder.push({ taxon, prefix: taxon.folder + "/" });
+  }
+  if (withFolder.length === 0) return byFolder;
+
+  for (const file of app.vault.getMarkdownFiles()) {
+    for (const { taxon, prefix } of withFolder) {
+      if (file.path.startsWith(prefix)) byFolder.get(taxon)!.push(file);
+    }
+  }
+  return byFolder;
 }
 
 /**

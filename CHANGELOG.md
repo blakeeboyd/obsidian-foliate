@@ -21,6 +21,14 @@ _Nothing yet._
   link (an opening `[label](` with no closing paren yet, worse when the URL
   contained a paren); the pattern is now linear.
 
+### Performance
+
+- A sidebar refresh no longer recomputes the note's excluded regions (code
+  spans, links) once per taxa file. They are computed once and reused across the
+  whole scan, removing thousands of redundant regex passes per refresh on large
+  vaults. The vault file list is also partitioned by taxon in a single walk
+  instead of one walk per taxon.
+
 ## 0.4.0 - 2026-06-24
 
 ### Added
