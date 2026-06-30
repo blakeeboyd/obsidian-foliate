@@ -628,6 +628,18 @@ export class SuggestionsView extends ItemView {
     const file = this.app.workspace.getActiveFile();
     if (!file || file === this.currentFile) return;
 
+    // Only markdown notes can be scanned. Reading a non-note (PDF, image,
+    // canvas, audio) would feed binary/non-markdown content to the scanner and
+    // hang the main thread, which froze Obsidian and starved other plugins
+    // (e.g. PDF++). Treat anything else as "nothing to scan".
+    if (file.extension !== "md") {
+      this.currentFile = null;
+      this.dismissed.clear();
+      this.jumpIndex.clear();
+      this.renderEmptyState("Open a note to see suggestions.");
+      return;
+    }
+
     this.currentFile = file;
     this.dismissed.clear();
     this.jumpIndex.clear();
@@ -637,6 +649,13 @@ export class SuggestionsView extends ItemView {
     } else {
       this.renderScanPrompt();
     }
+  }
+
+  /** Render a simple idle/empty message, clearing any prior content. */
+  private renderEmptyState(message: string) {
+    const container = this.contentEl;
+    container.empty();
+    container.createEl("p", { text: message, cls: "foliate-empty-state" });
   }
 
   /**
@@ -704,6 +723,14 @@ export class SuggestionsView extends ItemView {
 
     const file = this.currentFile;
     if (!file) {
+      container.createEl("p", {
+        text: "Open a note to see suggestions.",
+        cls: "foliate-empty-state",
+      });
+      return;
+    }
+    // Guard: never read or scan a non-markdown file (see onActiveFileChange).
+    if (file.extension !== "md") {
       container.createEl("p", {
         text: "Open a note to see suggestions.",
         cls: "foliate-empty-state",

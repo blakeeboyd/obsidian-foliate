@@ -310,7 +310,12 @@ export function findExcludedRegions(text: string): Region[] {
   // Markdown links: [label](url) and [label][ref] — exclude the whole construct
   // (label and target). Image embeds ![alt](url) are covered by the same span
   // plus the leading "!".
-  const mdLink = /!?\[[^\]\n]*\]\((?:[^()\n]*|\([^()\n]*\))*\)/g;
+  // The inner alternative is a single non-paren char (not `[^()\n]*`): an
+  // unbounded quantifier there overlaps the outer `*` and backtracks
+  // catastrophically on a half-typed link (`[label](` with no closing `)`),
+  // which froze the editor. This form is linear and still matches one level of
+  // nested parens, e.g. a URL like .../Social_(democracy).
+  const mdLink = /!?\[[^\]\n]*\]\((?:[^()\n]|\([^()\n]*\))*\)/g;
   let lm: RegExpExecArray | null;
   while ((lm = mdLink.exec(text)) !== null) {
     regions.push({ start: lm.index, end: lm.index + lm[0].length });

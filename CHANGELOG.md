@@ -8,6 +8,19 @@ All notable changes to Foliate are documented here. The format follows
 
 _Nothing yet._
 
+## 0.4.1 - 2026-06-29
+
+### Fixed
+
+- Opening a non-markdown file (PDF, image, canvas, audio) no longer freezes
+  Obsidian. The suggestions sidebar now skips any active file that isn't a
+  markdown note instead of reading its raw bytes and scanning them, which had
+  pegged the main thread and conflicted with other plugins such as PDF++.
+- Typing a markdown link no longer freezes the editor. The exclusion-region
+  scanner's markdown-link pattern had catastrophic backtracking on a half-typed
+  link (an opening `[label](` with no closing paren yet, worse when the URL
+  contained a paren); the pattern is now linear.
+
 ## 0.4.0 - 2026-06-24
 
 ### Added
