@@ -1,6 +1,6 @@
 import { App, Editor, Notice, TFile, Vault, moment } from "obsidian";
 import { TaxaMapping, FoliateSettings } from "../types";
-import { stripPrefix, addPrefix } from "../taxa";
+import { stripPrefix } from "../taxa";
 
 /**
  * Create a taxa link from selected text.
@@ -25,7 +25,7 @@ export async function createTaxaLink(
   if (!file) return;
 
   // Replace selection with wikilink
-  const fileName = addPrefix(cleanName, taxon);
+  const fileName = taxon.prefix + cleanName;
   const wikilink = `[[${fileName}|${cleanName}]]`;
   editor.replaceSelection(wikilink);
 
@@ -47,7 +47,7 @@ export async function createTaxaFile(
   taxon: TaxaMapping,
   settings: FoliateSettings
 ): Promise<TFile | null> {
-  const fileName = addPrefix(cleanName, taxon);
+  const fileName = taxon.prefix + cleanName;
   const folder = taxon.folder.trim();
   const filePath = folder ? `${folder}/${fileName}.md` : `${fileName}.md`;
 

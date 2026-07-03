@@ -58,25 +58,10 @@ export function findUnlinkedMatches(
 }
 
 /**
- * Find the single existing taxa file whose name (without prefix) or one of its
- * aliases equals `text`, case-insensitively. Returns the file and its taxon, or
- * null when nothing matches or more than one does (ambiguous — leave it to the
- * picker). Used to auto-pick the taxon when linking selected text.
- */
-export function findTaxaFileByText(
-  app: App,
-  text: string,
-  taxaMappings: TaxaMapping[]
-): { file: TFile; taxon: TaxaMapping } | null {
-  const hits = findTaxaFilesByText(app, text, taxaMappings);
-  return hits.length === 1 ? hits[0] : null;
-}
-
-/**
  * Every existing taxa file whose name (without prefix) or one of its aliases
- * equals `text`, case-insensitively. Unlike findTaxaFileByText this returns all
- * matches, so callers can disambiguate (e.g. open a picker) when a word maps to
- * more than one file.
+ * equals `text`, case-insensitively. Returns all matches, so callers can
+ * disambiguate (e.g. open a picker) when a word maps to more than one file, or
+ * treat a single hit as an unambiguous auto-pick.
  */
 export function findTaxaFilesByText(
   app: App,
@@ -155,16 +140,17 @@ export function findFileMatchPositions(
   // Resolve overlaps: take the longest match first, then drop any candidate
   // whose [offset, offset+len) range overlaps an already-kept one. This also
   // dedupes exact-offset collisions. Ranges that don't overlap are all kept.
-  candidates.sort((a, b) => b.len - a.len || a.offset - b.offset);
-  const kept: MatchPosition[] = [];
-  for (const c of candidates) {
-    const overlaps = kept.some(
-      (k) => c.offset < k.offset + k.len && k.offset < c.offset + c.len
-    );
-    if (!overlaps) kept.push(c);
-  }
+  return resolveOverlaps(candidates).sort((a, b) => a.offset - b.offset);
+}
 
-  return kept.sort((a, b) => a.offset - b.offset);
+/** Keep the longest span at each overlap; drop any that overlaps a kept one. */
+export function resolveOverlaps<T extends { offset: number; len: number }>(spans: T[]): T[] {
+  const sorted = [...spans].sort((a, b) => b.len - a.len || a.offset - b.offset);
+  const kept: T[] = [];
+  for (const s of sorted) {
+    if (!kept.some((k) => s.offset < k.offset + k.len && k.offset < s.offset + s.len)) kept.push(s);
+  }
+  return kept;
 }
 
 /**

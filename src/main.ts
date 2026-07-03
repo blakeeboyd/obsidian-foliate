@@ -7,7 +7,7 @@ import {
   createTaxaLink,
   ensureFolderExists,
 } from "./services/file-operations";
-import { findUnlinkedMatches, findTaxaFileByText, findTaxaFilesByText } from "./services/unlinked-matcher";
+import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import { FilePickerModal } from "./ui/file-picker-modal";
 import {
@@ -151,7 +151,8 @@ export default class FoliatePlugin extends Plugin {
       return;
     }
 
-    const existing = findTaxaFileByText(this.app, text, this.settings.taxaMappings);
+    const hits = findTaxaFilesByText(this.app, text, this.settings.taxaMappings);
+    const existing = hits.length === 1 ? hits[0] : null;
     if (existing) {
       editor.replaceSelection(`[[${existing.file.basename}|${text}]]`);
       new Notice(`Linked ${text} to ${existing.file.basename}`);
@@ -350,12 +351,7 @@ export default class FoliatePlugin extends Plugin {
     }
 
     // Resolve overlaps across all files: longest first, drop any that overlaps a kept one.
-    occurrences.sort((a, b) => b.len - a.len || a.offset - b.offset);
-    const kept: Occurrence[] = [];
-    for (const o of occurrences) {
-      const overlaps = kept.some((k) => o.offset < k.offset + k.len && k.offset < o.offset + o.len);
-      if (!overlaps) kept.push(o);
-    }
+    const kept = resolveOverlaps(occurrences);
 
     if (editor) {
       // One transaction = one undo step. Changes are non-overlapping (resolved
