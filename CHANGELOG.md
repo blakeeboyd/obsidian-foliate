@@ -6,7 +6,24 @@ All notable changes to Foliate are documented here. The format follows
 
 ## Unreleased
 
-_Nothing yet._
+### Fixed
+
+- Plaintext mentions carrying a taxon prefix now surface. A note that writes
+  `@Paul Krugman` (with the leading prefix) matches the `@Paul Krugman` file,
+  where before the prefix defeated the word-boundary check and nothing matched.
+  Only the file's own prefix counts: `@Paul Krugman` matches the People file,
+  but `+Paul Krugman` does not (that's the Concept prefix, and no Concept file
+  by that name exists). The prefixed match consumes the prefix, so linking it
+  produces `[[@Paul Krugman]]`.
+
+### Changed
+
+- The right-click menu on sidebar mentions groups its actions with dividers so
+  the removal actions (Dismiss, Add to blocklist, Unlink) are set apart from the
+  safe link/open actions and aren't clicked by accident. The blocklist action
+  now names the file it will block.
+- "Create taxa link" with no selection always acts on the word under the cursor
+  now; the "Link word under cursor when nothing is selected" setting is removed.
 
 ## 0.4.1 - 2026-06-29
 

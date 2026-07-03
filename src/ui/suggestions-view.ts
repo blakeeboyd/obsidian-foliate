@@ -1024,7 +1024,11 @@ export class SuggestionsView extends ItemView {
    */
   private async applyLinks(noteFile: TFile, linkTarget: string, positions: MatchPosition[]) {
     if (positions.length === 0) return;
-    const wikilinkFor = (p: MatchPosition) => `[[${linkTarget}|${p.surface}]]`;
+    // Drop the alias when the surface already equals the target (e.g. a
+    // prefix-carrying match "@Paul Krugman" of the @Paul Krugman file), so the
+    // result is the tidy [[@Paul Krugman]] rather than a redundant piped form.
+    const wikilinkFor = (p: MatchPosition) =>
+      p.surface === linkTarget ? `[[${linkTarget}]]` : `[[${linkTarget}|${p.surface}]]`;
 
     const editor = this.findOpenEditor(noteFile);
     if (editor) {

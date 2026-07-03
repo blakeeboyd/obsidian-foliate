@@ -132,13 +132,23 @@ export function findFileMatchPositions(
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
 
-    for (const offset of findUnlinkedPositions(noteContent, term, excluded)) {
-      if (offset < bodyStart) continue;
-      candidates.push({
-        offset,
-        len: term.length,
-        surface: noteContent.substring(offset, offset + term.length),
-      });
+    // Search both the bare term ("Paul Krugman") and the term carrying this
+    // file's own taxon prefix ("@Paul Krugman"). The prefixed form matches only
+    // this file's taxon, so "@Paul Krugman" surfaces the people file while
+    // "+Paul Krugman" does not (the concept prefix is never searched for a
+    // people file). The prefixed match consumes the prefix, so linking replaces
+    // the whole "@Paul Krugman" rather than leaving a stray "@".
+    const forms =
+      taxon.prefix && taxon.prefix.length > 0 ? [taxon.prefix + term, term] : [term];
+    for (const form of forms) {
+      for (const offset of findUnlinkedPositions(noteContent, form, excluded)) {
+        if (offset < bodyStart) continue;
+        candidates.push({
+          offset,
+          len: form.length,
+          surface: noteContent.substring(offset, offset + form.length),
+        });
+      }
     }
   }
 
