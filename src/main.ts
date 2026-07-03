@@ -6,7 +6,6 @@ import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
   createTaxaLink,
   ensureFolderExists,
-  applyTemplateToNewTaxaFile,
 } from "./services/file-operations";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
@@ -401,27 +400,45 @@ export default class FoliatePlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          // A file created with a taxa prefix (e.g. a new note named
-          // "©why nations fail") gets the taxon template applied, then moved.
-          // Only the create path templates; renames of existing files don't.
-          if (this.settings.autoMoveEnabled) this.handleAutoMove(file, true);
+          if (this.settings.autoMoveEnabled) this.handleAutoMove(file);
         })
       );
       this.registerEvent(
         this.app.vault.on("rename", (file) => {
-          // Defer the auto-move to the next tick: renaming a taxa file (e.g.
-          // +economics -> ≈Economics) kicks off Obsidian's own pass updating
-          // every [[link]] across the vault. Moving the file synchronously here
-          // (a second renameFile mid-flight) races and clobbers that pass, so
-          // links to the renamed file break. Letting the current pass settle
-          // first, then moving, keeps both link updates intact. (#0259)
-          if (this.settings.autoMoveEnabled) setTimeout(() => this.handleAutoMove(file, false), 0);
+          if (this.settings.autoMoveEnabled) this.scheduleAutoMoveAfterLinksResolve(file);
         })
       );
     });
   }
 
-  private async handleAutoMove(file: TAbstractFile, applyTemplate: boolean) {
+  /**
+   * Move a renamed taxa file, but only after Obsidian finishes updating links.
+   *
+   * Renaming a taxa file (e.g. +economics -> ≈Economics) triggers Obsidian's own
+   * pass rewriting every [[link]] to it across the vault. Moving the file
+   * synchronously in the rename handler issues a second renameFile mid-pass,
+   * which races and clobbers that update, breaking links. So we wait for
+   * metadataCache's "resolved" event (fired once the whole link graph has
+   * settled, however many files were touched) and move then. A one-shot listener
+   * with a fallback timeout in case "resolved" doesn't fire (e.g. no links to
+   * update). Robust for large batch renames, not just single files. (#0259)
+   */
+  private scheduleAutoMoveAfterLinksResolve(file: TAbstractFile) {
+    let done = false;
+    const run = () => {
+      if (done) return;
+      done = true;
+      this.app.metadataCache.offref(ref);
+      window.clearTimeout(timer);
+      void this.handleAutoMove(file);
+    };
+    const ref = this.app.metadataCache.on("resolved", run);
+    this.registerEvent(ref);
+    // Fallback: "resolved" won't fire if the rename had no links to rewrite.
+    const timer = window.setTimeout(run, 1000);
+  }
+
+  private async handleAutoMove(file: TAbstractFile) {
     if (!(file instanceof TFile)) return;
     if (file.extension !== "md") return;
 
@@ -430,13 +447,6 @@ export default class FoliatePlugin extends Plugin {
       this.settings.taxaMappings
     );
     if (!taxon) return;
-
-    // On creation, apply the taxon template to the (empty) new file before it
-    // moves. applyTemplateToNewTaxaFile no-ops if there's no template or the
-    // file already has content. (#0260)
-    if (applyTemplate) {
-      await applyTemplateToNewTaxaFile(this.app, file, taxon, this.settings);
-    }
 
     await this.moveFileToTaxaFolder(file, taxon);
   }

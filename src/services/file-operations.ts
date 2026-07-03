@@ -85,32 +85,6 @@ export async function createTaxaFile(
 }
 
 /**
- * Apply the taxon's template to an already-created, empty taxa file (e.g. a note
- * the user made directly by naming it "©why nations fail", which auto-move then
- * relocates). Only fills an empty file, so it never clobbers content the user
- * typed. No-op when the taxon has no template. Mirrors createTaxaFile's
- * template + Templater + alias steps, but writes into an existing file. (#0260)
- */
-export async function applyTemplateToNewTaxaFile(
-  app: App,
-  file: TFile,
-  taxon: TaxaMapping,
-  settings: FoliateSettings
-): Promise<void> {
-  if (!taxon.template) return;
-  // Only touch a genuinely empty file, so we don't overwrite a note that
-  // happened to be named with a taxa prefix but already has content.
-  const current = await app.vault.read(file);
-  if (current.trim().length > 0) return;
-
-  const cleanName = stripPrefix(file.basename, taxon);
-  const tmpl = await renderTemplate(app, taxon, cleanName, file.basename);
-  if (tmpl.content) await app.vault.modify(file, tmpl.content);
-  if (tmpl.hasTemplater) await runTemplater(app, file);
-  if (settings.autoAddAlias) await addAliasToFile(app, file, cleanName);
-}
-
-/**
  * Build the initial content for a new taxa file from the taxon's template, if
  * one is configured. The template engine is auto-detected:
  * - {{...}} tokens are always filled by Foliate: {{title}} resolves to the
