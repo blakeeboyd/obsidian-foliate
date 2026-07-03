@@ -1,5 +1,5 @@
 import { App, TFile, CachedMetadata } from "obsidian";
-import { TaxaMapping, UnlinkedMatch, MatchPosition } from "../types";
+import { TaxaMapping, UnlinkedMatch, MatchPosition, ContextConfig } from "../types";
 import { stripPrefix } from "../taxa";
 
 /**
@@ -15,7 +15,8 @@ export function findUnlinkedMatches(
   noteContent: string,
   noteFile: TFile,
   taxaMappings: TaxaMapping[],
-  includeLinkedFiles = false
+  includeLinkedFiles = false,
+  contextAware: Record<string, ContextConfig> = {}
 ): UnlinkedMatch[] {
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
@@ -38,7 +39,16 @@ export function findUnlinkedMatches(
       // Skip already-linked files unless we're surfacing their aliases
       if (!includeLinkedFiles && alreadyLinked.has(taxaFile.path)) continue;
 
-      const positions = findFileMatchPositions(app, noteContent, taxaFile, taxon, bodyStart, excluded);
+      const gate = contextAware[taxaFile.path];
+      const positions = findFileMatchPositions(
+        app,
+        noteContent,
+        taxaFile,
+        taxon,
+        bodyStart,
+        excluded,
+        gate
+      );
       if (positions.length > 0) {
         matches.push({
           matchText: positions[0].surface,
@@ -98,6 +108,10 @@ export function bodyStartOffset(content: string): number {
  * existing [[ ]] wikilinks, code, or markdown/bare links, or before bodyStart
  * (i.e. in frontmatter), are excluded. Used both for unlinked-mention detection
  * and for folding alias mentions into an already-linked file's entry.
+ *
+ * When `gate` is supplied (the file is context-aware), its gated terms are only
+ * searched if the note also contains one of the gate's context terms, so a
+ * common-word alias surfaces only in notes about the right subject.
  */
 export function findFileMatchPositions(
   app: App,
@@ -105,7 +119,8 @@ export function findFileMatchPositions(
   taxaFile: TFile,
   taxon: TaxaMapping,
   bodyStart = 0,
-  excludedRegions?: Region[]
+  excludedRegions?: Region[],
+  gate?: ContextConfig
 ): MatchPosition[] {
   const searchTerms = getSearchTerms(app, taxaFile, taxon);
   const candidates: MatchPosition[] = [];
@@ -114,8 +129,32 @@ export function findFileMatchPositions(
   // single-shot callers let us derive them here so they stay correct.
   const excluded = excludedRegions ?? findExcludedRegions(noteContent);
 
+  // Context gating: only the file's gated terms (the common-word aliases like
+  // "sync") are suppressed unless the note also contains one of the file's
+  // context terms. Ungated terms (the full name, unambiguous aliases) always
+  // match. isGatedTerm keys off the file's gatedAliases list; noteHasContext is
+  // computed lazily and memoized, so ungated files pay nothing and a gated file
+  // scans the note's context terms at most once.
+  const gatedSet = gate
+    ? new Set((gate.gatedAliases ?? []).map((t) => t.toLowerCase()))
+    : null;
+  const isGatedTerm = (term: string): boolean =>
+    gatedSet !== null && gatedSet.has(term.toLowerCase());
+  let contextChecked = false;
+  let contextPresent = false;
+  const noteHasContext = (): boolean => {
+    if (!contextChecked) {
+      contextPresent = (gate?.terms ?? []).some(
+        (t) => t.length >= 2 && findUnlinkedPositions(noteContent, t, excluded).length > 0
+      );
+      contextChecked = true;
+    }
+    return contextPresent;
+  };
+
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
+    if (isGatedTerm(term) && !noteHasContext()) continue;
 
     // Search both the bare term ("Paul Krugman") and the term carrying this
     // file's own taxon prefix ("@Paul Krugman"). The prefixed form matches only

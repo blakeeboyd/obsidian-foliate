@@ -379,3 +379,148 @@
   background: var(--background-primary);
   color: var(--text-normal);
 }
+
+/* Context-aware mentions modal */
+.foliate-context-modal {
+  width: min(680px, 90vw);
+  max-width: 90vw;
+}
+
+.foliate-context-search {
+  margin-top: 8px;
+}
+
+.foliate-context-search input {
+  width: 100%;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: inherit;
+}
+
+.foliate-context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.foliate-context-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--background-secondary);
+}
+
+.foliate-context-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foliate-context-expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0 2px;
+  font-size: var(--font-ui-small);
+  box-shadow: none;
+}
+
+.foliate-context-name {
+  cursor: pointer;
+  color: var(--text-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.foliate-context-name:hover {
+  text-decoration: underline;
+}
+
+.foliate-context-gated-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Summary chips are display-only (not toggle buttons). */
+.foliate-context-gated-summary .foliate-context-chip {
+  cursor: default;
+}
+
+.foliate-context-card-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.foliate-context-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.foliate-context-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.foliate-context-field label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.foliate-context-field input,
+.foliate-context-field textarea {
+  width: 100%;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.foliate-context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.foliate-context-chip {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 3px 10px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+}
+
+.foliate-context-chip:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.foliate-context-chip.is-gated {
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  border-color: var(--background-modifier-error);
+  text-decoration: line-through;
+}
+
+.foliate-context-chip.is-gated:hover {
+  border-color: var(--text-error);
+  color: var(--text-on-accent);
+}

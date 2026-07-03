@@ -6,6 +6,27 @@ export interface TaxaMapping {
 }
 
 /**
+ * Per-file context-gating config, keyed by taxa file path in
+ * settings.contextAware. A gated file surfaces its mentions in a note only when
+ * that note also contains at least one of `terms` — the file's related
+ * vocabulary, so a common-word alias like "sync" appears when the note is about
+ * audio (mentions SMPTE, DAW, wordclock) and stays quiet otherwise.
+ *
+ * `terms` is the effective, user-editable list the matcher actually checks.
+ *
+ * `gatedAliases` names which of the file's own terms are context-gated: only
+ * these are suppressed when the note lacks a related term. It's seeded from the
+ * surface text that surfaced the file in the sidebar (the common word the user
+ * reacted to, e.g. "sync") and is user-editable. Terms not listed here — the
+ * full name, unambiguous aliases — always match. An entry with an empty
+ * gatedAliases gates nothing.
+ */
+export interface ContextConfig {
+  terms: string[];
+  gatedAliases: string[];
+}
+
+/**
  * How to open a taxa note:
  * - "replace": in the current tab (standard link behavior)
  * - "tab": in a new tab, then focus it
@@ -41,6 +62,11 @@ export interface FoliateSettings {
   inlineActions: string[];
   matchLinkedAliases: boolean;
   blocklist: string[];
+  // Experimental. When false, context-aware gating is fully dormant: the gate
+  // never runs, and the sidebar action and settings manager are hidden. Saved
+  // contextAware entries are preserved and reactivate when re-enabled.
+  contextAwareEnabled: boolean;
+  contextAware: Record<string, ContextConfig>;
   highlightOnJump: boolean;
   highlightDurationSeconds: number;
   selectOnJump: boolean;
@@ -81,6 +107,6 @@ export const INLINE_ACTION_OPTIONS: { id: string; label: string }[] = [
   { id: "linkAll", label: "Link all occurrences" },
   { id: "unlink", label: "Unlink" },
   { id: "open", label: "Open note" },
-  { id: "ignore", label: "Always ignore" },
+  { id: "ignore", label: "Add to blocklist" },
   { id: "dismiss", label: "Dismiss" },
 ];

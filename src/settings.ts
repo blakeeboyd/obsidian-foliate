@@ -1,7 +1,8 @@
 import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder } from "obsidian";
 import type FoliatePlugin from "./main";
-import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS } from "./types";
+import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
+import { mineContextTerms, fileTerms, taxonForFile } from "./services/context-mining";
 
 class ConfirmModal extends Modal {
   private message: string;
@@ -109,6 +110,248 @@ class BlocklistModal extends Modal {
   onClose() {
     this.contentEl.empty();
     this.onChangeCb?.();
+  }
+}
+
+class ContextAwareModal extends Modal {
+  private plugin: FoliatePlugin;
+  private onChangeCb?: () => void;
+  // Paths whose row is expanded. Kept on the instance so expansion survives the
+  // full re-render that every edit triggers.
+  private expanded = new Set<string>();
+
+  constructor(app: App, plugin: FoliatePlugin, onChange?: () => void) {
+    super(app);
+    this.plugin = plugin;
+    this.onChangeCb = onChange;
+  }
+
+  onOpen() {
+    // Widen the default modal; the expanded term editors need the room.
+    this.modalEl.addClass("foliate-context-modal");
+    this.render();
+  }
+
+  private render() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", { text: "Context-aware mentions" });
+    contentEl.createEl("p", {
+      text:
+        "A gated term (a common word like \"work\") surfaces as an unlinked mention only when the note also contains one of the file's related terms. " +
+        "Expand a file to toggle its gated terms and edit related terms.",
+      cls: "setting-item-description",
+    });
+
+    const entries = Object.entries(this.plugin.settings.contextAware);
+
+    if (entries.length === 0) {
+      contentEl.createEl("p", {
+        text: 'No context-aware files. Add one via a sidebar item\'s "Add to context-aware list" action.',
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    // Search: autocomplete over every term already present across all entries
+    // (gated + related + file names). Picking a suggestion expands that file's
+    // row and scrolls to it.
+    this.renderSearch(contentEl, entries);
+
+    const list = contentEl.createDiv("foliate-context-list");
+    for (const [path, config] of entries) {
+      this.renderCard(list, path, config);
+    }
+  }
+
+  /** Search box with an autocomplete drawn only from terms already in the modal. */
+  private renderSearch(container: HTMLElement, entries: [string, ContextConfig][]) {
+    // Build a term -> owning path index from the terms present in the modal.
+    const termToPath = new Map<string, string>();
+    for (const [path, config] of entries) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      const name = file instanceof TFile ? file.basename : path;
+      const taxon =
+        file instanceof TFile ? taxonForFile(file, this.plugin.settings.taxaMappings) : null;
+      const terms = [
+        name,
+        ...(file instanceof TFile && taxon ? fileTerms(this.app, file, taxon) : []),
+        ...(config.gatedAliases ?? []),
+        ...config.terms,
+      ];
+      for (const t of terms) {
+        const key = t.toLowerCase();
+        if (!termToPath.has(key)) termToPath.set(key, path);
+      }
+    }
+
+    const field = container.createDiv("foliate-context-search");
+    const input = field.createEl("input", {
+      type: "text",
+      placeholder: "Search terms in this list…",
+    });
+    new ContextTermSuggest(this.app, input, [...termToPath.keys()], (term) => {
+      const path = termToPath.get(term.toLowerCase());
+      if (!path) return;
+      this.expanded.add(path);
+      this.render();
+      const card = this.contentEl.querySelector(`[data-path="${CSS.escape(path)}"]`);
+      card?.scrollIntoView({ block: "center" });
+    });
+  }
+
+  /** One file: a compact header (name link + gated terms) with an expandable body. */
+  private renderCard(list: HTMLElement, path: string, config: ContextConfig) {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    const name = file instanceof TFile ? file.basename : path;
+    const isOpen = this.expanded.has(path);
+
+    const card = list.createDiv("foliate-context-card");
+    card.dataset.path = path;
+
+    // Header (always visible): expand toggle, file-name link, active gated terms.
+    const header = card.createDiv("foliate-context-card-header");
+
+    const toggle = header.createEl("button", {
+      text: isOpen ? "▾" : "▸",
+      cls: "foliate-context-expand",
+    });
+    toggle.setAttribute("aria-label", isOpen ? "Collapse" : "Expand");
+    toggle.addEventListener("click", () => {
+      if (isOpen) this.expanded.delete(path);
+      else this.expanded.add(path);
+      this.render();
+    });
+
+    const nameLink = header.createEl("a", { text: name, cls: "foliate-context-name" });
+    nameLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.app.workspace.openLinkText(path, "", false);
+      this.close();
+    });
+
+    const gated = config.gatedAliases ?? [];
+    const gatedEl = header.createSpan("foliate-context-gated-summary");
+    if (gated.length > 0) {
+      for (const t of gated) gatedEl.createSpan({ text: t, cls: "foliate-context-chip is-gated" });
+    } else {
+      gatedEl.createSpan({ text: "no gated terms", cls: "setting-item-description" });
+    }
+
+    if (isOpen) this.renderCardBody(card, path, config, file);
+  }
+
+  /** Expanded body: full gated-term chip toggles, related-terms editor, buttons. */
+  private renderCardBody(
+    card: HTMLElement,
+    path: string,
+    config: ContextConfig,
+    file: ReturnType<App["vault"]["getAbstractFileByPath"]>
+  ) {
+    const body = card.createDiv("foliate-context-card-body");
+
+    const actions = body.createDiv("foliate-context-actions");
+    const remineBtn = actions.createEl("button", { text: "Re-mine" });
+    remineBtn.title = "Rebuild related terms from this file's links, discarding manual edits";
+    remineBtn.addEventListener("click", async () => {
+      if (file instanceof TFile) {
+        config.terms = mineContextTerms(this.app, file, this.plugin.settings.taxaMappings);
+        await this.plugin.saveSettings();
+        this.render();
+      }
+    });
+    const removeBtn = actions.createEl("button", { text: "Remove", cls: "mod-warning" });
+    removeBtn.title = "Remove (this file's mentions surface normally again)";
+    removeBtn.addEventListener("click", async () => {
+      delete this.plugin.settings.contextAware[path];
+      this.expanded.delete(path);
+      await this.plugin.saveSettings();
+      this.render();
+    });
+
+    // Gated terms: toggle list of the file's actual terms (name + aliases), so
+    // only real terms can be picked and typos can't silently gate nothing.
+    const gatedField = body.createDiv("foliate-context-field");
+    gatedField.createEl("label", { text: "Gated terms (click to toggle)" });
+    const chips = gatedField.createDiv("foliate-context-chips");
+    const taxon =
+      file instanceof TFile ? taxonForFile(file, this.plugin.settings.taxaMappings) : null;
+    const available = file instanceof TFile && taxon ? fileTerms(this.app, file, taxon) : [];
+    const gatedNow = new Set((config.gatedAliases ?? []).map((t) => t.toLowerCase()));
+    // Include any gated term no longer among the file's aliases so it can still
+    // be toggled off.
+    const orphaned = (config.gatedAliases ?? []).filter(
+      (g) => !available.some((a) => a.toLowerCase() === g.toLowerCase())
+    );
+    const allTerms = [...available, ...orphaned];
+
+    if (allTerms.length === 0) {
+      chips.createSpan({ text: "No aliases found for this file.", cls: "setting-item-description" });
+    }
+    for (const term of allTerms) {
+      const isGated = gatedNow.has(term.toLowerCase());
+      const chip = chips.createEl("button", {
+        text: term,
+        cls: isGated ? "foliate-context-chip is-gated" : "foliate-context-chip",
+      });
+      chip.addEventListener("click", async () => {
+        const set = new Set(config.gatedAliases ?? []);
+        const existing = [...set].find((t) => t.toLowerCase() === term.toLowerCase());
+        if (existing) set.delete(existing);
+        else set.add(term);
+        config.gatedAliases = [...set];
+        await this.plugin.saveSettings();
+        this.render();
+      });
+    }
+
+    // Related terms: the context vocabulary that must be present for a gated
+    // term to surface.
+    const relField = body.createDiv("foliate-context-field");
+    relField.createEl("label", { text: "Related terms" });
+    const relArea = relField.createEl("textarea");
+    relArea.value = config.terms.join(", ");
+    relArea.rows = 3;
+    relArea.addEventListener("change", async () => {
+      config.terms = relArea.value
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      await this.plugin.saveSettings();
+    });
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    this.onChangeCb?.();
+  }
+}
+
+/** Autocomplete input suggesting from a fixed pool of terms (the modal's own). */
+class ContextTermSuggest extends AbstractInputSuggest<string> {
+  private terms: string[];
+  private onPick: (term: string) => void;
+
+  constructor(app: App, input: HTMLInputElement, terms: string[], onPick: (term: string) => void) {
+    super(app, input);
+    this.terms = terms;
+    this.onPick = onPick;
+  }
+
+  getSuggestions(query: string): string[] {
+    const q = query.toLowerCase();
+    return this.terms.filter((t) => t.includes(q)).slice(0, 50);
+  }
+
+  renderSuggestion(term: string, el: HTMLElement): void {
+    el.setText(term);
+  }
+
+  selectSuggestion(term: string): void {
+    this.setValue(term);
+    this.onPick(term);
+    this.close();
   }
 }
 
@@ -520,6 +763,56 @@ export class FoliateSettingTab extends PluginSettingTab {
             new BlocklistModal(this.app, this.plugin, () => this.display()).open();
           })
       );
+
+    // --- Experimental ---
+    containerEl.createEl("h2", { text: "Experimental" });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Features still in development. Off by default; enable at your own discretion.",
+    });
+
+    // The "Context-aware files" row lives in its own container so the toggle
+    // can show/hide it in place, without rebuilding the whole tab (which would
+    // reset the scroll position and jump the view). Created detached; appended
+    // after the toggle below.
+    const contextFilesRow = createDiv();
+    const renderContextFilesRow = () => {
+      contextFilesRow.empty();
+      contextFilesRow.toggle(this.plugin.settings.contextAwareEnabled);
+      if (!this.plugin.settings.contextAwareEnabled) return;
+      new Setting(contextFilesRow)
+        .setName("Context-aware files")
+        .setDesc(
+          "Set one up via a sidebar item's \"Add to context-aware list\" action, then edit its gated and related terms here."
+        )
+        .addButton((btn) =>
+          btn
+            .setButtonText(`Manage (${Object.keys(this.plugin.settings.contextAware).length})`)
+            .onClick(() => {
+              new ContextAwareModal(this.app, this.plugin, () => renderContextFilesRow()).open();
+            })
+        );
+    };
+
+    new Setting(containerEl)
+      .setName("Context-aware mentions")
+      .setDesc(
+        "A file's common-word alias (like \"work\") surfaces as an unlinked mention only in notes that also mention one of the file's related terms. When off, this gating is fully dormant and its sidebar action is hidden; any files you've configured are kept and reactivate when you turn it back on."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.contextAwareEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.contextAwareEnabled = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+            renderContextFilesRow();
+          })
+      );
+
+    // Place the row after its toggle and render its initial state.
+    containerEl.appendChild(contextFilesRow);
+    renderContextFilesRow();
   }
 
   private addClickActionSetting(
