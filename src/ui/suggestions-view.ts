@@ -48,6 +48,10 @@ interface RowAction {
   // For intrinsic affordances (e.g. "Create file" on an unresolved row) that
   // aren't user-configurable inline actions.
   forceInline?: boolean;
+  // Draw a divider in the context menu just above this item, to set apart the
+  // actions below it (e.g. the removal actions) from the safe ones above.
+  // Ignored by the inline-button renderer.
+  separatorBefore?: boolean;
 }
 
 export class SuggestionsView extends ItemView {
@@ -244,6 +248,7 @@ export class SuggestionsView extends ItemView {
   private showActionMenu(evt: MouseEvent, actions: RowAction[]) {
     const menu = new Menu();
     for (const action of actions) {
+      if (action.separatorBefore) menu.addSeparator();
       menu.addItem((mi) =>
         mi.setTitle(action.label).setIcon(action.icon).onClick(() => void action.run())
       );
@@ -1117,21 +1122,28 @@ export class SuggestionsView extends ItemView {
           this.jumpToOccurrence(match.filePath, match.positions, fullContent, noteFile, match.matchText.length),
       },
       {
-        id: "ignore",
-        label: "Always ignore",
-        icon: "eye-off",
-        run: async () => {
-          this.plugin.settings.blocklist.push(match.alias);
-          await this.plugin.saveSettings();
+        id: "dismiss",
+        label: "Dismiss",
+        icon: "x",
+        // Divider: everything below removes this row (temporarily or for good),
+        // set apart from the link/open/jump actions above so it isn't clicked
+        // by accident.
+        separatorBefore: true,
+        run: () => {
+          this.dismissed.add(match.filePath);
           this.refresh();
         },
       },
       {
-        id: "dismiss",
-        label: "Dismiss",
-        icon: "x",
-        run: () => {
-          this.dismissed.add(match.filePath);
+        id: "ignore",
+        // Name the file so it's clear exactly what gets blocklisted. Blocklist
+        // suppresses the whole file (all its terms), so the file name is the
+        // accurate label, not the single surfaced word.
+        label: `Add ${match.fileName} to blocklist`,
+        icon: "eye-off",
+        run: async () => {
+          this.plugin.settings.blocklist.push(match.alias);
+          await this.plugin.saveSettings();
           this.refresh();
         },
       }
@@ -1397,25 +1409,17 @@ export class SuggestionsView extends ItemView {
             run: () => this.linkPositions(file, item.link, unlinkedPositions),
           });
         }
-        rowActions.push(
-          {
-            id: "jump",
-            label: "Jump to occurrence",
-            icon: "crosshair",
-            inline: false,
-            run: () => {
-              if (item.positions.length > 0) {
-                this.jumpToOccurrence(jumpKey, item.positions, content, file, item.matchName.length);
-              }
-            },
+        rowActions.push({
+          id: "jump",
+          label: "Jump to occurrence",
+          icon: "crosshair",
+          inline: false,
+          run: () => {
+            if (item.positions.length > 0) {
+              this.jumpToOccurrence(jumpKey, item.positions, content, file, item.matchName.length);
+            }
           },
-          {
-            id: "unlink",
-            label: "Unlink",
-            icon: "unlink",
-            run: () => this.unlinkTaxaFromNote(item.link, item.title, file),
-          }
-        );
+        });
         // "Open note" only makes sense once the file exists.
         if (item.exists) {
           rowActions.push({
@@ -1425,6 +1429,15 @@ export class SuggestionsView extends ItemView {
             run: () => this.app.workspace.openLinkText(item.link, file.path, false),
           });
         }
+        // Unlink goes last, below a divider, so the removal action is set apart
+        // from the safe ones above and isn't clicked by accident.
+        rowActions.push({
+          id: "unlink",
+          label: "Unlink",
+          icon: "unlink",
+          separatorBefore: true,
+          run: () => this.unlinkTaxaFromNote(item.link, item.title, file),
+        });
         nameSpan.addEventListener("click", (evt) => {
           this.handleItemClick(
             evt,
