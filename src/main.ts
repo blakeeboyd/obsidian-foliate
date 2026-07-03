@@ -20,7 +20,6 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   autoMoveEnabled: true,
   createFolderIfMissing: true,
   autoAddAlias: true,
-  linkUnderCursorFallback: true,
   sidebarEnabled: true,
   sidebarOpen: true,
   autoScan: true,
@@ -80,14 +79,9 @@ export default class FoliatePlugin extends Plugin {
           return;
         }
 
-        // No selection. When the fallback is enabled, act on the cursor: link an
-        // existing taxa mention under it, or fall back to the word under it.
-        if (this.settings.linkUnderCursorFallback) {
-          this.linkUnderCursor(editor);
-          return;
-        }
-
-        new Notice("Select text first.");
+        // No selection. Act on the cursor: link an existing taxa mention under
+        // it, or fall back to the word under it.
+        this.linkUnderCursor(editor);
       },
     });
 

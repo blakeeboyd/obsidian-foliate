@@ -251,20 +251,6 @@ export class FoliateSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
-      .setName("Link word under cursor when nothing is selected")
-      .setDesc(
-        "When you run \"Create taxa link\" with no text selected, act on the cursor instead: link an existing taxa mention under it, or the word the cursor sits in if it matches a taxa file. A word that matches nothing is left alone."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.linkUnderCursorFallback)
-          .onChange(async (value) => {
-            this.plugin.settings.linkUnderCursorFallback = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
     // --- Auto-Move ---
     containerEl.createEl("h2", { text: "Auto-Move" });
 
