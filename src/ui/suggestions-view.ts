@@ -5,6 +5,7 @@ import type FoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
 import { createTaxaFile } from "../services/file-operations";
+import { mineContextTerms } from "../services/context-mining";
 import { stripPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
 
@@ -799,7 +800,8 @@ export class SuggestionsView extends ItemView {
       content,
       file,
       this.plugin.settings.taxaMappings,
-      false
+      false,
+      this.plugin.activeContextAware()
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 
     // Scope to the viewport: keep only occurrences on screen, drop empty matches.
@@ -979,6 +981,18 @@ export class SuggestionsView extends ItemView {
    * Render a row's actions: inline buttons for the ids enabled in settings, plus
    * a right-click context menu that always exposes every action.
    */
+  /**
+   * Whether the term that surfaced this match in the current note (its matched
+   * surface text) is currently context-gated for that file. Used to toggle the
+   * row's context action label and behavior.
+   */
+  private isTermGated(match: UnlinkedMatch): boolean {
+    const gate = this.plugin.settings.contextAware[match.filePath];
+    if (!gate) return false;
+    const term = match.matchText.toLowerCase();
+    return (gate.gatedAliases ?? []).some((a) => a.toLowerCase() === term);
+  }
+
   private renderRowActions(row: HTMLElement, container: HTMLElement, actions: RowAction[]) {
     for (const action of actions) {
       if (action.inline === false) continue;
@@ -1096,6 +1110,14 @@ export class SuggestionsView extends ItemView {
 
     const rowActions: RowAction[] = [
       {
+        id: "jump",
+        label: "Jump to occurrence",
+        icon: "crosshair",
+        inline: false,
+        run: () =>
+          this.jumpToOccurrence(match.filePath, match.positions, fullContent, noteFile, match.matchText.length),
+      },
+      {
         id: "link",
         label: "Link this occurrence",
         icon: "replace",
@@ -1110,28 +1132,77 @@ export class SuggestionsView extends ItemView {
         run: () => this.linkUnlinkedMatch(match, noteFile, true),
       });
     }
-    rowActions.push(
-      {
-        id: "open",
-        label: "Open note",
-        icon: "external-link",
-        run: () => this.app.workspace.openLinkText(match.fileName, noteFile.path, false),
-      },
-      {
-        id: "jump",
-        label: "Jump to occurrence",
-        icon: "crosshair",
+    rowActions.push({
+      id: "open",
+      label: "Open note",
+      icon: "external-link",
+      run: () => this.app.workspace.openLinkText(match.fileName, noteFile.path, false),
+    });
+    // Experimental: the context-aware action only appears when the feature is
+    // enabled, so the whole feature is dormant (no entry point) when off.
+    if (this.plugin.settings.contextAwareEnabled) {
+      rowActions.push({
+        // Gate the specific term that surfaced this row in THIS note (the
+        // matched surface text, e.g. "sync"), not the file name. That term is
+        // suppressed elsewhere unless the note also mentions a related term;
+        // the file's other terms (its full name, unambiguous aliases) keep
+        // matching normally.
+        id: "context",
+        label: this.isTermGated(match)
+          ? `Remove "${match.matchText}" from context-aware list`
+          : `Add "${match.matchText}" to context-aware list`,
+        icon: "git-branch",
         inline: false,
-        run: () =>
-          this.jumpToOccurrence(match.filePath, match.positions, fullContent, noteFile, match.matchText.length),
-      },
+        // Divider above: the context-aware action is set apart from the plain
+        // link/open actions.
+        separatorBefore: true,
+        run: async () => {
+          const ca = this.plugin.settings.contextAware;
+          const existing = ca[match.filePath];
+          const term = match.matchText;
+          if (existing && this.isTermGated(match)) {
+            // Toggle off: ungate this term; drop the entry if it was the last.
+            const remaining = (existing.gatedAliases ?? []).filter(
+              (a) => a.toLowerCase() !== term.toLowerCase()
+            );
+            if (remaining.length === 0) delete ca[match.filePath];
+            else ca[match.filePath] = { ...existing, gatedAliases: remaining };
+            new Notice(`No longer gating "${term}".`);
+          } else if (existing) {
+            // File already gated for other terms; add this one.
+            const set = new Set(existing.gatedAliases ?? []);
+            set.add(term);
+            ca[match.filePath] = { ...existing, gatedAliases: [...set] };
+            new Notice(`"${term}" now shows only near a related term.`);
+          } else {
+            const taxaFile = this.app.vault.getAbstractFileByPath(match.filePath);
+            const terms =
+              taxaFile instanceof TFile
+                ? mineContextTerms(this.app, taxaFile, this.plugin.settings.taxaMappings)
+                : [];
+            ca[match.filePath] = {
+              terms,
+              gatedAliases: [term],
+            };
+            new Notice(
+              terms.length > 0
+                ? `"${term}" now shows only near: ${terms.slice(0, 6).join(", ")}${terms.length > 6 ? "…" : ""}`
+                : `"${term}" gated, but no related terms were found. Add some in settings, or it will never surface.`
+            );
+          }
+          await this.plugin.saveSettings();
+          this.refresh();
+        },
+      });
+    }
+    rowActions.push(
       {
         id: "dismiss",
         label: "Dismiss",
         icon: "x",
         // Divider: everything below removes this row (temporarily or for good),
-        // set apart from the link/open/jump actions above so it isn't clicked
-        // by accident.
+        // set apart from the link/open/context actions above so it isn't
+        // clicked by accident.
         separatorBefore: true,
         run: () => {
           this.dismissed.add(match.filePath);

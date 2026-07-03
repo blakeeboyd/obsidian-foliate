@@ -6,6 +6,25 @@ All notable changes to Foliate are documented here. The format follows
 
 ## Unreleased
 
+### Added
+
+- Context-aware mentions (experimental, off by default). A taxa file with a
+  common-word alias (for example "work" for a concept, or "an" for a
+  Chinese-thought concept) can be set so that alias surfaces as an unlinked
+  mention only in notes that also contain one of the file's related terms.
+  Related terms are mined from the Obsidian graph — the file's outgoing links
+  and its backlinks from other taxa files — so a gated alias appears in a note
+  that also talks about its related concepts and stays quiet elsewhere. Enable
+  it under Settings → Experimental → Context-aware mentions; then set files up
+  from a sidebar item's "Add … to context-aware list" action and manage gated
+  terms (click-to-toggle chips of the file's own aliases) and related terms in
+  the manager. When the toggle is off the gating is fully dormant and its
+  sidebar action is hidden; configured files are preserved and reactivate on
+  re-enable. Only the gated alias is suppressed; the file's other terms keep
+  matching. Deliberate cursor actions ("Create taxa link" on the word under the
+  cursor) are never gated. A percentage-threshold tier that would also admit
+  terms from non-taxa backlinks is planned as a follow-up.
+
 ### Fixed
 
 - Plaintext mentions carrying a taxon prefix now surface. A note that writes
@@ -24,6 +43,8 @@ All notable changes to Foliate are documented here. The format follows
   now names the file it will block.
 - "Create taxa link" with no selection always acts on the word under the cursor
   now; the "Link word under cursor when nothing is selected" setting is removed.
+  It never creates a file from an unmatched word, so the toggle only added
+  friction.
 
 ## 0.4.1 - 2026-06-29
 

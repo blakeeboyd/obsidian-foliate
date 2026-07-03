@@ -1,5 +1,5 @@
 import { Editor, EditorPosition, Notice, Plugin, TAbstractFile, TFile, MarkdownView, addIcon } from "obsidian";
-import { FoliateSettings, TaxaMapping } from "./types";
+import { FoliateSettings, TaxaMapping, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, findTaxonByPrefix } from "./taxa";
 import { FoliateSettingTab } from "./settings";
 import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
@@ -32,6 +32,8 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   inlineActions: ["link", "linkAll", "unlink"],
   matchLinkedAliases: true,
   blocklist: [],
+  contextAwareEnabled: false,
+  contextAware: {},
   highlightOnJump: true,
   highlightDurationSeconds: 2.5,
   selectOnJump: true,
@@ -79,8 +81,10 @@ export default class FoliatePlugin extends Plugin {
           return;
         }
 
-        // No selection. Act on the cursor: link an existing taxa mention under
-        // it, or fall back to the word under it.
+        // No selection: act on the cursor. Link an existing taxa mention under
+        // it, or the word under it when that word matches a taxa file / carries
+        // a prefix. A word that matches nothing is left alone, so this is always
+        // safe to run.
         this.linkUnderCursor(editor);
       },
     });
@@ -184,6 +188,8 @@ export default class FoliatePlugin extends Plugin {
     // Find taxa mentions whose span contains the cursor, preferring the longest
     // (so a full phrase like "artificial intelligence" wins over a shorter
     // alias). The matcher yields whole-term spans, one set per candidate file.
+    // No context gating here: the cursor is a deliberate action on a specific
+    // word, so a gated alias under the cursor should still link.
     const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
     let bestLen = -1;
     let span: { offset: number; surface: string } | null = null;
@@ -330,8 +336,17 @@ export default class FoliatePlugin extends Plugin {
     const content = editor ? editor.getValue() : await this.app.vault.read(file);
 
     // includeLinkedFiles: also catch the remaining plain-text mentions of files
-    // that are already linked somewhere in the note.
-    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
+    // that are already linked somewhere in the note. Context gating applies here
+    // (bulk auto-link) so a gated common-word alias isn't linked in a note that
+    // isn't about its subject.
+    const matches = findUnlinkedMatches(
+      this.app,
+      content,
+      file,
+      this.settings.taxaMappings,
+      true,
+      this.activeContextAware()
+    );
 
     interface Occurrence {
       offset: number;
@@ -467,6 +482,15 @@ export default class FoliatePlugin extends Plugin {
     }
   }
 
+  /**
+   * The context-aware config the matcher should honor: the saved entries when
+   * the experimental feature is enabled, or an empty map when it's off (so the
+   * gate is fully dormant without discarding saved entries).
+   */
+  activeContextAware(): Record<string, ContextConfig> {
+    return this.settings.contextAwareEnabled ? this.settings.contextAware : {};
+  }
+
   async loadSettings() {
     const loaded = ((await this.loadData()) ?? {}) as Record<string, unknown>;
     // Keep only keys the current settings shape knows about, so values left
@@ -476,6 +500,17 @@ export default class FoliatePlugin extends Plugin {
       if (key in loaded) known[key] = loaded[key];
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, known) as FoliateSettings;
+
+    // Migration: the experimental context-aware feature defaults off, but a
+    // vault that already has configured entries (from before the toggle
+    // existed) was implicitly using it, so treat that as opted in. Only fires
+    // when the flag was never persisted.
+    if (
+      !("contextAwareEnabled" in loaded) &&
+      Object.keys(this.settings.contextAware).length > 0
+    ) {
+      this.settings.contextAwareEnabled = true;
+    }
   }
 
   async saveSettings() {
