@@ -6,6 +6,7 @@ import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
   createTaxaLink,
   ensureFolderExists,
+  applyTemplateToNewTaxaFile,
 } from "./services/file-operations";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
@@ -400,18 +401,27 @@ export default class FoliatePlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.registerEvent(
         this.app.vault.on("create", (file) => {
-          if (this.settings.autoMoveEnabled) this.handleAutoMove(file);
+          // A file created with a taxa prefix (e.g. a new note named
+          // "©why nations fail") gets the taxon template applied, then moved.
+          // Only the create path templates; renames of existing files don't.
+          if (this.settings.autoMoveEnabled) this.handleAutoMove(file, true);
         })
       );
       this.registerEvent(
         this.app.vault.on("rename", (file) => {
-          if (this.settings.autoMoveEnabled) this.handleAutoMove(file);
+          // Defer the auto-move to the next tick: renaming a taxa file (e.g.
+          // +economics -> ≈Economics) kicks off Obsidian's own pass updating
+          // every [[link]] across the vault. Moving the file synchronously here
+          // (a second renameFile mid-flight) races and clobbers that pass, so
+          // links to the renamed file break. Letting the current pass settle
+          // first, then moving, keeps both link updates intact. (#0259)
+          if (this.settings.autoMoveEnabled) setTimeout(() => this.handleAutoMove(file, false), 0);
         })
       );
     });
   }
 
-  private async handleAutoMove(file: TAbstractFile) {
+  private async handleAutoMove(file: TAbstractFile, applyTemplate: boolean) {
     if (!(file instanceof TFile)) return;
     if (file.extension !== "md") return;
 
@@ -420,6 +430,13 @@ export default class FoliatePlugin extends Plugin {
       this.settings.taxaMappings
     );
     if (!taxon) return;
+
+    // On creation, apply the taxon template to the (empty) new file before it
+    // moves. applyTemplateToNewTaxaFile no-ops if there's no template or the
+    // file already has content. (#0260)
+    if (applyTemplate) {
+      await applyTemplateToNewTaxaFile(this.app, file, taxon, this.settings);
+    }
 
     await this.moveFileToTaxaFolder(file, taxon);
   }
