@@ -36,11 +36,3 @@ export function stripPrefix(text: string, mapping: TaxaMapping): string {
   }
   return text;
 }
-
-export function addPrefix(name: string, mapping: TaxaMapping): string {
-  return mapping.prefix + name;
-}
-
-export function getAllPrefixes(mappings: TaxaMapping[]): string[] {
-  return mappings.map((m) => m.prefix);
-}

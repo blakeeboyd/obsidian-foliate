@@ -1,4 +1,4 @@
-import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, TFile, TFolder } from "obsidian";
+import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder } from "obsidian";
 import type FoliatePlugin from "./main";
 import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
@@ -251,20 +251,6 @@ export class FoliateSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
-      .setName("Link word under cursor when nothing is selected")
-      .setDesc(
-        "When you run \"Create taxa link\" with no text selected, act on the cursor instead: link an existing taxa mention under it, or the word the cursor sits in if it matches a taxa file. A word that matches nothing is left alone."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.linkUnderCursorFallback)
-          .onChange(async (value) => {
-            this.plugin.settings.linkUnderCursorFallback = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
     // --- Auto-Move ---
     containerEl.createEl("h2", { text: "Auto-Move" });
 
@@ -498,22 +484,26 @@ export class FoliateSettingTab extends PluginSettingTab {
           })
       );
 
+    let colorPicker: ColorComponent;
     new Setting(containerEl)
       .setName("Highlight color")
       .setDesc("Color for the jump highlight. Leave empty to use Obsidian's default highlight color.")
-      .addColorPicker((picker) =>
+      .addColorPicker((picker) => {
+        colorPicker = picker;
         picker
           .setValue(this.plugin.settings.highlightColor || "#7fd7f6")
           .onChange(async (value) => {
             this.plugin.settings.highlightColor = value;
             await this.plugin.saveSettings();
-          })
-      )
+          });
+      })
       .addButton((btn) =>
         btn.setButtonText("Reset").onClick(async () => {
+          // Reset the value and the swatch in place; no full tab rebuild, so the
+          // scroll position is preserved.
           this.plugin.settings.highlightColor = "";
           await this.plugin.saveSettings();
-          this.display();
+          colorPicker.setValue("#7fd7f6");
         })
       );
 

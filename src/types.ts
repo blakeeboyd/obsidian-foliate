@@ -29,7 +29,6 @@ export interface FoliateSettings {
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
   autoAddAlias: boolean;
-  linkUnderCursorFallback: boolean;
   sidebarEnabled: boolean;
   sidebarOpen: boolean;
   autoScan: boolean;
