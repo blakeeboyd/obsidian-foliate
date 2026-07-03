@@ -3,6 +3,17 @@ import { TaxaMapping, FoliateSettings } from "../types";
 import { stripPrefix } from "../taxa";
 
 /**
+ * Paths Foliate is in the middle of creating. The auto-mover skips any file
+ * whose path is in here, so it never races a file Foliate is itself building:
+ * createTaxaFile already places the file in the taxon folder and applies the
+ * template + alias, and a concurrent auto-move (fired by the create event)
+ * would move the file out from under those steps, corrupting the result or the
+ * links. The creator adds the path before vault.create and removes it once its
+ * whole sequence finishes.
+ */
+export const suppressAutoMove = new Set<string>();
+
+/**
  * Create a taxa link from selected text.
  * - Builds the filename with prefix
  * - Creates the file if it doesn't exist (in the taxa folder)
@@ -63,6 +74,11 @@ export async function createTaxaFile(
     app.vault.getAbstractFileByPath(`${fileName}.md`);
 
   if (!file) {
+    // Suppress the auto-mover for this path while we build the file: the create
+    // event would otherwise fire a concurrent move that races the template and
+    // alias steps below. createTaxaFile already writes the file into the taxon
+    // folder, so no move is needed anyway.
+    suppressAutoMove.add(filePath);
     try {
       const tmpl = await renderTemplate(app, taxon, cleanName, fileName);
       const newFile = await app.vault.create(filePath, tmpl.content);
@@ -74,6 +90,8 @@ export async function createTaxaFile(
     } catch (e) {
       new Notice(`Failed to create ${fileName}: ${e}`);
       return null;
+    } finally {
+      suppressAutoMove.delete(filePath);
     }
   }
 

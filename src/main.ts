@@ -6,6 +6,7 @@ import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
   createTaxaLink,
   ensureFolderExists,
+  suppressAutoMove,
 } from "./services/file-operations";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
@@ -441,6 +442,9 @@ export default class FoliatePlugin extends Plugin {
   private async handleAutoMove(file: TAbstractFile) {
     if (!(file instanceof TFile)) return;
     if (file.extension !== "md") return;
+    // Skip files Foliate is itself creating: createTaxaFile already places and
+    // templates them, and moving mid-build would race those steps. (#0260)
+    if (suppressAutoMove.has(file.path)) return;
 
     const taxon = findTaxonByPrefix(
       file.basename,
