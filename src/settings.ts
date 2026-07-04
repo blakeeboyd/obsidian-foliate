@@ -446,56 +446,14 @@ export class FoliateSettingTab extends PluginSettingTab {
     });
     intro.appendText(".");
 
-    // Filter box: hides non-matching setting rows as you type. Sections whose
-    // rows all hide also hide, so the tab collapses to just what matches.
-    this.renderFilter(containerEl);
-
     this.renderTaxaSection(containerEl);
-    this.renderLinkingSection(containerEl);
-    this.renderAutoMoveSection(containerEl);
-
+    this.renderFilesSection(containerEl);
     this.renderSidebarSection(containerEl);
     this.renderListsSection(containerEl);
     this.renderExperimentalSection(containerEl);
   }
 
-  /**
-   * A live filter over the whole tab: matches each setting row's name + desc
-   * against the query and hides the rest, then hides any section whose rows all
-   * hid, so the tab collapses to just the matches.
-   */
-  private renderFilter(containerEl: HTMLElement): void {
-    const wrap = containerEl.createDiv("foliate-settings-filter");
-    const input = wrap.createEl("input", {
-      type: "text",
-      placeholder: "Filter settings…",
-    });
-    input.addEventListener("input", () => {
-      const q = input.value.trim().toLowerCase();
-      const sections = containerEl.querySelectorAll<HTMLElement>(".foliate-settings-section");
-      sections.forEach((section) => {
-        let anyVisible = false;
-        section.querySelectorAll<HTMLElement>(".setting-item").forEach((item) => {
-          // Heading rows (setName().setHeading()) are group labels with no
-          // control; leave them alone so they don't flicker on their own text.
-          if (item.classList.contains("setting-item-heading")) return;
-          const name = item.querySelector(".setting-item-name")?.textContent ?? "";
-          const desc = item.querySelector(".setting-item-description")?.textContent ?? "";
-          const hit = !q || (name + " " + desc).toLowerCase().includes(q);
-          item.toggle(hit);
-          if (hit) anyVisible = true;
-        });
-        // Hide the whole section (heading + body) when nothing in it matches.
-        section.toggle(anyVisible);
-      });
-    });
-  }
-
-  /**
-   * A titled section. Returns the body element to render settings into; the
-   * wrapper carries the class the filter keys off, so filtering shows/hides
-   * whole sections cleanly.
-   */
+  /** A titled section. Returns the body element to render settings into. */
   private section(containerEl: HTMLElement, title: string, desc?: string): HTMLElement {
     const wrap = containerEl.createDiv("foliate-settings-section");
     wrap.createEl("h2", { text: title });
@@ -505,6 +463,16 @@ export class FoliateSettingTab extends PluginSettingTab {
 
   private renderTaxaSection(containerEl: HTMLElement): void {
     const el = this.section(containerEl, "Taxa mappings");
+
+    // Column headers, widths matched to the inputs in renderTaxaMappings.
+    const head = el.createDiv("foliate-taxa-head");
+    ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180]] as const).forEach(
+      ([text, w]) => {
+        const c = head.createSpan({ text });
+        c.style.width = `${w}px`;
+      }
+    );
+
     const mappingsContainer = el.createDiv("foliate-taxa-mappings");
     this.renderTaxaMappings(mappingsContainer);
 
@@ -542,8 +510,8 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
   }
 
-  private renderLinkingSection(containerEl: HTMLElement): void {
-    const el = this.section(containerEl, "Linking");
+  private renderFilesSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Files");
     new Setting(el)
       .setName("Auto-add alias")
       .setDesc(
@@ -555,10 +523,7 @@ export class FoliateSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
-  }
 
-  private renderAutoMoveSection(containerEl: HTMLElement): void {
-    const el = this.section(containerEl, "Auto-move");
     new Setting(el)
       .setName("Auto-move files on creation")
       .setDesc("Move files to taxa folders when created or renamed with a taxa prefix.")
@@ -621,10 +586,10 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
-      .setName("Sidebar settings")
+      .setName("More sidebar settings")
       .setDesc("Display, click actions, inline buttons, and jump highlight.")
       .addButton((btn) =>
-        btn.setButtonText("Open").onClick(() => new SidebarSettingsModal(this.app, this).open())
+        btn.setButtonText("Open…").onClick(() => new SidebarSettingsModal(this.app, this).open())
       );
   }
 

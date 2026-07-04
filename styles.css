@@ -329,23 +329,12 @@
 }
 
 /* Settings */
-.foliate-settings-filter {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--background-primary);
-  padding: 8px 0 10px;
+.foliate-taxa-head {
+  display: flex;
+  gap: 8px;
   margin-bottom: 4px;
-}
-
-.foliate-settings-filter input {
-  width: 100%;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  background: var(--background-primary);
-  color: var(--text-normal);
-  font-family: inherit;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
 }
 
 .foliate-taxa-mappings {
