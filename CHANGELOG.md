@@ -4,7 +4,7 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.4.2 - 2026-07-03
 
 ### Added
 
@@ -34,6 +34,14 @@ All notable changes to Foliate are documented here. The format follows
   but `+Paul Krugman` does not (that's the Concept prefix, and no Concept file
   by that name exists). The prefixed match consumes the prefix, so linking it
   produces `[[@Paul Krugman]]`.
+- Renaming a taxa file no longer breaks links to it. Auto-move fired a second
+  rename mid-flight, racing Obsidian's own pass that rewrites every `[[link]]`
+  to the renamed file. The move now waits until the link graph has settled
+  (`metadataCache` "resolved"), so all links update correctly, at any batch
+  size.
+- Foliate no longer moves a file while it is itself creating it, which could
+  race the template and alias steps. Files created through Foliate are placed
+  and templated without interference.
 
 ### Changed
 
@@ -45,6 +53,11 @@ All notable changes to Foliate are documented here. The format follows
   now; the "Link word under cursor when nothing is selected" setting is removed.
   It never creates a file from an unmatched word, so the toggle only added
   friction.
+- Settings panel cleanup: sidebar display, click, inline-button, and highlight
+  options moved into a "Sidebar settings" modal; the "Linking" and "Auto-move"
+  sections merged into "Files"; the redundant in-tab filter removed (Obsidian's
+  own settings search covers it); and the Taxa Mappings table gained column
+  headers.
 
 ## 0.4.1 - 2026-06-29
 
