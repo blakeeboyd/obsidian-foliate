@@ -14,6 +14,26 @@ import { stripPrefix } from "../taxa";
 export const suppressAutoMove = new Set<string>();
 
 /**
+ * The existing file for a taxon+cleanName, if any: in the taxon folder or at the
+ * vault root (pre-auto-move). Shared by createTaxaFile (reuse check) and
+ * createTaxaLink (to tell whether it created a new file), so the two can't
+ * diverge on what "already exists" means.
+ */
+export function findExistingTaxaFile(
+  app: App,
+  cleanName: string,
+  taxon: TaxaMapping
+): TFile | null {
+  const fileName = taxon.prefix + cleanName;
+  const folder = taxon.folder.trim();
+  const filePath = folder ? `${folder}/${fileName}.md` : `${fileName}.md`;
+  const f =
+    app.vault.getAbstractFileByPath(filePath) ??
+    app.vault.getAbstractFileByPath(`${fileName}.md`);
+  return f instanceof TFile ? f : null;
+}
+
+/**
  * Create a taxa link from selected text.
  * - Builds the filename with prefix
  * - Creates the file if it doesn't exist (in the taxa folder)
@@ -26,14 +46,15 @@ export async function createTaxaLink(
   selectedText: string,
   taxon: TaxaMapping,
   settings: FoliateSettings
-): Promise<void> {
+): Promise<TFile | null> {
   const hasPrefix = selectedText.startsWith(taxon.prefix);
   const cleanName = hasPrefix
     ? stripPrefix(selectedText, taxon)
     : selectedText;
 
+  const existed = findExistingTaxaFile(app, cleanName, taxon) != null;
   const file = await createTaxaFile(app, cleanName, taxon, settings);
-  if (!file) return;
+  if (!file) return null;
 
   // Replace selection with wikilink
   const fileName = taxon.prefix + cleanName;
@@ -41,6 +62,9 @@ export async function createTaxaLink(
   editor.replaceSelection(wikilink);
 
   new Notice(`Linked ${cleanName} as ${taxon.label}`);
+  // Return the file only when it was newly created, so callers can offer a
+  // follow-up (e.g. assign a domain) without nagging on links to existing files.
+  return existed ? null : file;
 }
 
 /**
@@ -69,9 +93,7 @@ export async function createTaxaFile(
 
   // Reuse the file if it already exists (in the taxa folder or at the root,
   // before auto-move).
-  let file =
-    app.vault.getAbstractFileByPath(filePath) ??
-    app.vault.getAbstractFileByPath(`${fileName}.md`);
+  let file: TFile | null = findExistingTaxaFile(app, cleanName, taxon);
 
   if (!file) {
     // Suppress the auto-mover for this path while we build the file: the create
@@ -151,6 +173,34 @@ async function runTemplater(app: App, file: TFile): Promise<void> {
   } catch (e) {
     new Notice(`Templater processing failed: ${e}`);
   }
+}
+
+/**
+ * Assign a taxa file to a domain: ensure the domain (≈Name) file exists,
+ * creating it via the domain mapping if not, then add a `[[≈Name]]` wikilink to
+ * the taxa file's `domains` frontmatter list. `domainName` is the clean name
+ * without the ≈ prefix. Idempotent: a domain already listed is not duplicated.
+ * Taxa link *up* to domains, so the link lives on the member (the taxa file).
+ */
+export async function addFileToDomain(
+  app: App,
+  taxaFile: TFile,
+  domainName: string,
+  settings: FoliateSettings
+): Promise<void> {
+  const clean = stripPrefix(domainName.trim(), settings.domain);
+  if (!clean) return;
+
+  // Create the ≈ file if it doesn't exist yet (in the domain folder, templated).
+  await createTaxaFile(app, clean, settings.domain, settings);
+
+  const link = `[[${settings.domain.prefix}${clean}]]`;
+  await app.fileManager.processFrontMatter(taxaFile, (fm) => {
+    if (!fm.domains) fm.domains = [];
+    else if (!Array.isArray(fm.domains)) fm.domains = [fm.domains];
+    if (!fm.domains.includes(link)) fm.domains.push(link);
+  });
+  new Notice(`Added to ${settings.domain.prefix}${clean}`);
 }
 
 /**

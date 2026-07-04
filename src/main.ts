@@ -7,7 +7,9 @@ import {
   createTaxaLink,
   ensureFolderExists,
   suppressAutoMove,
+  addFileToDomain,
 } from "./services/file-operations";
+import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import { FilePickerModal } from "./ui/file-picker-modal";
@@ -129,6 +131,23 @@ export default class FoliatePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "foliate-add-to-domain",
+      name: "Add current file to a domain",
+      callback: () => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) {
+          new Notice("No active file.");
+          return;
+        }
+        if (!findTaxonByPrefix(file.basename, this.settings.taxaMappings)) {
+          new Notice("Only taxa files can be added to a domain.");
+          return;
+        }
+        this.addToDomain(file);
+      },
+    });
+
+    this.addCommand({
       id: "foliate-toggle-auto-scan",
       name: "Toggle auto-scan",
       callback: async () => {
@@ -151,8 +170,9 @@ export default class FoliatePlugin extends Plugin {
   private linkSelectedText(editor: Editor, text: string) {
     const detectedTaxon = findTaxonByPrefix(text, this.settings.taxaMappings);
     if (detectedTaxon) {
-      createTaxaLink(this.app, editor, text, detectedTaxon, this.settings).then(() => {
+      createTaxaLink(this.app, editor, text, detectedTaxon, this.settings).then((created) => {
         this.refreshSuggestionsView();
+        if (created) this.addToDomain(created);
       });
       return;
     }
@@ -167,8 +187,9 @@ export default class FoliatePlugin extends Plugin {
     }
 
     new TaxaPickerModal(this.app, this.settings.taxaMappings, (taxon) => {
-      createTaxaLink(this.app, editor, text, taxon, this.settings).then(() => {
+      createTaxaLink(this.app, editor, text, taxon, this.settings).then((created) => {
         this.refreshSuggestionsView();
+        if (created) this.addToDomain(created);
       });
     }).open();
   }
@@ -454,6 +475,19 @@ export default class FoliatePlugin extends Plugin {
     if (!taxon) return;
 
     await this.moveFileToTaxaFolder(file, taxon);
+  }
+
+  /**
+   * Open the domain picker for a taxa file and, on choice, link it up to that
+   * domain (creating the ≈ file if needed). Shared by the "Add to domain"
+   * command and the create-taxa-link flow.
+   */
+  addToDomain(taxaFile: TFile) {
+    new DomainPickerModal(this.app, this.settings.domain, (name) => {
+      void addFileToDomain(this.app, taxaFile, name, this.settings).then(() =>
+        this.refreshSuggestionsView()
+      );
+    }).open();
   }
 
   private async moveFileToTaxaFolder(file: TFile, taxon: TaxaMapping) {
