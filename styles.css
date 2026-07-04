@@ -329,6 +329,14 @@
 }
 
 /* Settings */
+.foliate-taxa-head {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
 .foliate-taxa-mappings {
   margin-bottom: 8px;
 }
@@ -384,6 +392,13 @@
 .foliate-context-modal {
   width: min(680px, 90vw);
   max-width: 90vw;
+}
+
+/* Scroll inside the modal so tall content stays within the rounded corners
+   instead of overflowing past them. */
+.foliate-context-modal .modal-content {
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 .foliate-context-search {

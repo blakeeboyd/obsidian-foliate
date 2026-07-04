@@ -38,6 +38,20 @@ class ConfirmModal extends Modal {
   }
 }
 
+class SidebarSettingsModal extends Modal {
+  constructor(app: App, private tab: FoliateSettingTab) {
+    super(app);
+  }
+  onOpen() {
+    this.modalEl.addClass("foliate-context-modal"); // reuse the wider modal width
+    this.contentEl.createEl("h2", { text: "Sidebar settings" });
+    this.tab.renderSidebarSettingsInto(this.contentEl);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
 class BlocklistModal extends Modal {
   private plugin: FoliatePlugin;
   private onChangeCb?: () => void;
@@ -432,20 +446,40 @@ export class FoliateSettingTab extends PluginSettingTab {
     });
     intro.appendText(".");
 
-    // --- Taxa Mappings ---
-    containerEl.createEl("h2", { text: "Taxa Mappings" });
+    this.renderTaxaSection(containerEl);
+    this.renderFilesSection(containerEl);
+    this.renderSidebarSection(containerEl);
+    this.renderListsSection(containerEl);
+    this.renderExperimentalSection(containerEl);
+  }
 
-    const mappingsContainer = containerEl.createDiv("foliate-taxa-mappings");
+  /** A titled section. Returns the body element to render settings into. */
+  private section(containerEl: HTMLElement, title: string, desc?: string): HTMLElement {
+    const wrap = containerEl.createDiv("foliate-settings-section");
+    wrap.createEl("h2", { text: title });
+    if (desc) wrap.createEl("p", { cls: "setting-item-description", text: desc });
+    return wrap;
+  }
+
+  private renderTaxaSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Taxa mappings");
+
+    // Column headers, widths matched to the inputs in renderTaxaMappings.
+    const head = el.createDiv("foliate-taxa-head");
+    ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180]] as const).forEach(
+      ([text, w]) => {
+        const c = head.createSpan({ text });
+        c.style.width = `${w}px`;
+      }
+    );
+
+    const mappingsContainer = el.createDiv("foliate-taxa-mappings");
     this.renderTaxaMappings(mappingsContainer);
 
-    new Setting(containerEl)
+    new Setting(el)
       .addButton((btn) =>
-        btn.setButtonText("Add Taxa").onClick(async () => {
-          this.plugin.settings.taxaMappings.push({
-            prefix: "",
-            label: "",
-            folder: "",
-          });
+        btn.setButtonText("Add taxa").onClick(async () => {
+          this.plugin.settings.taxaMappings.push({ prefix: "", label: "", folder: "" });
           await this.plugin.saveSettings();
           this.display();
         })
@@ -460,8 +494,6 @@ export class FoliateSettingTab extends PluginSettingTab {
               "Restore the default set of taxa (prefixes and labels)? Your existing folder paths are kept; newly added taxa start with an empty folder for you to set. This does not move or rename any files.",
               "Restore defaults",
               async () => {
-                // Restore the default prefix/label set, but keep the folder the
-                // user already assigned to each prefix; leave new taxa blank.
                 const folders = new Map(
                   this.plugin.settings.taxaMappings.map((m) => [m.prefix, m.folder])
                 );
@@ -476,113 +508,113 @@ export class FoliateSettingTab extends PluginSettingTab {
             ).open();
           })
       );
+  }
 
-    // --- Linking ---
-    containerEl.createEl("h2", { text: "Linking" });
-
-    new Setting(containerEl)
+  private renderFilesSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Files");
+    new Setting(el)
       .setName("Auto-add alias")
       .setDesc(
         "When you create a taxa link, add the linked name to the target file's aliases so plain-text mentions of it resolve and surface as unlinked mentions."
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoAddAlias)
-          .onChange(async (value) => {
-            this.plugin.settings.autoAddAlias = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.autoAddAlias).onChange(async (value) => {
+          this.plugin.settings.autoAddAlias = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    // --- Auto-Move ---
-    containerEl.createEl("h2", { text: "Auto-Move" });
-
-    new Setting(containerEl)
-      .setName("Auto-Move File On Creation")
-      .setDesc(
-        "Automatically move files to taxa folders when created or renamed with a taxa prefix."
-      )
+    new Setting(el)
+      .setName("Auto-move files on creation")
+      .setDesc("Move files to taxa folders when created or renamed with a taxa prefix.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoMoveEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.autoMoveEnabled = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.autoMoveEnabled).onChange(async (value) => {
+          this.plugin.settings.autoMoveEnabled = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Create folders if missing")
       .setDesc("Create target folders that don't exist yet.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.createFolderIfMissing)
-          .onChange(async (value) => {
-            this.plugin.settings.createFolderIfMissing = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.createFolderIfMissing).onChange(async (value) => {
+          this.plugin.settings.createFolderIfMissing = value;
+          await this.plugin.saveSettings();
+        })
       );
+  }
 
-    // --- Sidebar ---
-    containerEl.createEl("h2", { text: "Sidebar" });
+  private renderSidebarSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Sidebar");
 
-    new Setting(containerEl)
-      .setName("Enable Sidebar")
+    // Core toggles: whether / when the sidebar runs. Display, click, and
+    // highlight options live in the "Sidebar settings" modal (button below).
+    new Setting(el)
+      .setName("Enable sidebar")
       .setDesc(
         "Make the Foliate sidebar available. Turn off to use the plugin's commands and auto-move without the sidebar. Requires plugin reload."
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.sidebarEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.sidebarEnabled = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.sidebarEnabled).onChange(async (value) => {
+          this.plugin.settings.sidebarEnabled = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
-      .setName("Open sidebar on startup")
-      .setDesc("Automatically open the Foliate sidebar when the plugin loads.")
+    new Setting(el)
+      .setName("Open on startup")
+      .setDesc("Open the Foliate sidebar automatically when the plugin loads.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.sidebarOpen)
-          .onChange(async (value) => {
-            this.plugin.settings.sidebarOpen = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.sidebarOpen).onChange(async (value) => {
+          this.plugin.settings.sidebarOpen = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Auto-scan")
       .setDesc(
         "Scan the active note automatically as you switch files and edit. Turn off to scan only when you click Scan in the sidebar."
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.autoScan)
-          .onChange(async (value) => {
-            this.plugin.settings.autoScan = value;
-            await this.plugin.saveSettings();
-            this.plugin.refreshSuggestionsView();
-          })
+        toggle.setValue(this.plugin.settings.autoScan).onChange(async (value) => {
+          this.plugin.settings.autoScan = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
+      .setName("More sidebar settings")
+      .setDesc("Display, click actions, inline buttons, and jump highlight.")
+      .addButton((btn) =>
+        btn.setButtonText("Open…").onClick(() => new SidebarSettingsModal(this.app, this).open())
+      );
+  }
+
+  /**
+   * Everything about how the sidebar looks and behaves: display options, click
+   * bindings, which inline buttons show, and the jump highlight. Rendered into
+   * whatever container is passed (a modal), since most users set these once.
+   */
+  renderSidebarSettingsInto(el: HTMLElement): void {
+    new Setting(el).setName("Display").setHeading();
+
+    new Setting(el)
       .setName("Limit to visible area")
       .setDesc(
         "Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Also toggleable from the eye button in the sidebar header. Edit mode only."
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.scopeToView)
-          .onChange(async (value) => {
-            this.plugin.settings.scopeToView = value;
-            await this.plugin.saveSettings();
-            this.plugin.refreshSuggestionsView();
-          })
+        toggle.setValue(this.plugin.settings.scopeToView).onChange(async (value) => {
+          this.plugin.settings.scopeToView = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Sort entries")
       .setDesc("Order of entries within each taxa category in the sidebar.")
       .addDropdown((dd) =>
@@ -599,121 +631,95 @@ export class FoliateSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Match aliases of linked files")
       .setDesc(
         'Under Linked Mentions, fold in unlinked alias occurrences of an already-linked file so you can cycle through them (for example, "USA" where the linked file is United States).'
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.matchLinkedAliases)
-          .onChange(async (value) => {
-            this.plugin.settings.matchLinkedAliases = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.matchLinkedAliases).onChange(async (value) => {
+          this.plugin.settings.matchLinkedAliases = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
-      .setName("Select text on jump")
-      .setDesc("Select the matched text in the editor when jumping to an occurrence. Edit mode only.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.selectOnJump)
-          .onChange(async (value) => {
-            this.plugin.settings.selectOnJump = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Show search bar")
       .setDesc("Show the filter box at the top of the Foliate sidebar.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.showSearchBar)
-          .onChange(async (value) => {
-            this.plugin.settings.showSearchBar = value;
-            await this.plugin.saveSettings();
-            this.plugin.refreshSuggestionsView();
-          })
+        toggle.setValue(this.plugin.settings.showSearchBar).onChange(async (value) => {
+          this.plugin.settings.showSearchBar = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
       );
 
-    // --- Click Actions ---
-    containerEl.createEl("h2", { text: "Click Actions" });
-    containerEl.createEl("p", {
+    new Setting(el).setName("Click actions").setHeading();
+    el.createEl("p", {
       cls: "setting-item-description",
       text: "Bind each click and modifier-click on a sidebar item to an action. When several modifiers are held, precedence is Cmd/Ctrl, then Option/Alt, then Shift.",
     });
-
     this.addClickActionSetting(
-      containerEl,
-      "Click action",
+      el,
+      "Click",
       "What a plain click on a sidebar item does.",
       () => this.plugin.settings.clickAction,
       (v) => (this.plugin.settings.clickAction = v)
     );
     this.addClickActionSetting(
-      containerEl,
-      "Shift+click action",
+      el,
+      "Shift + click",
       "What a Shift + click does.",
       () => this.plugin.settings.shiftClickAction,
       (v) => (this.plugin.settings.shiftClickAction = v)
     );
     this.addClickActionSetting(
-      containerEl,
-      "Cmd/Ctrl+click action",
+      el,
+      "Cmd/Ctrl + click",
       "What a Cmd (macOS) / Ctrl (Windows/Linux) + click does.",
       () => this.plugin.settings.modClickAction,
       (v) => (this.plugin.settings.modClickAction = v)
     );
     this.addClickActionSetting(
-      containerEl,
-      "Option/Alt+click action",
+      el,
+      "Option/Alt + click",
       "What an Option (macOS) / Alt (Windows/Linux) + click does.",
       () => this.plugin.settings.altClickAction,
       (v) => (this.plugin.settings.altClickAction = v)
     );
 
-    // --- Sidebar Buttons ---
-    containerEl.createEl("h2", { text: "Sidebar Buttons" });
-    containerEl.createEl("p", {
+    new Setting(el).setName("Inline buttons").setHeading();
+    el.createEl("p", {
       cls: "setting-item-description",
-      text: "Choose which action buttons appear inline on sidebar items. Every action is always available by right-clicking an item.",
+      text: "Which action buttons appear inline on sidebar items. Every action is always available by right-clicking an item.",
     });
-
     for (const opt of INLINE_ACTION_OPTIONS) {
-      new Setting(containerEl)
-        .setName(opt.label)
-        .addToggle((toggle) =>
-          toggle
-            .setValue(this.plugin.settings.inlineActions.includes(opt.id))
-            .onChange(async (value) => {
-              const set = new Set(this.plugin.settings.inlineActions);
-              if (value) set.add(opt.id);
-              else set.delete(opt.id);
-              this.plugin.settings.inlineActions = [...set];
-              await this.plugin.saveSettings();
-              this.plugin.refreshSuggestionsView();
-            })
-        );
+      new Setting(el).setName(opt.label).addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.inlineActions.includes(opt.id))
+          .onChange(async (value) => {
+            const set = new Set(this.plugin.settings.inlineActions);
+            if (value) set.add(opt.id);
+            else set.delete(opt.id);
+            this.plugin.settings.inlineActions = [...set];
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          })
+      );
     }
 
-    // --- Highlighting ---
-    containerEl.createEl("h2", { text: "Highlighting" });
-
-    new Setting(containerEl)
+    new Setting(el).setName("Jump highlight").setHeading();
+    new Setting(el)
       .setName("Highlight on jump")
       .setDesc("Briefly highlight the matched text in the editor when clicking a suggestion name.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.highlightOnJump)
-          .onChange(async (value) => {
-            this.plugin.settings.highlightOnJump = value;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.highlightOnJump).onChange(async (value) => {
+          this.plugin.settings.highlightOnJump = value;
+          await this.plugin.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Highlight duration")
       .setDesc("How long the jump highlight stays before fading, in seconds.")
       .addSlider((slider) =>
@@ -728,34 +734,32 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     let colorPicker: ColorComponent;
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Highlight color")
       .setDesc("Color for the jump highlight. Leave empty to use Obsidian's default highlight color.")
       .addColorPicker((picker) => {
         colorPicker = picker;
-        picker
-          .setValue(this.plugin.settings.highlightColor || "#7fd7f6")
-          .onChange(async (value) => {
-            this.plugin.settings.highlightColor = value;
-            await this.plugin.saveSettings();
-          });
+        picker.setValue(this.plugin.settings.highlightColor || "#7fd7f6").onChange(async (value) => {
+          this.plugin.settings.highlightColor = value;
+          await this.plugin.saveSettings();
+        });
       })
       .addButton((btn) =>
         btn.setButtonText("Reset").onClick(async () => {
-          // Reset the value and the swatch in place; no full tab rebuild, so the
-          // scroll position is preserved.
+          // Reset the value and swatch in place; no full tab rebuild, so scroll
+          // position is preserved.
           this.plugin.settings.highlightColor = "";
           await this.plugin.saveSettings();
           colorPicker.setValue("#7fd7f6");
         })
       );
+  }
 
-    // --- Blocklist ---
-    containerEl.createEl("h2", { text: "Blocklist" });
-
-    new Setting(containerEl)
+  private renderListsSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Blocklist");
+    new Setting(el)
       .setName("Blocked terms")
-      .setDesc("Terms that never appear as suggestions. Add them here or via the sidebar's \"Ignore\" button.")
+      .setDesc('Terms that never appear as suggestions. Add them here or via a sidebar item\'s "Add to blocklist" action.')
       .addButton((btn) =>
         btn
           .setButtonText(`Manage (${this.plugin.settings.blocklist.length})`)
@@ -763,18 +767,18 @@ export class FoliateSettingTab extends PluginSettingTab {
             new BlocklistModal(this.app, this.plugin, () => this.display()).open();
           })
       );
+  }
 
-    // --- Experimental ---
-    containerEl.createEl("h2", { text: "Experimental" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Features still in development. Off by default; enable at your own discretion.",
-    });
+  private renderExperimentalSection(containerEl: HTMLElement): void {
+    const el = this.section(
+      containerEl,
+      "Experimental",
+      "Features still in development. Off by default; enable at your own discretion."
+    );
 
-    // The "Context-aware files" row lives in its own container so the toggle
-    // can show/hide it in place, without rebuilding the whole tab (which would
-    // reset the scroll position and jump the view). Created detached; appended
-    // after the toggle below.
+    // The "Context-aware files" row lives in its own container so the toggle can
+    // show/hide it in place, without rebuilding the whole tab (which would reset
+    // scroll). Created detached; appended after the toggle below.
     const contextFilesRow = createDiv();
     const renderContextFilesRow = () => {
       contextFilesRow.empty();
@@ -794,24 +798,21 @@ export class FoliateSettingTab extends PluginSettingTab {
         );
     };
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName("Context-aware mentions")
       .setDesc(
         "A file's common-word alias (like \"work\") surfaces as an unlinked mention only in notes that also mention one of the file's related terms. When off, this gating is fully dormant and its sidebar action is hidden; any files you've configured are kept and reactivate when you turn it back on."
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.contextAwareEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.contextAwareEnabled = value;
-            await this.plugin.saveSettings();
-            this.plugin.refreshSuggestionsView();
-            renderContextFilesRow();
-          })
+        toggle.setValue(this.plugin.settings.contextAwareEnabled).onChange(async (value) => {
+          this.plugin.settings.contextAwareEnabled = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+          renderContextFilesRow();
+        })
       );
 
-    // Place the row after its toggle and render its initial state.
-    containerEl.appendChild(contextFilesRow);
+    el.appendChild(contextFilesRow);
     renderContextFilesRow();
   }
 

@@ -10,8 +10,8 @@ A table of all configured taxa types. Each row has these fields:
 |--------|-------------|
 | Prefix | Character(s) that identify this taxon in filenames (e.g. `@`) |
 | Label  | Display name (e.g. "People") |
-| Folder | Target folder path relative to vault root |
-| Template | Optional path to a template file used as the starting content for new files of this taxon. Tokens filled in: `{{title}}` (the note's name, also `{{name}}`/`{{alias}}`), `{{prefix}}` (the taxon's prefix character, e.g. `@`), and `{{label}}` (the taxon's name, e.g. People). Obsidian's built-in Templates tokens also work (`{{date}}`, `{{time}}`, and formats like `{{date:YYYY-MM-DD}}`); Templater `<% %>` commands run if Templater is installed |
+| Folder | Target folder path relative to vault root. Autocompletes as you type: pick from existing vault folders |
+| Template | Optional path to a template file used as the starting content for new files of this taxon. Autocompletes from existing vault files as you type. Tokens filled in: `{{title}}` (the note's name, also `{{name}}`/`{{alias}}`), `{{prefix}}` (the taxon's prefix character, e.g. `@`), and `{{label}}` (the taxon's name, e.g. People). Obsidian's built-in Templates tokens also work (`{{date}}`, `{{time}}`, and formats like `{{date:YYYY-MM-DD}}`); Templater `<% %>` commands run if Templater is installed |
 
 - **Add Taxa:** click the "Add Taxa" button below the table
 - **Restore defaults:** restore the default set of taxa prefixes and labels (after a confirmation). Your existing folder paths are kept for prefixes you already have; newly added taxa start with an empty folder. Never moves or renames files

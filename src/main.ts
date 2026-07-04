@@ -6,6 +6,7 @@ import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
   createTaxaLink,
   ensureFolderExists,
+  suppressAutoMove,
 } from "./services/file-operations";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
@@ -405,15 +406,45 @@ export default class FoliatePlugin extends Plugin {
       );
       this.registerEvent(
         this.app.vault.on("rename", (file) => {
-          if (this.settings.autoMoveEnabled) this.handleAutoMove(file);
+          if (this.settings.autoMoveEnabled) this.scheduleAutoMoveAfterLinksResolve(file);
         })
       );
     });
   }
 
+  /**
+   * Move a renamed taxa file, but only after Obsidian finishes updating links.
+   *
+   * Renaming a taxa file (e.g. +economics -> ≈Economics) triggers Obsidian's own
+   * pass rewriting every [[link]] to it across the vault. Moving the file
+   * synchronously in the rename handler issues a second renameFile mid-pass,
+   * which races and clobbers that update, breaking links. So we wait for
+   * metadataCache's "resolved" event (fired once the whole link graph has
+   * settled, however many files were touched) and move then. A one-shot listener
+   * with a fallback timeout in case "resolved" doesn't fire (e.g. no links to
+   * update). Robust for large batch renames, not just single files. (#0259)
+   */
+  private scheduleAutoMoveAfterLinksResolve(file: TAbstractFile) {
+    let done = false;
+    const run = () => {
+      if (done) return;
+      done = true;
+      this.app.metadataCache.offref(ref);
+      window.clearTimeout(timer);
+      void this.handleAutoMove(file);
+    };
+    const ref = this.app.metadataCache.on("resolved", run);
+    this.registerEvent(ref);
+    // Fallback: "resolved" won't fire if the rename had no links to rewrite.
+    const timer = window.setTimeout(run, 1000);
+  }
+
   private async handleAutoMove(file: TAbstractFile) {
     if (!(file instanceof TFile)) return;
     if (file.extension !== "md") return;
+    // Skip files Foliate is itself creating: createTaxaFile already places and
+    // templates them, and moving mid-build would race those steps. (#0260)
+    if (suppressAutoMove.has(file.path)) return;
 
     const taxon = findTaxonByPrefix(
       file.basename,
