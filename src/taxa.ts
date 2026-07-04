@@ -14,6 +14,9 @@ export const DEFAULT_TAXA_MAPPINGS: TaxaMapping[] = [
   { prefix: "\u221E", label: "Events", folder: "" },
 ];
 
+// The single domain: groups other taxa. Same shape as a taxon.
+export const DEFAULT_DOMAIN: TaxaMapping = { prefix: "\u2248", label: "Domains", folder: "" };
+
 export function findTaxonByPrefix(
   text: string,
   mappings: TaxaMapping[]

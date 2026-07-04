@@ -446,7 +446,7 @@ export class FoliateSettingTab extends PluginSettingTab {
     });
     intro.appendText(".");
 
-    this.renderTaxaSection(containerEl);
+    this.renderMappingsSection(containerEl);
     this.renderFilesSection(containerEl);
     this.renderSidebarSection(containerEl);
     this.renderListsSection(containerEl);
@@ -461,10 +461,8 @@ export class FoliateSettingTab extends PluginSettingTab {
     return wrap;
   }
 
-  private renderTaxaSection(containerEl: HTMLElement): void {
-    const el = this.section(containerEl, "Taxa mappings");
-
-    // Column headers, widths matched to the inputs in renderTaxaMappings.
+  /** Column headers for a mappings table, widths matched to the row inputs. */
+  private renderMappingHeader(el: HTMLElement): void {
     const head = el.createDiv("foliate-taxa-head");
     ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180]] as const).forEach(
       ([text, w]) => {
@@ -472,9 +470,36 @@ export class FoliateSettingTab extends PluginSettingTab {
         c.style.width = `${w}px`;
       }
     );
+  }
 
-    const mappingsContainer = el.createDiv("foliate-taxa-mappings");
-    this.renderTaxaMappings(mappingsContainer);
+  /** A bold sub-label with a description line, for groups within a section. */
+  private subGroup(el: HTMLElement, title: string, desc: string): void {
+    el.createEl("h3", { text: title, cls: "foliate-mapping-subhead" });
+    el.createEl("p", { cls: "setting-item-description", text: desc });
+  }
+
+  private renderMappingsSection(containerEl: HTMLElement): void {
+    const el = this.section(containerEl, "Mappings");
+
+    // Domain: the single higher-order taxon that groups other taxa.
+    this.subGroup(
+      el,
+      "Domains",
+      "Higher-order taxa that group other taxa, rather than classifying source documents. There is one domain type."
+    );
+    this.renderMappingHeader(el);
+    const domainContainer = el.createDiv("foliate-taxa-mappings");
+    this.renderMappingRow(domainContainer, this.plugin.settings.domain);
+
+    // Taxa: the prefixes that classify knowledge files by type.
+    this.subGroup(
+      el,
+      "Taxa",
+      "Prefix characters that classify a file by type. Each maps a prefix to a label and a folder, so every file of that type lives in the same place."
+    );
+    this.renderMappingHeader(el);
+    const taxaContainer = el.createDiv("foliate-taxa-mappings");
+    this.renderTaxaMappings(taxaContainer, this.plugin.settings.taxaMappings);
 
     new Setting(el)
       .addButton((btn) =>
@@ -843,86 +868,81 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
   }
 
-  private renderTaxaMappings(container: HTMLElement): void {
+  private renderTaxaMappings(container: HTMLElement, mappings: TaxaMapping[]): void {
     container.empty();
-    this.plugin.settings.taxaMappings.forEach(
-      (mapping: TaxaMapping, index: number) => {
-        const row = container.createDiv("foliate-taxa-row");
-        row.style.display = "flex";
-        row.style.flexWrap = "wrap";
-        row.style.gap = "8px";
-        row.style.alignItems = "center";
-        row.style.marginBottom = "8px";
+    mappings.forEach((mapping, index) => {
+      this.renderMappingRow(container, mapping, async () => {
+        mappings.splice(index, 1);
+        await this.plugin.saveSettings();
+        this.renderTaxaMappings(container, mappings);
+      });
+    });
+  }
 
-        const prefixInput = row.createEl("input", {
-          type: "text",
-          placeholder: "Prefix",
-          value: mapping.prefix,
-        });
-        prefixInput.style.width = "50px";
-        prefixInput.addEventListener("change", async () => {
-          this.plugin.settings.taxaMappings[index].prefix = prefixInput.value;
-          await this.plugin.saveSettings();
-        });
+  /**
+   * One prefix/label/folder/template row, editing `mapping` in place. Pass
+   * `onDelete` to show a delete button (taxa rows); omit it for the single
+   * domain row, which can't be deleted.
+   */
+  private renderMappingRow(
+    container: HTMLElement,
+    mapping: TaxaMapping,
+    onDelete?: () => void | Promise<void>
+  ): void {
+    const row = container.createDiv("foliate-taxa-row");
+    row.style.display = "flex";
+    row.style.flexWrap = "wrap";
+    row.style.gap = "8px";
+    row.style.alignItems = "center";
+    row.style.marginBottom = "8px";
 
-        const labelInput = row.createEl("input", {
-          type: "text",
-          placeholder: "Label",
-          value: mapping.label,
-        });
-        labelInput.style.width = "100px";
-        labelInput.addEventListener("change", async () => {
-          this.plugin.settings.taxaMappings[index].label = labelInput.value;
-          await this.plugin.saveSettings();
-        });
+    const prefixInput = row.createEl("input", { type: "text", placeholder: "Prefix", value: mapping.prefix });
+    prefixInput.style.width = "50px";
+    prefixInput.addEventListener("change", async () => {
+      mapping.prefix = prefixInput.value;
+      await this.plugin.saveSettings();
+    });
 
-        const folderInput = row.createEl("input", {
-          type: "text",
-          placeholder: "Folder path",
-          value: mapping.folder,
-        });
-        folderInput.style.width = "200px";
-        folderInput.addEventListener("change", async () => {
-          this.plugin.settings.taxaMappings[index].folder = folderInput.value;
-          await this.plugin.saveSettings();
-        });
+    const labelInput = row.createEl("input", { type: "text", placeholder: "Label", value: mapping.label });
+    labelInput.style.width = "100px";
+    labelInput.addEventListener("change", async () => {
+      mapping.label = labelInput.value;
+      await this.plugin.saveSettings();
+    });
 
-        // Attach folder autocomplete
-        const suggest = new FolderSuggest(this.app, folderInput);
-        suggest.onSelect(async (folder) => {
-          folderInput.value = folder.path;
-          this.plugin.settings.taxaMappings[index].folder = folder.path;
-          await this.plugin.saveSettings();
-        });
+    const folderInput = row.createEl("input", { type: "text", placeholder: "Folder path", value: mapping.folder });
+    folderInput.style.width = "200px";
+    folderInput.addEventListener("change", async () => {
+      mapping.folder = folderInput.value;
+      await this.plugin.saveSettings();
+    });
+    new FolderSuggest(this.app, folderInput).onSelect(async (folder) => {
+      folderInput.value = folder.path;
+      mapping.folder = folder.path;
+      await this.plugin.saveSettings();
+    });
 
-        const templateInput = row.createEl("input", {
-          type: "text",
-          placeholder: "Template (optional)",
-          value: mapping.template || "",
-        });
-        templateInput.style.width = "180px";
-        const saveTemplate = async (value: string) => {
-          const trimmed = value.trim();
-          if (trimmed) this.plugin.settings.taxaMappings[index].template = trimmed;
-          else delete this.plugin.settings.taxaMappings[index].template;
-          await this.plugin.saveSettings();
-        };
-        templateInput.addEventListener("change", () => saveTemplate(templateInput.value));
+    const templateInput = row.createEl("input", {
+      type: "text",
+      placeholder: "Template (optional)",
+      value: mapping.template || "",
+    });
+    templateInput.style.width = "180px";
+    const saveTemplate = async (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed) mapping.template = trimmed;
+      else delete mapping.template;
+      await this.plugin.saveSettings();
+    };
+    templateInput.addEventListener("change", () => saveTemplate(templateInput.value));
+    new FileSuggest(this.app, templateInput).onSelect(async (file) => {
+      templateInput.value = file.path;
+      await saveTemplate(file.path);
+    });
 
-        // Attach template-file autocomplete
-        const fileSuggest = new FileSuggest(this.app, templateInput);
-        fileSuggest.onSelect(async (file) => {
-          templateInput.value = file.path;
-          await saveTemplate(file.path);
-        });
-
-        const deleteBtn = row.createEl("button", { text: "\u2715" });
-        deleteBtn.addEventListener("click", async () => {
-          this.plugin.settings.taxaMappings.splice(index, 1);
-          await this.plugin.saveSettings();
-          this.renderTaxaMappings(container);
-        });
-      }
-    );
+    if (onDelete) {
+      const deleteBtn = row.createEl("button", { text: "\u2715" });
+      deleteBtn.addEventListener("click", () => void onDelete());
+    }
   }
 }

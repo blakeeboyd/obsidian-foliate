@@ -1,6 +1,6 @@
 import { Editor, EditorPosition, Notice, Plugin, TAbstractFile, TFile, MarkdownView, addIcon } from "obsidian";
 import { FoliateSettings, TaxaMapping, ContextConfig } from "./types";
-import { DEFAULT_TAXA_MAPPINGS, findTaxonByPrefix } from "./taxa";
+import { DEFAULT_TAXA_MAPPINGS, DEFAULT_DOMAIN, findTaxonByPrefix } from "./taxa";
 import { FoliateSettingTab } from "./settings";
 import { FOLIATE_ICON_ID, FOLIATE_ICON_SVG } from "./icon";
 import {
@@ -18,6 +18,7 @@ import {
 
 const DEFAULT_SETTINGS: FoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
+  domain: DEFAULT_DOMAIN,
   autoMoveEnabled: true,
   createFolderIfMissing: true,
   autoAddAlias: true,

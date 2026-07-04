@@ -329,6 +329,10 @@
 }
 
 /* Settings */
+.foliate-mapping-subhead {
+  margin: 18px 0 2px;
+}
+
 .foliate-taxa-head {
   display: flex;
   gap: 8px;

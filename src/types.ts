@@ -47,6 +47,9 @@ export type SortOrder = "mentions-desc" | "mentions-asc" | "name-asc" | "name-de
 
 export interface FoliateSettings {
   taxaMappings: TaxaMapping[];
+  // The single domain type: a higher-order taxon that groups other taxa. Same
+  // shape as a taxon, but there is only ever one.
+  domain: TaxaMapping;
   autoMoveEnabled: boolean;
   createFolderIfMissing: boolean;
   autoAddAlias: boolean;
