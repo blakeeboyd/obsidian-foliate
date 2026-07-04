@@ -9,6 +9,11 @@ import { stripPrefix } from "../taxa";
  * When includeLinkedFiles is true, files that are already linked in the note
  * are still scanned, so their unlinked alias occurrences (e.g. "ZPD" for an
  * already-linked Zone of Proximal Development) surface for linking.
+ *
+ * Only files matching `taxaMappings` are scanned. The domain (settings.domain)
+ * is deliberately not passed here, so domain files (≈…) never surface as
+ * mentions in source notes: domains group taxa, they don't belong in source
+ * prose. Passing the domain in would opt them back in.
  */
 export function findUnlinkedMatches(
   app: App,
