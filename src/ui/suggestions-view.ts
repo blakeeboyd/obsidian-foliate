@@ -6,7 +6,7 @@ import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
 import { createTaxaFile } from "../services/file-operations";
 import { mineContextTerms } from "../services/context-mining";
-import { stripPrefix } from "../taxa";
+import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
@@ -833,6 +833,11 @@ export class SuggestionsView extends ItemView {
       this.wireCollapseAll(collapseAllBtn, keys);
     }
 
+    // Backlinks: on a taxa/domain file, the other taxa/domain files that link to
+    // it, grouped by type. Filters out source-note backlinks (the native pane
+    // has those); shows the taxa relationships without the noise.
+    this.renderTaxaBacklinks(container, file);
+
     // Apply any active search filter to the freshly rendered rows.
     this.applyFilter();
 
@@ -840,6 +845,51 @@ export class SuggestionsView extends ItemView {
     // can read 0 synchronously on the very first render).
     this.updateStickyOffsets();
     window.requestAnimationFrame(() => this.updateStickyOffsets());
+  }
+
+  /**
+   * On a taxa or domain file, render a "Backlinks" section: the other taxa and
+   * domain files that link to this one, grouped by taxon type. Source-note
+   * backlinks are excluded (the native Backlinks pane covers those); this shows
+   * only the taxa-to-taxa relationships, which for a domain file are its members.
+   * Hidden entirely when the active file isn't a taxon or domain.
+   */
+  private renderTaxaBacklinks(container: HTMLElement, file: TFile) {
+    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+    // Only on taxa/domain files.
+    if (!findTaxonByPrefix(file.basename, mappings)) return;
+
+    // Reverse-walk resolvedLinks: sources that link to this file, kept only when
+    // the source is itself a taxa/domain file (carries a matching prefix).
+    const resolved = this.app.metadataCache.resolvedLinks;
+    const backTaxa: { file: TFile; taxon: TaxaMapping }[] = [];
+    for (const [sourcePath, dests] of Object.entries(resolved)) {
+      if (!(file.path in dests)) continue;
+      const source = this.app.vault.getAbstractFileByPath(sourcePath);
+      if (!(source instanceof TFile)) continue;
+      const taxon = findTaxonByPrefix(source.basename, mappings);
+      if (taxon) backTaxa.push({ file: source, taxon });
+    }
+    if (backTaxa.length === 0) return;
+
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Backlinks");
+    for (const mapping of mappings) {
+      const members = backTaxa.filter((b) => b.taxon === mapping);
+      if (members.length === 0) continue;
+      const key = `backlinks:${mapping.prefix} ${mapping.label}`;
+      keys.push(key);
+      const group = this.makeTaxaGroup(section, key, `${mapping.prefix} ${mapping.label}`);
+      const sorted = [...members].sort((a, b) => a.file.basename.localeCompare(b.file.basename));
+      for (const { file: bf } of sorted) {
+        const row = group.createDiv("foliate-linked-row");
+        const name = row.createDiv("foliate-linked-info");
+        name.createSpan({ text: bf.basename, cls: "foliate-linked-name foliate-clickable" });
+        name.addEventListener("click", () =>
+          this.app.workspace.openLinkText(bf.path, file.path, false)
+        );
+      }
+    }
+    this.wireCollapseAll(collapseAllBtn, keys);
   }
 
   /**
