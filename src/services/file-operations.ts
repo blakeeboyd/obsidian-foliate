@@ -136,6 +136,19 @@ export async function createTaxaFile(
  *   set so the caller can run Templater on the created file.
  * Returns empty content when there is no template (or it can't be read).
  */
+/**
+ * Resolve a taxon's template setting to a TFile. Tries the value as a full vault
+ * path first (what the file picker stores), then falls back to matching by
+ * basename so legacy configs that stored a bare "Name.md" still resolve even if
+ * the template lives in a subfolder. Returns null if nothing matches.
+ */
+export function resolveTemplateFile(app: App, template: string): TFile | null {
+  const exact = app.vault.getAbstractFileByPath(template);
+  if (exact instanceof TFile) return exact;
+  const base = template.endsWith(".md") ? template : `${template}.md`;
+  return app.vault.getMarkdownFiles().find((f) => f.name === base) ?? null;
+}
+
 async function renderTemplate(
   app: App,
   taxon: TaxaMapping,
@@ -143,7 +156,7 @@ async function renderTemplate(
   fileName: string
 ): Promise<{ content: string; hasTemplater: boolean }> {
   if (!taxon.template) return { content: "", hasTemplater: false };
-  const tmpl = app.vault.getAbstractFileByPath(taxon.template);
+  const tmpl = resolveTemplateFile(app, taxon.template);
   if (!(tmpl instanceof TFile)) {
     new Notice(`Template not found: ${taxon.template}`);
     return { content: "", hasTemplater: false };

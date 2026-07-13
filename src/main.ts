@@ -8,6 +8,7 @@ import {
   ensureFolderExists,
   suppressAutoMove,
   addFileToDomain,
+  resolveTemplateFile,
 } from "./services/file-operations";
 import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
@@ -577,6 +578,21 @@ export default class FoliatePlugin extends Plugin {
     ) {
       this.settings.contextAwareEnabled = true;
     }
+
+    // Migration: older configs stored a bare template basename (e.g.
+    // "Taxa Template.md"), which only resolves when the template sits at the
+    // vault root. Normalize each to the resolved file's full vault path so it
+    // keeps working if the template is ever moved into a folder.
+    let templatesChanged = false;
+    for (const t of [...this.settings.taxaMappings, this.settings.domain]) {
+      if (!t.template) continue;
+      const file = resolveTemplateFile(this.app, t.template);
+      if (file && file.path !== t.template) {
+        t.template = file.path;
+        templatesChanged = true;
+      }
+    }
+    if (templatesChanged) await this.saveSettings();
   }
 
   async saveSettings() {
