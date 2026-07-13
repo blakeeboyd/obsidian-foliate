@@ -398,12 +398,65 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
   }
 }
 
+/**
+ * A text input with an overlaid "×" clear button. The input sits in a relative
+ * wrapper; the × is absolutely positioned at the right with right-padding on the
+ * input so text never runs under it. The × has no background and only shows when
+ * the field is non-empty. Clearing fires `onSave("")` and dispatches an `input`
+ * event so any attached suggester/listener sees the change. Returns the input.
+ */
+function addClearableInput(
+  row: HTMLElement,
+  placeholder: string,
+  value: string,
+  width: string,
+  onSave: (value: string) => void | Promise<void>
+): HTMLInputElement {
+  const wrap = row.createSpan();
+  wrap.style.position = "relative";
+  wrap.style.display = "inline-block";
+  wrap.style.width = width;
+
+  const input = wrap.createEl("input", { type: "text", placeholder, value });
+  input.style.width = "100%";
+  input.style.paddingRight = "22px";
+  input.addEventListener("change", () => void onSave(input.value));
+
+  const clear = wrap.createSpan({ text: "✕" });
+  clear.style.position = "absolute";
+  clear.style.right = "6px";
+  clear.style.top = "50%";
+  clear.style.transform = "translateY(-50%)";
+  clear.style.cursor = "pointer";
+  clear.style.background = "none";
+  clear.style.color = "var(--text-muted)";
+  clear.style.fontSize = "var(--font-ui-smaller)";
+  clear.style.lineHeight = "1";
+
+  const sync = () => (clear.style.display = input.value ? "" : "none");
+  sync();
+  input.addEventListener("input", sync);
+  clear.addEventListener("click", () => {
+    input.value = "";
+    sync();
+    void onSave("");
+  });
+
+  return input;
+}
+
 class FileSuggest extends AbstractInputSuggest<TFile> {
   getSuggestions(query: string): TFile[] {
-    const lowerQuery = query.toLowerCase();
+    // Match every whitespace-separated token anywhere in the full path, so words
+    // from the folder and the filename can be combined in any order
+    // ("templater concept" finds .../02.01 Templater/tp.concept.md).
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     return this.app.vault
       .getMarkdownFiles()
-      .filter((f) => f.path.toLowerCase().contains(lowerQuery))
+      .filter((f) => {
+        const path = f.path.toLowerCase();
+        return tokens.every((t) => path.contains(t));
+      })
       .sort((a, b) => a.path.localeCompare(b.path))
       .slice(0, 50);
   }
@@ -910,33 +963,27 @@ export class FoliateSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
     });
 
-    const folderInput = row.createEl("input", { type: "text", placeholder: "Folder path", value: mapping.folder });
-    folderInput.style.width = "200px";
-    folderInput.addEventListener("change", async () => {
-      mapping.folder = folderInput.value;
+    const folderInput = addClearableInput(row, "Folder path", mapping.folder, "200px", async (v) => {
+      mapping.folder = v;
       await this.plugin.saveSettings();
     });
     new FolderSuggest(this.app, folderInput).onSelect(async (folder) => {
       folderInput.value = folder.path;
+      folderInput.dispatchEvent(new Event("input"));
       mapping.folder = folder.path;
       await this.plugin.saveSettings();
     });
 
-    const templateInput = row.createEl("input", {
-      type: "text",
-      placeholder: "Template (optional)",
-      value: mapping.template || "",
-    });
-    templateInput.style.width = "180px";
     const saveTemplate = async (value: string) => {
       const trimmed = value.trim();
       if (trimmed) mapping.template = trimmed;
       else delete mapping.template;
       await this.plugin.saveSettings();
     };
-    templateInput.addEventListener("change", () => saveTemplate(templateInput.value));
+    const templateInput = addClearableInput(row, "Template (optional)", mapping.template || "", "180px", saveTemplate);
     new FileSuggest(this.app, templateInput).onSelect(async (file) => {
       templateInput.value = file.path;
+      templateInput.dispatchEvent(new Event("input"));
       await saveTemplate(file.path);
     });
 
