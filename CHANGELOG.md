@@ -4,6 +4,36 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 - 2026-07-14
+
+### Added
+
+- **Domains**: a higher-order taxon (prefix `≈`) that groups your other taxa
+  files by subject. Run "Add current file to a domain" on any taxa file and pick
+  a domain: the file gains a `domains` entry linking to it, and the domain file
+  is created if it doesn't exist yet. Configure the prefix, folder, and template
+  under Settings, the same as any other taxon. Domains are left out of mention
+  scanning, so they won't clutter the sidebar with unlinked mentions.
+- **Backlinks** in the sidebar. On a taxa or domain file, a Backlinks section at
+  the bottom lists the other taxa files that link to it, grouped by type. Click a
+  row to open it. This is how a domain shows you its members.
+- **Copy debug report to clipboard**, a new command for troubleshooting. It
+  writes a plain-text summary of your Foliate settings, your taxa and their
+  templates, and your Obsidian and plugin versions, then flags anything that
+  would stop a template from applying (none configured, a path that doesn't
+  resolve, an empty template file, Templater syntax with Templater not
+  installed). Paste it into a bug report.
+- A clear (x) button on the folder and template fields in settings.
+
+### Changed
+
+- The template picker now searches the whole path, so words from the folder and
+  the file name can be combined in any order. Typing "foliate people" finds
+  `Foliate Templates/People Template.md`.
+- A taxon's template is stored as a full vault path. Templates that were saved
+  under a bare file name are converted the next time Foliate loads, so moving a
+  template into a folder no longer stops it from being found.
+
 ## 0.4.2 - 2026-07-03
 
 ### Added
