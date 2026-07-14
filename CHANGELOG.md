@@ -8,40 +8,32 @@ All notable changes to Foliate are documented here. The format follows
 
 ### Added
 
-- Context-aware mentions (experimental, off by default). A taxa file with a
-  common-word alias (for example "work" for a concept, or "an" for a
-  Chinese-thought concept) can be set so that alias surfaces as an unlinked
-  mention only in notes that also contain one of the file's related terms.
-  Related terms are mined from the Obsidian graph — the file's outgoing links
-  and its backlinks from other taxa files — so a gated alias appears in a note
-  that also talks about its related concepts and stays quiet elsewhere. Enable
-  it under Settings → Experimental → Context-aware mentions; then set files up
-  from a sidebar item's "Add … to context-aware list" action and manage gated
-  terms (click-to-toggle chips of the file's own aliases) and related terms in
-  the manager. When the toggle is off the gating is fully dormant and its
-  sidebar action is hidden; configured files are preserved and reactivate on
-  re-enable. Only the gated alias is suppressed; the file's other terms keep
-  matching. Deliberate cursor actions ("Create taxa link" on the word under the
-  cursor) are never gated. A percentage-threshold tier that would also admit
-  terms from non-taxa backlinks is planned as a follow-up.
+- Context-aware mentions (experimental, off by default). If a taxa file's
+  alias is a common word (for example "work" for a concept, or "an" for a
+  Chinese-thought concept), it can flood every note with unlinked mentions.
+  With this on, that alias only surfaces as an unlinked mention in notes that
+  also mention one of the file's related terms, and stays quiet everywhere
+  else. Enable it under Settings → Experimental → Context-aware mentions, then
+  set files up from a sidebar item's "Add … to context-aware list" action and
+  manage the gated terms (click-to-toggle chips of the file's own aliases) and
+  related terms in the manager. Turning the toggle off fully disables the
+  gating and hides its sidebar action; your configured files are kept and
+  reactivate if you turn it back on. Only the gated alias is affected: the
+  file's other aliases keep matching normally, and deliberate actions like
+  running "Create taxa link" on the word under the cursor are never gated.
 
 ### Fixed
 
-- Plaintext mentions carrying a taxon prefix now surface. A note that writes
-  `@Paul Krugman` (with the leading prefix) matches the `@Paul Krugman` file,
-  where before the prefix defeated the word-boundary check and nothing matched.
-  Only the file's own prefix counts: `@Paul Krugman` matches the People file,
-  but `+Paul Krugman` does not (that's the Concept prefix, and no Concept file
-  by that name exists). The prefixed match consumes the prefix, so linking it
-  produces `[[@Paul Krugman]]`.
-- Renaming a taxa file no longer breaks links to it. Auto-move fired a second
-  rename mid-flight, racing Obsidian's own pass that rewrites every `[[link]]`
-  to the renamed file. The move now waits until the link graph has settled
-  (`metadataCache` "resolved"), so all links update correctly, at any batch
+- Writing a mention with its prefix already attached now matches. Typing
+  `@Paul Krugman` in a note finds the `@Paul Krugman` file, where before the
+  leading `@` stopped it from matching anything. Linking it gives you
+  `[[@Paul Krugman]]`. Only the file's own prefix counts, so `+Paul Krugman`
+  still won't match a People file.
+- Renaming a taxa file no longer breaks the links pointing to it, at any batch
   size.
-- Foliate no longer moves a file while it is itself creating it, which could
-  race the template and alias steps. Files created through Foliate are placed
-  and templated without interference.
+- A file created through Foliate could occasionally come out missing its
+  template content or its alias. Newly created files are now placed,
+  templated, and aliased reliably every time.
 
 ### Changed
 
@@ -53,11 +45,12 @@ All notable changes to Foliate are documented here. The format follows
   now; the "Link word under cursor when nothing is selected" setting is removed.
   It never creates a file from an unmatched word, so the toggle only added
   friction.
-- Settings panel cleanup: sidebar display, click, inline-button, and highlight
-  options moved into a "Sidebar settings" modal; the "Linking" and "Auto-move"
-  sections merged into "Files"; the redundant in-tab filter removed (Obsidian's
-  own settings search covers it); and the Taxa Mappings table gained column
-  headers.
+- Settings panel cleanup:
+  - Sidebar display, click, inline-button, and highlight options moved into a
+    "Sidebar settings" modal.
+  - "Linking" and "Auto-move" sections merged into "Files".
+  - Removed the in-tab filter box; Obsidian's own settings search covers it.
+  - The Taxa Mappings table gained column headers.
 
 ## 0.4.1 - 2026-06-29
 
@@ -65,20 +58,14 @@ All notable changes to Foliate are documented here. The format follows
 
 - Opening a non-markdown file (PDF, image, canvas, audio) no longer freezes
   Obsidian. The suggestions sidebar now skips any active file that isn't a
-  markdown note instead of reading its raw bytes and scanning them, which had
-  pegged the main thread and conflicted with other plugins such as PDF++.
-- Typing a markdown link no longer freezes the editor. The exclusion-region
-  scanner's markdown-link pattern had catastrophic backtracking on a half-typed
-  link (an opening `[label](` with no closing paren yet, worse when the URL
-  contained a paren); the pattern is now linear.
+  markdown note, instead of reading it and conflicting with other plugins such
+  as PDF++.
+- Typing a markdown link no longer freezes the editor, including while the
+  link is only half-typed (an opening `[label](` with no closing paren yet).
 
 ### Performance
 
-- A sidebar refresh no longer recomputes the note's excluded regions (code
-  spans, links) once per taxa file. They are computed once and reused across the
-  whole scan, removing thousands of redundant regex passes per refresh on large
-  vaults. The vault file list is also partitioned by taxon in a single walk
-  instead of one walk per taxon.
+- Sidebar refreshes are much faster on large vaults.
 
 ## 0.4.0 - 2026-06-24
 
