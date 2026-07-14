@@ -1,4 +1,4 @@
-import { App, Editor, Notice, TFile, Vault, moment } from "obsidian";
+import { App, Editor, Notice, TFile, Vault, moment, apiVersion } from "obsidian";
 import { TaxaMapping, FoliateSettings } from "../types";
 import { stripPrefix } from "../taxa";
 
@@ -136,6 +136,79 @@ export async function createTaxaFile(
  *   set so the caller can run Templater on the created file.
  * Returns empty content when there is no template (or it can't be read).
  */
+/**
+ * Build a plain-text diagnostic report for template loading, meant to be copied
+ * to the clipboard and pasted into a bug report. Creates nothing: it dry-runs
+ * the same resolution the creator uses and names each way a template can fail to
+ * apply, since most of those failures are otherwise silent (no template set, the
+ * path not resolving, Templater syntax with Templater not installed).
+ */
+export async function buildDebugReport(
+  app: App,
+  settings: FoliateSettings,
+  pluginVersion = "?"
+): Promise<string> {
+  const templater = (app as any).plugins?.plugins?.["templater-obsidian"];
+  const templaterVersion = templater?.manifest?.version ?? "";
+  const lines: string[] = [];
+  const problems: string[] = [];
+
+  lines.push("Foliate debug report");
+  lines.push(
+    `Foliate ${pluginVersion} | Obsidian API ${apiVersion} | Templater: ` +
+      (templater ? `installed ${templaterVersion}` : "NOT installed")
+  );
+  lines.push(`autoAddAlias=${settings.autoAddAlias} createFolderIfMissing=${settings.createFolderIfMissing} autoMove=${settings.autoMoveEnabled}`);
+  lines.push("");
+  lines.push("Taxa:");
+
+  for (const taxon of [...settings.taxaMappings, settings.domain]) {
+    // Label first: taxa prefixes are symbols that can get mangled in a paste.
+    const id = `${taxon.label} (prefix ${taxon.prefix})`;
+    const folder = taxon.folder?.trim() || "(vault root)";
+    const folderExists = !taxon.folder?.trim() || !!app.vault.getAbstractFileByPath(taxon.folder.trim());
+
+    if (!taxon.template) {
+      lines.push(`  ${id}: folder=${folder} template=(none set)`);
+      problems.push(`${id}: no template configured, so new files are created empty.`);
+      continue;
+    }
+
+    const file = resolveTemplateFile(app, taxon.template);
+    if (!file) {
+      lines.push(`  ${id}: folder=${folder} template=${taxon.template} -> NOT FOUND`);
+      problems.push(`${id}: template "${taxon.template}" does not resolve to any file.`);
+      continue;
+    }
+
+    const exact = file.path === taxon.template;
+    const raw = await app.vault.cachedRead(file);
+    const usesTemplater = raw.includes("<%");
+    lines.push(
+      `  ${id}: folder=${folder} template=${taxon.template}` +
+        (exact ? "" : ` -> resolved by basename to ${file.path}`) +
+        ` (${raw.length} chars${usesTemplater ? ", uses Templater <% %>" : ""})`
+    );
+    if (raw.trim() === "") {
+      problems.push(`${id}: template "${file.path}" is empty, so new files come out empty.`);
+    }
+    if (usesTemplater && !templater) {
+      problems.push(
+        `${id}: template uses Templater <% %> syntax but Templater is not installed, so it is written unprocessed.`
+      );
+    }
+    if (!folderExists && !settings.createFolderIfMissing) {
+      problems.push(`${id}: folder "${folder}" does not exist and "create folders if missing" is off.`);
+    }
+  }
+
+  lines.push("");
+  lines.push(problems.length ? "Problems found:" : "Problems found: none");
+  problems.forEach((p) => lines.push(`  - ${p}`));
+
+  return lines.join("\n");
+}
+
 /**
  * Resolve a taxon's template setting to a TFile. Tries the value as a full vault
  * path first (what the file picker stores), then falls back to matching by

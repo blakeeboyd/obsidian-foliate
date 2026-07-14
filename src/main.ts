@@ -9,6 +9,7 @@ import {
   suppressAutoMove,
   addFileToDomain,
   resolveTemplateFile,
+  buildDebugReport,
 } from "./services/file-operations";
 import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
@@ -145,6 +146,16 @@ export default class FoliatePlugin extends Plugin {
           return;
         }
         this.addToDomain(file);
+      },
+    });
+
+    this.addCommand({
+      id: "foliate-copy-debug-report",
+      name: "Copy debug report to clipboard",
+      callback: async () => {
+        const report = await buildDebugReport(this.app, this.settings, this.manifest.version);
+        await navigator.clipboard.writeText(report);
+        new Notice("Foliate debug report copied to clipboard");
       },
     });
 
