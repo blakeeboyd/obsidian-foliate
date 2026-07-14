@@ -125,23 +125,19 @@ export async function createTaxaFile(
 }
 
 /**
- * Build the initial content for a new taxa file from the taxon's template, if
- * one is configured. The template engine is auto-detected:
- * - {{...}} tokens are always filled by Foliate: {{title}} resolves to the
- *   actual file name (prefix included, e.g. "@Ada Lovelace"), while
- *   {{name}}/{{alias}} resolve to the stripped name without the prefix. Also
- *   {{prefix}}, {{label}}, and the core-Templates date tokens {{date}},
- *   {{time}}, {{date:FORMAT}}, {{time:FORMAT}}.
- * - If the template also contains Templater syntax (<% ... %>), hasTemplater is
- *   set so the caller can run Templater on the created file.
- * Returns empty content when there is no template (or it can't be read).
- */
-/**
- * Build a plain-text diagnostic report for template loading, meant to be copied
- * to the clipboard and pasted into a bug report. Creates nothing: it dry-runs
- * the same resolution the creator uses and names each way a template can fail to
- * apply, since most of those failures are otherwise silent (no template set, the
- * path not resolving, Templater syntax with Templater not installed).
+ * Build a plain-text diagnostic report, meant to be copied to the clipboard and
+ * pasted into a bug report. Creates nothing.
+ *
+ * Two halves, deliberately different in kind:
+ * - A dump of the environment, every setting, and every taxon. Derived from the
+ *   settings object rather than a hand-listed set of fields, so a new setting
+ *   shows up here without anyone remembering to add it.
+ * - "Problems found": checks only for failures the plugin is otherwise SILENT
+ *   about, all of them in the template path (none configured, path doesn't
+ *   resolve, template empty, Templater syntax with Templater absent). Visible
+ *   misbehaviour (wrong click action, a file missing from the sidebar) is not
+ *   guessed at here: the dump gives the reader the state, and a static check
+ *   couldn't diagnose it anyway.
  */
 export async function buildDebugReport(
   app: App,
@@ -158,7 +154,27 @@ export async function buildDebugReport(
     `Foliate ${pluginVersion} | Obsidian API ${apiVersion} | Templater: ` +
       (templater ? `installed ${templaterVersion}` : "NOT installed")
   );
-  lines.push(`autoAddAlias=${settings.autoAddAlias} createFolderIfMissing=${settings.createFolderIfMissing} autoMove=${settings.autoMoveEnabled}`);
+
+  const enabled: string[] = (app as any).plugins?.enabledPlugins
+    ? [...(app as any).plugins.enabledPlugins]
+    : [];
+  if (enabled.length) {
+    lines.push(`Other plugins enabled (${enabled.length}): ${enabled.sort().join(", ")}`);
+  }
+
+  // Settings dump, derived from the object so new settings appear automatically.
+  // taxaMappings/domain are rendered in the Taxa section below; contextAware can
+  // be large, so summarize it by count.
+  lines.push("");
+  lines.push("Settings:");
+  const skip = new Set(["taxaMappings", "domain", "contextAware", "collapsedCategories"]);
+  for (const [key, value] of Object.entries(settings).sort(([a], [b]) => a.localeCompare(b))) {
+    if (skip.has(key)) continue;
+    lines.push(`  ${key}=${Array.isArray(value) ? `[${value.join(", ")}]` : String(value)}`);
+  }
+  lines.push(`  contextAware=${Object.keys(settings.contextAware ?? {}).length} entries`);
+  lines.push(`  collapsedCategories=${(settings.collapsedCategories ?? []).length} collapsed`);
+
   lines.push("");
   lines.push("Taxa:");
 
@@ -222,6 +238,18 @@ export function resolveTemplateFile(app: App, template: string): TFile | null {
   return app.vault.getMarkdownFiles().find((f) => f.name === base) ?? null;
 }
 
+/**
+ * Build the initial content for a new taxa file from the taxon's template, if
+ * one is configured. The template engine is auto-detected:
+ * - {{...}} tokens are always filled by Foliate: {{title}} resolves to the
+ *   actual file name (prefix included, e.g. "@Ada Lovelace"), while
+ *   {{name}}/{{alias}} resolve to the stripped name without the prefix. Also
+ *   {{prefix}}, {{label}}, and the core-Templates date tokens {{date}},
+ *   {{time}}, {{date:FORMAT}}, {{time:FORMAT}}.
+ * - If the template also contains Templater syntax (<% ... %>), hasTemplater is
+ *   set so the caller can run Templater on the created file.
+ * Returns empty content when there is no template (or it can't be read).
+ */
 async function renderTemplate(
   app: App,
   taxon: TaxaMapping,
