@@ -882,6 +882,9 @@ export class SuggestionsView extends ItemView {
       const sorted = [...members].sort((a, b) => a.file.basename.localeCompare(b.file.basename));
       for (const { file: bf } of sorted) {
         const row = group.createDiv("foliate-linked-row");
+        // applyFilter only considers rows carrying data-search; without it a
+        // search query would match nothing here and hide the whole section.
+        row.dataset.search = `${bf.basename} ${bf.path}`.toLowerCase();
         const name = row.createDiv("foliate-linked-info");
         name.createSpan({ text: bf.basename, cls: "foliate-linked-name foliate-clickable" });
         name.addEventListener("click", () =>
