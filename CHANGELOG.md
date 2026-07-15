@@ -23,7 +23,7 @@ All notable changes to Foliate are documented here. The format follows
   would stop a template from applying (none configured, a path that doesn't
   resolve, an empty template file, Templater syntax with Templater not
   installed). Paste it into a bug report.
-- A clear (x) button on the folder and template fields in settings.
+- A clear (✕) button on the folder and template fields in settings.
 
 ### Changed
 
