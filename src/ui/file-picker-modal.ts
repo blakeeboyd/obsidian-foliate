@@ -10,12 +10,26 @@ import { App, FuzzySuggestModal, TFile } from "obsidian";
 export class FilePickerModal extends FuzzySuggestModal<TFile> {
   private files: TFile[];
   private onChoose: (file: TFile) => void;
+  private onCancel?: () => void;
+  private chose = false;
 
-  constructor(app: App, files: TFile[], onChoose: (file: TFile) => void) {
+  constructor(
+    app: App,
+    files: TFile[],
+    onChoose: (file: TFile) => void,
+    /**
+     * Run when the picker is dismissed without a choice. Lets a caller offering
+     * near-matches ("did you mean one of these?") fall through to creating a new
+     * file, so escaping the picker doesn't silently cancel the whole action.
+     */
+    onCancel?: () => void,
+    placeholder = "Multiple matches. Choose a file to link..."
+  ) {
     super(app);
     this.files = files;
     this.onChoose = onChoose;
-    this.setPlaceholder("Multiple matches. Choose a file to link...");
+    this.onCancel = onCancel;
+    this.setPlaceholder(placeholder);
   }
 
   getItems(): TFile[] {
@@ -28,6 +42,14 @@ export class FilePickerModal extends FuzzySuggestModal<TFile> {
   }
 
   onChooseItem(file: TFile): void {
+    this.chose = true;
     this.onChoose(file);
+  }
+
+  onClose(): void {
+    super.onClose();
+    // onChooseItem runs before close, so `chose` separates a real pick from a
+    // dismissal (escape, click-away).
+    if (!this.chose) this.onCancel?.();
   }
 }

@@ -10,9 +10,13 @@ import {
   addFileToDomain,
   resolveTemplateFile,
   buildDebugReport,
+  findMisplacedTaxaFiles,
+  findDuplicateTaxaNames,
 } from "./services/file-operations";
 import { DomainPickerModal } from "./ui/domain-picker-modal";
-import { findUnlinkedMatches, findTaxaFilesByText, resolveOverlaps } from "./services/unlinked-matcher";
+import { MisplacedFilesModal } from "./ui/misplaced-files-modal";
+import { DebugReportModal } from "./ui/debug-report-modal";
+import { findUnlinkedMatches, findTaxaFilesByText, findTaxaFilesByPartialText, resolveOverlaps } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import { FilePickerModal } from "./ui/file-picker-modal";
 import {
@@ -40,6 +44,9 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   blocklist: [],
   contextAwareEnabled: false,
   contextAware: {},
+  showHiddenConnections: false,
+  surnameMatchPrefix: "@",
+  matchDeclaredAcronyms: true,
   highlightOnJump: true,
   highlightDurationSeconds: 2.5,
   selectOnJump: true,
@@ -72,6 +79,16 @@ export default class FoliatePlugin extends Plugin {
 
   async onunload() {
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
+  }
+
+  /**
+   * The taxon that gets second-reference surname matching, or undefined when
+   * the setting is empty or names a prefix no taxon uses.
+   */
+  surnameTaxon(): TaxaMapping | undefined {
+    const prefix = this.settings.surnameMatchPrefix?.trim();
+    if (!prefix) return undefined;
+    return this.settings.taxaMappings.find((t) => t.prefix === prefix);
   }
 
   private registerCommands() {
@@ -150,12 +167,43 @@ export default class FoliatePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "foliate-find-misplaced",
+      name: "Find misplaced and duplicate taxa files",
+      callback: () => {
+        const scan = () => {
+          const duplicates = findDuplicateTaxaNames(this.app, this.settings);
+          // A duplicated file is reported once, under Duplicates. Resolving a
+          // duplicate already puts the keeper in the taxon folder, so listing
+          // it as movable too would offer a fix that collides with its twin.
+          const dupePaths = new Set(duplicates.flatMap((d) => d.files.map((f) => f.path)));
+          return {
+            misplaced: findMisplacedTaxaFiles(this.app, this.settings).filter(
+              (m) => !dupePaths.has(m.file.path)
+            ),
+            duplicates,
+          };
+        };
+        const { misplaced, duplicates } = scan();
+        if (misplaced.length === 0 && duplicates.length === 0) {
+          new Notice("Every taxa and domain file is in its taxon's folder, and no two share a name.");
+          return;
+        }
+        new MisplacedFilesModal(
+          this.app,
+          misplaced,
+          duplicates,
+          async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
+          scan
+        ).open();
+      },
+    });
+
+    this.addCommand({
       id: "foliate-copy-debug-report",
-      name: "Copy debug report to clipboard",
+      name: "Run debug report",
       callback: async () => {
         const report = await buildDebugReport(this.app, this.settings, this.manifest.version);
-        await navigator.clipboard.writeText(report);
-        new Notice("Foliate debug report copied to clipboard");
+        new DebugReportModal(this.app, report).open();
       },
     });
 
@@ -172,12 +220,18 @@ export default class FoliatePlugin extends Plugin {
   }
 
   /**
-   * Link a piece of selected text. If it carries a taxa prefix, create/link that
-   * taxon's file. If it matches exactly one existing taxa file (name or alias),
-   * link straight to it. Otherwise open the picker so the user can choose a
-   * taxon and a new file is created. This is the original "Create taxa link"
-   * behavior, factored out so the cursor fallback can share the matched-file and
-   * prefix paths.
+   * Link a piece of selected text, narrowing from certain to speculative:
+   *
+   * 1. Carries a taxa prefix: create or link that taxon's file.
+   * 2. Matches exactly one existing file (name or alias): link straight to it.
+   * 3. Matches several: ask which, since guessing silently picks a stranger.
+   * 4. Matches none exactly but some by prefix ("Sarah" vs @Sarah Cavanagh):
+   *    offer those first, and fall through to creating if none is chosen.
+   * 5. Nothing matches: pick a taxon and create the file.
+   *
+   * Steps 3 and 4 exist because the old behavior sent both cases to the taxon
+   * picker, which offers to CREATE a file. Selecting "Sarah" in a vault with
+   * three Sarahs proposed a fourth.
    */
   private linkSelectedText(editor: Editor, text: string) {
     const detectedTaxon = findTaxonByPrefix(text, this.settings.taxaMappings);
@@ -190,11 +244,57 @@ export default class FoliatePlugin extends Plugin {
     }
 
     const hits = findTaxaFilesByText(this.app, text, this.settings.taxaMappings);
-    const existing = hits.length === 1 ? hits[0] : null;
-    if (existing) {
+    if (hits.length === 1) {
+      const existing = hits[0];
       editor.replaceSelection(`[[${existing.file.basename}|${text}]]`);
       new Notice(`Linked ${text} to ${existing.file.basename}`);
       this.refreshSuggestionsView();
+      return;
+    }
+
+    // More than one file answers to this exact text (two people whose alias is
+    // "Sarah"). Linking the first would silently pick one, so ask. Without this
+    // the ambiguous case fell through to the taxon picker and offered to create
+    // yet another file, which is the opposite of what the user wants.
+    if (hits.length > 1) {
+      new FilePickerModal(
+        this.app,
+        hits.map((h) => h.file),
+        (file) => {
+          editor.replaceSelection(`[[${file.basename}|${text}]]`);
+          new Notice(`Linked ${text} to ${file.basename}`);
+          this.refreshSuggestionsView();
+        }
+      ).open();
+      return;
+    }
+
+    // Nothing matches exactly, but existing files may still be what was meant:
+    // selecting "Sarah" when the vault holds @Sarah Cavanagh and @Sarah
+    // Schnitker should offer those before creating a third. Only offered when
+    // the selection is a word-boundary prefix of the file's terms, so this
+    // suggests "Sarah" → "Sarah Cavanagh" without matching mid-word noise.
+    const partial = findTaxaFilesByPartialText(this.app, text, this.settings.taxaMappings);
+    if (partial.length > 0) {
+      new FilePickerModal(
+        this.app,
+        partial.map((h) => h.file),
+        (file) => {
+          editor.replaceSelection(`[[${file.basename}|${text}]]`);
+          new Notice(`Linked ${text} to ${file.basename}`);
+          this.refreshSuggestionsView();
+        },
+        // Escaping the picker means none of them were right, so fall through to
+        // creating a new file rather than silently doing nothing.
+        () => {
+          new TaxaPickerModal(this.app, this.settings.taxaMappings, (taxon) => {
+            createTaxaLink(this.app, editor, text, taxon, this.settings).then((created) => {
+              this.refreshSuggestionsView();
+              if (created) this.addToDomain(created);
+            });
+          }).open();
+        }
+      ).open();
       return;
     }
 
@@ -502,12 +602,22 @@ export default class FoliatePlugin extends Plugin {
     }).open();
   }
 
-  private async moveFileToTaxaFolder(file: TFile, taxon: TaxaMapping) {
+  /**
+   * Move a file into its taxon's folder. Returns whether the move happened, so
+   * bulk callers can count successes. `quiet` suppresses the per-file Notice,
+   * which would otherwise stack up one toast per file during a batch move; the
+   * caller reports the total instead.
+   */
+  private async moveFileToTaxaFolder(
+    file: TFile,
+    taxon: TaxaMapping,
+    quiet = false
+  ): Promise<boolean> {
     const folder = taxon.folder.trim();
     // No folder configured for this taxon: leave the file where it is.
-    if (!folder) return;
+    if (!folder) return false;
     // Already in the right folder.
-    if (file.parent && file.parent.path === folder) return;
+    if (file.parent && file.parent.path === folder) return false;
 
     if (this.settings.createFolderIfMissing) {
       await ensureFolderExists(this.app.vault, folder);
@@ -518,15 +628,17 @@ export default class FoliatePlugin extends Plugin {
     // Check for collision
     const existing = this.app.vault.getAbstractFileByPath(targetPath);
     if (existing) {
-      new Notice(`File already exists at ${targetPath}`);
-      return;
+      if (!quiet) new Notice(`File already exists at ${targetPath}`);
+      return false;
     }
 
     try {
       await this.app.fileManager.renameFile(file, targetPath);
-      new Notice(`Moved to ${folder}/`);
+      if (!quiet) new Notice(`Moved to ${folder}/`);
+      return true;
     } catch (e) {
-      new Notice(`Failed to move file: ${e}`);
+      new Notice(`Failed to move ${file.basename}: ${e}`);
+      return false;
     }
   }
 

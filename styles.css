@@ -543,3 +543,238 @@
   border-color: var(--text-error);
   color: var(--text-on-accent);
 }
+
+/* Hidden connections: mentions the context gate withheld. Muted so the section
+   reads as informational rather than as another list of things to act on. */
+.foliate-hidden-section .foliate-section-header h5 {
+  color: var(--text-muted);
+}
+
+.foliate-hidden-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.foliate-hidden-row:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.foliate-hidden-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.foliate-hidden-count {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.foliate-hidden-reason {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  line-height: 1.3;
+}
+
+/* Misplaced taxa files modal */
+.foliate-misplaced-modal .modal-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.foliate-misplaced-summary {
+  color: var(--text-muted);
+}
+
+.foliate-misplaced-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.foliate-misplaced-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+}
+
+.foliate-misplaced-row.is-blocked {
+  opacity: 0.7;
+}
+
+.foliate-misplaced-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.foliate-misplaced-name {
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.foliate-misplaced-name:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
+}
+
+.foliate-misplaced-path,
+.foliate-misplaced-blocked {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+}
+
+.foliate-misplaced-blocked {
+  color: var(--text-warning);
+}
+
+.foliate-misplaced-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.foliate-duplicate-row .foliate-misplaced-info {
+  gap: 3px;
+}
+
+.foliate-duplicate-path {
+  cursor: pointer;
+  padding-left: 8px;
+  border-left: 2px solid var(--background-modifier-border);
+}
+
+.foliate-duplicate-path:hover {
+  color: var(--text-accent);
+}
+
+.foliate-duplicate-path.is-canonical {
+  border-left-color: var(--text-accent);
+  color: var(--text-muted);
+}
+
+/* Resolve-duplicate: candidates side by side, labelled by location */
+.foliate-resolve-modal {
+  width: min(900px, 90vw);
+}
+
+.foliate-resolve-modal .modal-content {
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.foliate-resolve-intro {
+  color: var(--text-muted);
+}
+
+.foliate-resolve-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.foliate-resolve-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: var(--background-secondary);
+  min-width: 0;
+}
+
+.foliate-resolve-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.foliate-resolve-location {
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.foliate-resolve-badge {
+  font-size: var(--font-smallest);
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-success);
+  color: var(--text-normal);
+  white-space: nowrap;
+}
+
+.foliate-resolve-stats {
+  display: flex;
+  gap: 12px;
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+}
+
+.foliate-resolve-body {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  font-size: var(--font-smallest);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background-color: var(--background-primary);
+  border-radius: var(--radius-s);
+}
+
+.foliate-resolve-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Debug report: readable on screen, copyable in one click */
+.foliate-debug-modal {
+  width: min(820px, 92vw);
+}
+
+.foliate-debug-modal .modal-content {
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.foliate-debug-summary {
+  color: var(--text-muted);
+}
+
+.foliate-debug-body {
+  margin: 0 0 12px 0;
+  padding: 10px;
+  max-height: 50vh;
+  overflow: auto;
+  font-size: var(--font-smallest);
+  line-height: 1.45;
+  white-space: pre;
+  background-color: var(--background-secondary);
+  border-radius: var(--radius-s);
+  user-select: text;
+}
+
+.foliate-debug-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

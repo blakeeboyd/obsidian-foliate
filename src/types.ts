@@ -70,6 +70,21 @@ export interface FoliateSettings {
   // contextAware entries are preserved and reactivate when re-enabled.
   contextAwareEnabled: boolean;
   contextAware: Record<string, ContextConfig>;
+  /** Show a "Hidden connections" section listing mentions the gate withheld. */
+  showHiddenConnections: boolean;
+  /**
+   * Prefix of the taxon whose files match on surname after their full name
+   * appears in a note ("Dostoevsky" once "Vladimir Dostoevsky" is present).
+   * Empty disables it. Scoped to one taxon because splitting a name on
+   * whitespace only means something for people.
+   */
+  surnameMatchPrefix: string;
+  /**
+   * Treat "[[term]] (ACRONYM)" in a note as declaring that acronym for that
+   * file, for the rest of that note. The note states the equivalence, so this
+   * reads it rather than guessing.
+   */
+  matchDeclaredAcronyms: boolean;
   highlightOnJump: boolean;
   highlightDurationSeconds: number;
   selectOnJump: boolean;
@@ -97,6 +112,30 @@ export interface UnlinkedMatch {
   alias: string;
   taxon: TaxaMapping;
   positions: MatchPosition[];
+}
+
+/**
+ * A mention the matcher found in the note but deliberately did not surface.
+ *
+ * Context gating hides matches silently, which leaves no way to tell "the gate
+ * decided this note is off-topic" from "nothing matched" from "something broke".
+ * The matcher records each suppression here so the sidebar can list it under
+ * Hidden connections and name the reason.
+ *
+ * `reason` is the branch that suppressed it and `detail` is the sentence shown
+ * on the row. Mined signals will add reasons here rather than change the shape.
+ */
+export interface HiddenMatch {
+  filePath: string;
+  fileName: string;
+  alias: string;
+  taxon: TaxaMapping;
+  /** The file's terms that matched the note but were withheld. */
+  hiddenTerms: string[];
+  /** How many occurrences of those terms the note contains. */
+  occurrences: number;
+  reason: "context-gate";
+  detail: string;
 }
 
 /**

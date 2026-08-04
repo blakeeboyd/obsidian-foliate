@@ -37,6 +37,42 @@ const files: FakeFile[] = [
   { basename: "≈root", parent: null },
 ];
 
+/** Folder scoping: the configured domain folder wins; no folder scans the vault. */
+function scopedNames(
+  files: { basename: string; path: string; parent: { path: string } | null }[],
+  prefix: string,
+  folder: string
+) {
+  const scope = folder.trim();
+  return files
+    .filter((f) => f.basename.startsWith(prefix))
+    .filter((f) => (scope ? f.path.startsWith(scope + "/") : true))
+    .map((f) => f.basename.slice(prefix.length));
+}
+
+{
+  const withPaths = [
+    { basename: "≈AI", path: "Domains/≈AI.md", parent: { path: "Domains" } },
+    { basename: "≈AI", path: "Archive/≈AI.md", parent: { path: "Archive" } },
+    { basename: "≈biology", path: "Domains/≈biology.md", parent: { path: "Domains" } },
+    { basename: "+concept", path: "Domains/+concept.md", parent: { path: "Domains" } },
+  ];
+
+  // Folder configured: the stray copy outside it is not offered.
+  assert.deepStrictEqual(
+    scopedNames(withPaths, "≈", "Domains").sort(),
+    ["AI", "biology"],
+    "folder set: only files in that folder"
+  );
+
+  // No folder configured: fall back to scanning the whole vault by prefix.
+  assert.deepStrictEqual(
+    scopedNames(withPaths, "≈", "").sort(),
+    ["AI", "AI", "biology"],
+    "no folder set: whole vault by prefix"
+  );
+}
+
 const grouped = groupByName(files, PREFIX);
 const names = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
 

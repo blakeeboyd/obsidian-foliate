@@ -1,5 +1,5 @@
 import { App, Editor, Notice, TFile, Vault, moment, apiVersion } from "obsidian";
-import { TaxaMapping, FoliateSettings } from "../types";
+import { TaxaMapping, FoliateSettings, INLINE_ACTION_OPTIONS } from "../types";
 import { stripPrefix } from "../taxa";
 
 /**
@@ -148,6 +148,9 @@ export async function buildDebugReport(
   const templaterVersion = templater?.manifest?.version ?? "";
   const lines: string[] = [];
   const problems: string[] = [];
+  // Set when a template needs Templater and it isn't installed, so the fix can
+  // be suggested once rather than per affected taxon.
+  let templaterProblem = false;
 
   lines.push("Foliate debug report");
   lines.push(
@@ -186,14 +189,14 @@ export async function buildDebugReport(
 
     if (!taxon.template) {
       lines.push(`  ${id}: folder=${folder} template=(none set)`);
-      problems.push(`${id}: no template configured, so new files are created empty.`);
+      problems.push(`${id}: no template configured; new files are created empty`);
       continue;
     }
 
     const file = resolveTemplateFile(app, taxon.template);
     if (!file) {
       lines.push(`  ${id}: folder=${folder} template=${taxon.template} -> NOT FOUND`);
-      problems.push(`${id}: template "${taxon.template}" does not resolve to any file.`);
+      problems.push(`${id}: template "${taxon.template}" does not resolve to a file`);
       continue;
     }
 
@@ -206,38 +209,60 @@ export async function buildDebugReport(
         ` (${raw.length} chars${usesTemplater ? ", uses Templater <% %>" : ""})`
     );
     if (raw.trim() === "") {
-      problems.push(`${id}: template "${file.path}" is empty, so new files come out empty.`);
+      problems.push(`${id}: template "${file.path}" is empty; new files are created empty`);
     }
     if (usesTemplater && !templater) {
+      templaterProblem = true;
       problems.push(
-        `${id}: template uses Templater <% %> syntax but Templater is not installed, so it is written unprocessed.`
+        `${id}: template uses <% %> but Templater is not installed; written unprocessed`
       );
     }
     if (!folderExists && !settings.createFolderIfMissing) {
-      problems.push(`${id}: folder "${folder}" does not exist and "create folders if missing" is off.`);
+      problems.push(`${id}: folder "${folder}" does not exist; createFolderIfMissing=false`);
     }
   }
 
-  // Every file carrying the domain prefix, grouped by the name the picker shows.
-  // Names that look identical on screen can differ by trailing whitespace, a
-  // non-breaking space, or Unicode normalization (NFC vs NFD), so escapeName
-  // makes those visible: a duplicate row in the picker is only diagnosable if
-  // the report distinguishes "same name, two files" from "two names that render
-  // the same".
-  const domainPrefix = settings.domain.prefix;
-  const domainFiles = app.vault
-    .getMarkdownFiles()
-    .filter((f) => f.basename.startsWith(domainPrefix));
+  // Taxa file counts, plus any name carried by more than one file. Covers every
+  // taxon, not just domains: a duplicate name is ambiguous for a link wherever
+  // it occurs. Listing every taxa file would run to thousands of lines, so only
+  // the duplicates are named.
+  //
+  // Names are escaped so invisible differences show: two files that look
+  // identically named can differ by a trailing space, a non-breaking space, or
+  // Unicode normalization (NFC vs NFD), and that distinction is the difference
+  // between "one name, two files" and "two names that render alike".
+  const allTaxa = [...settings.taxaMappings, settings.domain];
+  const sortedTaxa = [...allTaxa].sort((a, b) => b.prefix.length - a.prefix.length);
+
+  const filesByTaxon = new Map<TaxaMapping, TFile[]>(allTaxa.map((t) => [t, []]));
+  for (const f of app.vault.getMarkdownFiles()) {
+    const taxon = sortedTaxa.find((t) => t.prefix && f.basename.startsWith(t.prefix));
+    if (taxon) filesByTaxon.get(taxon)!.push(f);
+  }
 
   lines.push("");
-  lines.push(`Domain files (${domainFiles.length}):`);
+  lines.push("Taxa files:");
+  let misplacedCount = 0;
+  for (const taxon of allTaxa) {
+    const files = filesByTaxon.get(taxon)!;
+    const folder = taxon.folder?.trim();
+    const outside = folder ? files.filter((f) => f.parent?.path !== folder).length : 0;
+    misplacedCount += outside;
+    lines.push(
+      `  ${taxon.label} (prefix ${taxon.prefix}): ${files.length} files` +
+        (outside > 0 ? `, ${outside} outside ${folder}` : "")
+    );
+  }
+  // The remedy sits with the finding rather than in a list at the end. Phrased
+  // as a fix reference, not a sentence of advice: this is a technical report.
 
-  if (domainFiles.length === 0) {
-    lines.push("  (none)");
-  } else {
+  // Duplicates, across every taxon. Only counted here: the command's modal lists
+  // the offending paths, so repeating them in the report is noise.
+  let duplicateCount = 0;
+  for (const taxon of allTaxa) {
     const byName = new Map<string, TFile[]>();
-    for (const f of domainFiles) {
-      const name = f.basename.slice(domainPrefix.length);
+    for (const f of filesByTaxon.get(taxon)!) {
+      const name = stripPrefix(f.basename, taxon);
       const group = byName.get(name);
       if (group) group.push(f);
       else byName.set(name, [f]);
@@ -245,22 +270,13 @@ export async function buildDebugReport(
 
     for (const name of [...byName.keys()].sort((a, b) => a.localeCompare(b))) {
       const group = byName.get(name)!;
-      const dup = group.length > 1 ? `  <-- ${group.length} FILES SHARE THIS NAME` : "";
-      lines.push(`  "${escapeName(name)}"${dup}`);
-      for (const f of group) lines.push(`      ${f.path}`);
-      if (group.length > 1) {
-        problems.push(
-          `${group.length} domain files share the name "${name}", so the picker lists it more than once ` +
-            `and a bare [[${domainPrefix}${name}]] link cannot address one of them: ${group
-              .map((f) => f.path)
-              .join(", ")}`
-        );
-      }
+      if (group.length < 2) continue;
+      duplicateCount++;
     }
 
     // Names that differ only by case, whitespace, or Unicode form render alike
-    // in the picker but are distinct strings, so the grouping above keeps them
-    // apart. Flag them separately or they read as an unexplained duplicate.
+    // but are distinct strings, so the grouping above keeps them apart. Flag
+    // them separately or they read as an unexplained duplicate.
     const byLoose = new Map<string, string[]>();
     for (const name of byName.keys()) {
       const loose = name.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
@@ -268,35 +284,177 @@ export async function buildDebugReport(
       if (group) group.push(name);
       else byLoose.set(loose, [name]);
     }
-    for (const [loose, variants] of byLoose) {
+    for (const variants of byLoose.values()) {
       if (variants.length < 2) continue;
       problems.push(
-        `Domain names that render alike but are different strings (${loose}): ` +
-          variants.map((v) => `"${escapeName(v)}"`).join(" vs ")
+        `${taxon.label}: names differ only by invisible characters: ` +
+          variants.map((v) => escapeName(taxon.prefix + v)).join(" | ")
       );
     }
   }
 
+  // Findings get one section each, in the order they should be acted on:
+  // duplicates first, since resolving one also places the file it keeps.
   lines.push("");
-  lines.push(problems.length ? "Problems found:" : "Problems found: none");
-  problems.forEach((p) => lines.push(`  - ${p}`));
+  if (duplicateCount === 0) {
+    lines.push("Duplicate names: none");
+  } else {
+    lines.push(`Duplicate names: ${duplicateCount}`);
+    lines.push(`  fix: command "Find misplaced and duplicate taxa files" > Resolve`);
+  }
+
+  lines.push("");
+  if (misplacedCount === 0) {
+    lines.push("Misplaced files: none");
+  } else {
+    lines.push(`Misplaced files: ${misplacedCount} (a subfolder of the taxon folder counts as outside)`);
+    lines.push(`  fix: command "Find misplaced and duplicate taxa files" > Move all`);
+  }
+
+  // Configuration faults that produce no visible error: the plugin simply does
+  // nothing, or something other than what was configured. These are the states
+  // a bug report can't describe ("it isn't working") but the report can name.
+  const configured = allTaxa.filter((t) => t.prefix);
+
+  // A taxon with no folder never auto-moves and creates files at the vault root.
+  for (const taxon of configured) {
+    if (!taxon.folder?.trim()) {
+      problems.push(`${taxon.label} (prefix ${taxon.prefix}): no folder set; auto-move is inert, files land at vault root`);
+    }
+  }
+
+  // An empty prefix can't identify a taxon, so its files are never recognized.
+  for (const taxon of allTaxa) {
+    if (!taxon.prefix) {
+      problems.push(`${taxon.label}: no prefix set; this taxon matches nothing`);
+    }
+  }
+
+  // Two taxa on one prefix: whichever sorts first wins every lookup.
+  const byPrefix = new Map<string, string[]>();
+  for (const taxon of configured) {
+    const list = byPrefix.get(taxon.prefix);
+    if (list) list.push(taxon.label);
+    else byPrefix.set(taxon.prefix, [taxon.label]);
+  }
+  for (const [prefix, labels] of byPrefix) {
+    if (labels.length > 1) {
+      problems.push(`prefix "${prefix}" used by ${labels.length} taxa (${labels.join(", ")}); only one can match`);
+    }
+  }
+
+  // Nested taxa folders: a file under both matches whichever is checked first.
+  for (const a of configured) {
+    const af = a.folder?.trim();
+    if (!af) continue;
+    for (const b of configured) {
+      const bf = b.folder?.trim();
+      if (!bf || a === b) continue;
+      if (bf.startsWith(af + "/")) {
+        problems.push(`${b.label} folder "${bf}" is inside ${a.label} folder "${af}"; files match both taxa`);
+      }
+    }
+  }
+
+  // Folder configured but absent, with no auto-creation to cover it.
+  for (const taxon of configured) {
+    const folder = taxon.folder?.trim();
+    if (folder && !app.vault.getAbstractFileByPath(folder) && !settings.createFolderIfMissing) {
+      problems.push(`${taxon.label}: folder "${folder}" does not exist; createFolderIfMissing=false`);
+    }
+  }
+
+  // Inline-action ids the renderer doesn't know: the button never appears.
+  const knownActions = new Set(INLINE_ACTION_OPTIONS.map((o) => o.id));
+  const unknownActions = (settings.inlineActions ?? []).filter((id) => !knownActions.has(id));
+  if (unknownActions.length > 0) {
+    problems.push(
+      `inlineActions contains unknown id(s): ${unknownActions.join(", ")}; ` +
+        `no button is rendered for them (known: ${[...knownActions].join(", ")})`
+    );
+  }
+
+  // Context-aware entries whose file is gone: the gating silently stops applying.
+  const staleContext = Object.keys(settings.contextAware ?? {}).filter(
+    (path) => !(app.vault.getAbstractFileByPath(path) instanceof TFile)
+  );
+  if (staleContext.length > 0) {
+    problems.push(
+      `contextAware has ${staleContext.length} entr${staleContext.length === 1 ? "y" : "ies"} for missing files: ` +
+        staleContext.slice(0, 5).join(", ") +
+        (staleContext.length > 5 ? `, +${staleContext.length - 5} more` : "")
+    );
+  }
+
+  // Context-aware entries that gate nothing are inert config.
+  const emptyGates = Object.entries(settings.contextAware ?? {}).filter(
+    ([, cfg]) => (cfg?.gatedAliases ?? []).length === 0
+  ).length;
+  if (emptyGates > 0) {
+    problems.push(`contextAware has ${emptyGates} entr${emptyGates === 1 ? "y" : "ies"} with no gated terms; they gate nothing`);
+  }
+
+  // Blocklist terms matching no current taxa file: leftover suppression.
+  if ((settings.blocklist ?? []).length > 0) {
+    const allTerms = new Set<string>();
+    for (const taxon of allTaxa) {
+      for (const f of filesByTaxon.get(taxon) ?? []) {
+        allTerms.add(stripPrefix(f.basename, taxon).toLowerCase());
+      }
+    }
+    const deadBlocks = settings.blocklist.filter((b) => !allTerms.has(b.toLowerCase()));
+    if (deadBlocks.length > 0) {
+      problems.push(
+        `blocklist has ${deadBlocks.length} term(s) matching no taxa file: ` +
+          deadBlocks.slice(0, 5).join(", ") +
+          (deadBlocks.length > 5 ? `, +${deadBlocks.length - 5} more` : "")
+      );
+    }
+  }
+
+  // Duplicates are NOT added to `problems`: they have their own section above.
+  // "Problems found" is for faults with no section of their own.
+  lines.push("");
+  if (problems.length === 0) {
+    lines.push("Problems found: none");
+  } else {
+    lines.push("Problems found:");
+    if (templaterProblem) {
+      lines.push("  fix: install Templater, or remove <% %> syntax from the templates");
+    }
+    problems.forEach((p) => lines.push(`  - ${p}`));
+  }
 
   return lines.join("\n");
 }
 
 /**
- * Render a name so invisible differences survive a copy-paste: non-ASCII
- * characters become \uXXXX escapes and spaces are marked, so a trailing space or
- * a decomposed accent is visible in a pasted bug report.
+ * Render a name so invisible differences survive a copy-paste, while leaving
+ * legible characters alone.
+ *
+ * Only characters you cannot see are escaped: control characters, zero-width
+ * marks, combining marks (a decomposed accent), and non-standard spaces. Taxa
+ * prefixes (©, ≈, ∞) and accented letters (Jünglinge, Orphée) are ordinary
+ * content and stay readable. Escaping every non-ASCII character turned normal
+ * names into "©Gesang der Jünglinge", which hid the very differences
+ * this is meant to reveal.
  */
 function escapeName(name: string): string {
+  const esc = (cp: number) => `\\u${cp.toString(16).padStart(4, "0")}`;
+
   return [...name]
     .map((ch) => {
       const cp = ch.codePointAt(0)!;
-      if (ch === " ") return " ";
-      if (cp < 0x20 || cp > 0x7e) {
-        return `\\u${cp.toString(16).padStart(4, "0")}`;
+      // Control characters.
+      if (cp < 0x20 || cp === 0x7f) return esc(cp);
+      // Any whitespace that isn't a plain space: NBSP, thin, ideographic.
+      if (ch !== " " && /\s/.test(ch)) return esc(cp);
+      // Zero-width space/non-joiner/joiner, directional marks, BOM.
+      if ((cp >= 0x200b && cp <= 0x200f) || (cp >= 0x202a && cp <= 0x202e) || cp === 0xfeff) {
+        return esc(cp);
       }
+      // Combining marks: the tell for NFD, where "e" plus U+0301 renders as "é".
+      if (/\p{Mn}/u.test(ch)) return esc(cp);
       return ch;
     })
     .join("")
@@ -437,4 +595,119 @@ export async function ensureFolderExists(
       await vault.createFolder(current);
     }
   }
+}
+
+/**
+ * A taxa or domain file that carries a taxon's prefix but doesn't live in that
+ * taxon's folder. Auto-move handles this on create and rename, so a stray file
+ * means it was moved by hand, created before the folder was configured, or
+ * arrived through Sync from a vault with different settings.
+ */
+export interface MisplacedFile {
+  file: TFile;
+  taxon: TaxaMapping;
+  currentFolder: string;
+  targetFolder: string;
+  /** A file already sits at the target path, so moving would collide. */
+  blocked: boolean;
+}
+
+/**
+ * Find every taxa or domain file that isn't in its taxon's folder.
+ *
+ * Taxa with no configured folder are skipped: with no target there is nowhere
+ * for a file to be misplaced from. The domain is included alongside the regular
+ * taxa, since it has the same shape and the same folder expectation.
+ */
+export function findMisplacedTaxaFiles(
+  app: App,
+  settings: FoliateSettings
+): MisplacedFile[] {
+  const taxa = [...settings.taxaMappings, settings.domain].filter((t) => t.folder?.trim());
+  if (taxa.length === 0) return [];
+
+  const misplaced: MisplacedFile[] = [];
+  for (const file of app.vault.getMarkdownFiles()) {
+    // Longest prefix first, so a multi-character prefix isn't shadowed by a
+    // single-character one that happens to be its first character.
+    const taxon = [...taxa]
+      .sort((a, b) => b.prefix.length - a.prefix.length)
+      .find((t) => file.basename.startsWith(t.prefix));
+    if (!taxon) continue;
+
+    const target = taxon.folder.trim();
+    const current = file.parent?.path ?? "/";
+    if (current === target) continue;
+
+    misplaced.push({
+      file,
+      taxon,
+      currentFolder: current,
+      targetFolder: target,
+      blocked: !!app.vault.getAbstractFileByPath(`${target}/${file.name}`),
+    });
+  }
+  return misplaced.sort(
+    (a, b) => a.taxon.label.localeCompare(b.taxon.label) || a.file.basename.localeCompare(b.file.basename)
+  );
+}
+
+/**
+ * Two or more taxa/domain files sharing a name in different folders.
+ *
+ * A wikilink like [[≈AI]] carries no path, so with two ≈AI files Obsidian
+ * resolves it to whichever it finds first: membership and links can silently
+ * attach to the wrong file, and pickers list the name twice. Files in the same
+ * folder can't collide (the filesystem forbids it), so a duplicate is always
+ * cross-folder.
+ */
+export interface DuplicateTaxaName {
+  /** The shared basename, prefix included (e.g. "≈AI"). */
+  name: string;
+  taxon: TaxaMapping;
+  files: TFile[];
+  /** The copy in the taxon's folder, if exactly one of them is there. */
+  canonical: TFile | null;
+}
+
+/**
+ * Find taxa and domain files that share a name across folders.
+ *
+ * Unlike findMisplacedTaxaFiles, this does not need a configured folder: two
+ * files with the same name are ambiguous wherever they live. When the taxon does
+ * have a folder and exactly one copy is in it, that copy is reported as the
+ * canonical one, which is the answer to "which of these should I keep".
+ */
+export function findDuplicateTaxaNames(
+  app: App,
+  settings: FoliateSettings
+): DuplicateTaxaName[] {
+  const taxa = [...settings.taxaMappings, settings.domain];
+  // Longest prefix first so a multi-character prefix isn't shadowed.
+  const sorted = [...taxa].sort((a, b) => b.prefix.length - a.prefix.length);
+
+  const byName = new Map<string, { taxon: TaxaMapping; files: TFile[] }>();
+  for (const file of app.vault.getMarkdownFiles()) {
+    const taxon = sorted.find((t) => t.prefix && file.basename.startsWith(t.prefix));
+    if (!taxon) continue;
+    const entry = byName.get(file.basename);
+    if (entry) entry.files.push(file);
+    else byName.set(file.basename, { taxon, files: [file] });
+  }
+
+  const dupes: DuplicateTaxaName[] = [];
+  for (const [name, { taxon, files }] of byName) {
+    if (files.length < 2) continue;
+    const folder = taxon.folder?.trim();
+    const inFolder = folder ? files.filter((f) => f.parent?.path === folder) : [];
+    dupes.push({
+      name,
+      taxon,
+      files: [...files].sort((a, b) => a.path.localeCompare(b.path)),
+      canonical: inFolder.length === 1 ? inFolder[0] : null,
+    });
+  }
+  return dupes.sort(
+    (a, b) => a.taxon.label.localeCompare(b.taxon.label) || a.name.localeCompare(b.name)
+  );
 }

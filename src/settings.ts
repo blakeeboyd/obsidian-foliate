@@ -892,6 +892,49 @@ export class FoliateSettingTab extends PluginSettingTab {
 
     el.appendChild(contextFilesRow);
     renderContextFilesRow();
+
+    new Setting(el)
+      .setName("Match surnames after a full name")
+      .setDesc(
+        "In a note that already mentions someone's full name, a later bare surname counts as a mention of them: \"Dostoevsky\" after \"Vladimir Dostoevsky\". Applies to one taxon, since only names split this way. A surname shared by two people in the same note is skipped."
+      )
+      .addDropdown((dd) => {
+        dd.addOption("", "Off");
+        for (const t of this.plugin.settings.taxaMappings) {
+          if (t.prefix) dd.addOption(t.prefix, `${t.prefix} ${t.label}`);
+        }
+        dd.setValue(this.plugin.settings.surnameMatchPrefix ?? "").onChange(async (value) => {
+          this.plugin.settings.surnameMatchPrefix = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        });
+      });
+
+    new Setting(el)
+      .setName("Match acronyms a note declares")
+      .setDesc(
+        "When a note writes a link followed by a parenthesised acronym, as in \"[[just noticeable difference]] (JND)\", later uses of that acronym in the same note count as mentions of that file. Only acronym-shaped parentheticals qualify, so editorial asides like \"(concept)\" are ignored. Right-click a match to save it as a permanent alias."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.matchDeclaredAcronyms).onChange(async (value) => {
+          this.plugin.settings.matchDeclaredAcronyms = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
+      .setName("Show hidden connections")
+      .setDesc(
+        "Add a collapsed \"Hidden connections\" section to the sidebar listing mentions that context gating withheld from the current note, and why. Use it to check the gating is making the calls you expect."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showHiddenConnections).onChange(async (value) => {
+          this.plugin.settings.showHiddenConnections = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
   }
 
   private addClickActionSetting(

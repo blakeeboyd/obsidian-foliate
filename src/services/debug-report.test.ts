@@ -11,15 +11,18 @@
 import * as assert from "assert";
 
 function escapeName(name: string): string {
+  const esc = (cp: number) => `\\u${cp.toString(16).padStart(4, "0")}`;
   return [...name]
     .map((ch) => {
       const cp = ch.codePointAt(0)!;
-      if (ch === " ") return " ";
-      if (cp < 0x20 || cp > 0x7e) return `\\u${cp.toString(16).padStart(4, "0")}`;
+      if (cp < 0x20 || cp === 0x7f) return esc(cp);
+      if (ch !== " " && /\s/.test(ch)) return esc(cp);
+      if ((cp >= 0x200b && cp <= 0x200f) || (cp >= 0x202a && cp <= 0x202e) || cp === 0xfeff) return esc(cp);
+      if (/\p{Mn}/u.test(ch)) return esc(cp);
       return ch;
     })
     .join("")
-    .replace(/^ | $/g, "␣");
+    .replace(/^ | $/g, "\u2423");
 }
 
 function diagnose(basenames: string[], prefix: string) {
@@ -86,5 +89,12 @@ assert.strictEqual(escapeName("AI "), "AI␣", "trailing space marked");
 assert.strictEqual(escapeName("computer science"), "computer\\u00a0science", "NBSP escaped");
 assert.strictEqual(escapeName("café"), "cafe\\u0301", "combining accent escaped");
 assert.strictEqual(escapeName("AI"), "AI", "plain ASCII untouched");
+// Visible non-ASCII is content, not a hidden difference: escaping it turned
+// "\u00a9Gesang der J\u00fcnglinge" into unreadable noise in a real report.
+assert.strictEqual(escapeName("\u00a9Orph\u00e9e"), "\u00a9Orph\u00e9e", "prefix and precomposed accent stay readable");
+assert.strictEqual(escapeName("\u2248AI"), "\u2248AI", "domain prefix stays readable");
+assert.strictEqual(escapeName("Gesang der J\u00fcnglinge"), "Gesang der J\u00fcnglinge", "umlaut stays readable");
+// Zero-width characters are invisible, so they must still be surfaced.
+assert.strictEqual(escapeName("A\u200bI"), "A\\u200bI", "zero-width space escaped");
 
 console.log("debug-report domain diagnostics: all assertions passed");

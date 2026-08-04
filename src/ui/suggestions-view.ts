@@ -2,10 +2,10 @@ import { Editor, ItemView, Menu, Notice, TFile, WorkspaceLeaf, MarkdownView, set
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type FoliatePlugin from "../main";
-import { UnlinkedMatch, TaxaMapping, MatchPosition } from "../types";
+import { UnlinkedMatch, TaxaMapping, MatchPosition, HiddenMatch } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
-import { createTaxaFile } from "../services/file-operations";
-import { mineContextTerms } from "../services/context-mining";
+import { createTaxaFile, addAliasToFile } from "../services/file-operations";
+import { mineContextTerms, fileTerms } from "../services/context-mining";
 import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
 
@@ -64,6 +64,10 @@ export class SuggestionsView extends ItemView {
   private jumpIndex: Map<string, number> = new Map();
   private scrollEl: HTMLElement | null = null;
   private scrollHandler: (() => void) | null = null;
+  // Hidden-connection groups already defaulted to collapsed this session, so a
+  // group the user deliberately expanded isn't re-collapsed on the next render.
+  private seenHiddenKeys: Set<string> = new Set();
+  private lastContent = "";
 
   constructor(leaf: WorkspaceLeaf, plugin: FoliatePlugin) {
     super(leaf);
@@ -745,6 +749,9 @@ export class SuggestionsView extends ItemView {
     }
 
     const content = await this.app.vault.cachedRead(file);
+    // Kept so the "Why is this shown?" report can re-check context terms against
+    // the same text the scan used, without another read.
+    this.lastContent = content;
     // When "Limit to visible area" is on, scope mentions to the editor viewport.
     const viewRange = this.plugin.settings.scopeToView ? this.visibleRange(file) : null;
 
@@ -795,13 +802,19 @@ export class SuggestionsView extends ItemView {
     // Layer 1: Unlinked Matches. Already-linked files are excluded here so a
     // file never appears in both sections; its unlinked alias occurrences
     // surface under Linked Mentions instead (when "Match aliases" is on).
+    // Collected only when the section is on, so the extra position scan for
+    // suppressed terms is skipped entirely when nobody will look at it.
+    const hiddenMatches: HiddenMatch[] = [];
     let unlinkedMatches = findUnlinkedMatches(
       this.app,
       content,
       file,
       this.plugin.settings.taxaMappings,
       false,
-      this.plugin.activeContextAware()
+      this.plugin.activeContextAware(),
+      this.plugin.settings.showHiddenConnections ? hiddenMatches : undefined,
+      this.plugin.surnameTaxon(),
+      this.plugin.settings.matchDeclaredAcronyms
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 
     // Scope to the viewport: keep only occurrences on screen, drop empty matches.
@@ -833,6 +846,10 @@ export class SuggestionsView extends ItemView {
       this.wireCollapseAll(collapseAllBtn, keys);
     }
 
+    // Hidden connections: mentions the gate found but withheld. Collapsed by
+    // default, so the gating stays out of the way while remaining inspectable.
+    this.renderHiddenConnections(container, hiddenMatches);
+
     // Backlinks: on a taxa/domain file, the other taxa/domain files that link to
     // it, grouped by type. Filters out source-note backlinks (the native pane
     // has those); shows the taxa relationships without the noise.
@@ -845,6 +862,125 @@ export class SuggestionsView extends ItemView {
     // can read 0 synchronously on the very first render).
     this.updateStickyOffsets();
     window.requestAnimationFrame(() => this.updateStickyOffsets());
+  }
+
+  /**
+   * Explain why a mention surfaced in this note: the data behind the decision,
+   * not just the verdict. Counterpart to the Hidden connections section, which
+   * explains the withheld ones.
+   *
+   * Today the gate has one input (hand-entered context terms), so the report is
+   * short. It is written to grow: as mined signals land, each contributes a line
+   * here, which is what makes the scoring inspectable rather than a black box.
+   */
+  /**
+   * Whether the text that surfaced this row is one of the file's own terms (its
+   * name or a saved alias). False means a note-local rule matched it: a declared
+   * acronym or a second-reference surname. Those are the ones worth offering to
+   * save as an alias, since saving an existing term would be a no-op.
+   */
+  private isOwnTerm(match: UnlinkedMatch): boolean {
+    const file = this.app.vault.getAbstractFileByPath(match.filePath);
+    if (!(file instanceof TFile)) return true;
+    const terms = fileTerms(this.app, file, match.taxon).map((t) => t.toLowerCase());
+    return terms.includes(match.matchText.toLowerCase());
+  }
+
+  private explainMatch(match: UnlinkedMatch) {
+    const lines: string[] = [];
+    const gate = this.plugin.activeContextAware()[match.filePath];
+
+    lines.push(`${match.fileName} — ${match.positions.length} mention${match.positions.length === 1 ? "" : "s"} in this note`);
+
+    if (!this.plugin.settings.contextAwareEnabled) {
+      lines.push("Context gating is off, so every match surfaces.");
+    } else if (!gate) {
+      lines.push("Not context-gated: its terms always surface when they match.");
+    } else if (this.isTermGated(match)) {
+      const present = (gate.terms ?? []).filter(
+        (t) => t.length >= 2 && findUnlinkedPositions(this.lastContent, t).length > 0
+      );
+      lines.push(`"${match.matchText}" is context-gated for this file.`);
+      lines.push(
+        present.length > 0
+          ? `Shown because this note mentions: ${present.slice(0, 8).join(", ")}${present.length > 8 ? ", …" : ""}`
+          : "Shown because a related term was found in this note."
+      );
+    } else {
+      const gated = gate.gatedAliases ?? [];
+      lines.push(
+        gated.length > 0
+          ? `"${match.matchText}" is not gated for this file (gated: ${gated.join(", ")}), so it always surfaces.`
+          : "This file has a context entry but gates no terms, so everything surfaces."
+      );
+    }
+
+    new Notice(lines.join("\n"), 10000);
+  }
+
+  /**
+   * Render "Hidden connections": mentions found in the note that the context
+   * gate withheld. Without this, a gated mention just vanishes and there is no
+   * way to tell a deliberate decision from a bug, or to notice a connection the
+   * gate got wrong. Each row names the reason, so the gating is inspectable
+   * without being intrusive: the section is collapsed unless expanded, and off
+   * entirely unless the setting is on.
+   */
+  private renderHiddenConnections(container: HTMLElement, hidden: HiddenMatch[]) {
+    if (!this.plugin.settings.showHiddenConnections || hidden.length === 0) return;
+
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Hidden connections");
+    section.addClass("foliate-hidden-section");
+
+    const grouped = new Map<TaxaMapping, HiddenMatch[]>();
+    for (const h of hidden) {
+      const list = grouped.get(h.taxon);
+      if (list) list.push(h);
+      else grouped.set(h.taxon, [h]);
+    }
+
+    for (const [taxon, items] of grouped) {
+      const key = `hidden:${taxon.prefix} ${taxon.label}`;
+      keys.push(key);
+      const groupContent = this.makeTaxaGroup(section, key, `${taxon.prefix} ${taxon.label}`);
+
+      for (const item of [...items].sort((a, b) => b.occurrences - a.occurrences)) {
+        const row = groupContent.createDiv("foliate-row foliate-hidden-row");
+        row.dataset.search = `${item.fileName} ${item.filePath}`.toLowerCase();
+
+        const title = row.createDiv("foliate-hidden-title");
+        title.createSpan({ text: item.fileName });
+        title.createSpan({
+          cls: "foliate-hidden-count",
+          text: item.occurrences === 1 ? "1 mention" : `${item.occurrences} mentions`,
+        });
+        row.createDiv({ cls: "foliate-hidden-reason", text: item.detail });
+
+        // Opening the file is the fix path: the user judges the call and edits
+        // the file's context terms if the gate got it wrong.
+        row.addEventListener("click", () => {
+          const f = this.app.vault.getAbstractFileByPath(item.filePath);
+          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+        });
+      }
+    }
+
+    // Collapsed on first sight: visible when looked for, quiet otherwise.
+    const stored = new Set(this.plugin.settings.collapsedCategories);
+    let changed = false;
+    for (const k of keys) {
+      if (!stored.has(k) && !this.seenHiddenKeys.has(k)) {
+        stored.add(k);
+        this.seenHiddenKeys.add(k);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.plugin.settings.collapsedCategories = [...stored];
+      void this.plugin.saveSettings();
+    }
+
+    this.wireCollapseAll(collapseAllBtn, keys);
   }
 
   /**
@@ -1191,8 +1327,43 @@ export class SuggestionsView extends ItemView {
       icon: "external-link",
       run: () => this.app.workspace.openLinkText(match.fileName, noteFile.path, false),
     });
+    // The matched text isn't one of the file's own terms, so it surfaced only
+    // because this note established it: an acronym the note declares, or a
+    // surname after the full name. Saving it as an alias makes it match
+    // everywhere, which is the durable version of what the note did locally.
+    if (!this.isOwnTerm(match)) {
+      rowActions.push({
+        id: "alias",
+        label: `Add "${match.matchText}" as an alias`,
+        icon: "plus-circle",
+        inline: false,
+        separatorBefore: true,
+        run: async () => {
+          const file = this.app.vault.getAbstractFileByPath(match.filePath);
+          if (!(file instanceof TFile)) return;
+          await addAliasToFile(this.app, file, match.matchText);
+          new Notice(`Added "${match.matchText}" as an alias of ${file.basename}.`);
+          this.refresh();
+        },
+      });
+    }
+
     // Experimental: the context-aware action only appears when the feature is
     // enabled, so the whole feature is dormant (no entry point) when off.
+    if (this.plugin.settings.showHiddenConnections) {
+      rowActions.push({
+        // The counterpart to the Hidden connections section: that explains what
+        // was withheld, this explains what was shown. Together they make every
+        // gating decision on the note inspectable from the row it concerns.
+        id: "why",
+        label: "Why is this shown?",
+        icon: "help-circle",
+        inline: false,
+        separatorBefore: true,
+        run: () => this.explainMatch(match),
+      });
+    }
+
     if (this.plugin.settings.contextAwareEnabled) {
       rowActions.push({
         // Gate the specific term that surfaced this row in THIS note (the

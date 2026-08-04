@@ -4,6 +4,52 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Find misplaced and duplicate taxa files**, a new command. It reports taxa and
+  domain files that aren't in their taxon's folder, and names used by more than
+  one file. Misplaced files can be moved one at a time or all at once. A
+  duplicated name opens a side-by-side comparison of the copies, each showing its
+  folder, how many notes link to it, and its content. Keep one and the rest go to
+  your vault trash, where you can still recover them, and the one you kept moves
+  into the taxon folder.
+- **Surnames count as mentions once a full name appears.** In a note that already
+  mentions "Vladimir Dostoevsky", a later bare "Dostoevsky" surfaces as a mention
+  of that file, with no alias needed. Only within that note, and only for the
+  taxon you pick under Settings (People by default). A surname shared by two
+  people in the same note is left alone rather than guessed at, and matching is
+  case-sensitive, so someone surnamed Wood doesn't match "a wood floor".
+- **Acronyms a note declares are honored for that note.** Writing
+  "[[just noticeable difference]] (JND)" means later uses of JND in that note
+  surface as mentions of it. Only acronym-shaped parentheticals count, so notes
+  like "(concept)" or "(status: final)" are ignored.
+- **Add an alias**, a right-click action on any mention that surfaced from a
+  surname or a declared acronym. It saves that text to the file's aliases, so
+  what one note established starts matching everywhere.
+- **Hidden connections** (off by default), a sidebar section listing mentions
+  that context gating withheld from the current note, and why. There is also a
+  "Why is this shown?" action on any row, explaining what let it through. Turn
+  both on under Settings → Experimental.
+
+### Changed
+
+- The debug report opens in a window instead of going straight to the clipboard,
+  with a copy button. It now reports how many files each taxon has and how many
+  sit outside its folder, how many names are duplicated, and the command that
+  fixes each. It also flags configuration that silently does nothing: a taxon
+  with no folder or no prefix, two taxa sharing a prefix, one taxon's folder
+  nested inside another's, inline actions that no longer exist, context-aware
+  entries pointing at deleted files or gating no terms, and blocklist entries
+  matching nothing.
+- Selecting text that matches several taxa files now asks which one to link.
+  Selecting text that matches none exactly but is the start of some (typing
+  "Sarah" with three Sarahs in the vault) offers those before creating a new
+  file. Both cases previously went straight to creating another file.
+- The "Add to domain" list only shows files from the domain folder when one is
+  configured, so a stray copy elsewhere in the vault is no longer offered.
+
 ## 0.5.1 - 2026-08-04
 
 ### Fixed

@@ -1,5 +1,5 @@
 import { App, TFile, CachedMetadata } from "obsidian";
-import { TaxaMapping, UnlinkedMatch, MatchPosition, ContextConfig } from "../types";
+import { TaxaMapping, UnlinkedMatch, MatchPosition, ContextConfig, HiddenMatch } from "../types";
 import { stripPrefix } from "../taxa";
 
 /**
@@ -21,7 +21,12 @@ export function findUnlinkedMatches(
   noteFile: TFile,
   taxaMappings: TaxaMapping[],
   includeLinkedFiles = false,
-  contextAware: Record<string, ContextConfig> = {}
+  contextAware: Record<string, ContextConfig> = {},
+  hidden?: HiddenMatch[],
+  /** Taxon whose files get second-reference surname matching (People). */
+  surnameTaxon?: TaxaMapping,
+  /** Honor acronyms the note declares as "[[term]] (ACRONYM)". */
+  matchDeclaredAcronyms = false
 ): UnlinkedMatch[] {
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
@@ -45,6 +50,9 @@ export function findUnlinkedMatches(
       if (!includeLinkedFiles && alreadyLinked.has(taxaFile.path)) continue;
 
       const gate = contextAware[taxaFile.path];
+      // Only collect suppressions when the caller asked for them and this file
+      // is actually gated, so an ungated file costs nothing extra.
+      const suppressed = hidden && gate ? { terms: [] as string[], occurrences: 0 } : undefined;
       const positions = findFileMatchPositions(
         app,
         noteContent,
@@ -52,7 +60,8 @@ export function findUnlinkedMatches(
         taxon,
         bodyStart,
         excluded,
-        gate
+        gate,
+        suppressed
       );
       if (positions.length > 0) {
         matches.push({
@@ -64,12 +73,186 @@ export function findUnlinkedMatches(
           positions,
         });
       }
+      // A file can surface some terms and have others withheld, so report the
+      // suppression regardless of whether anything else matched.
+      if (hidden && suppressed && suppressed.terms.length > 0) {
+        hidden.push({
+          filePath: taxaFile.path,
+          fileName: taxaFile.basename,
+          alias: stripPrefix(taxaFile.basename, taxon),
+          taxon,
+          hiddenTerms: suppressed.terms,
+          occurrences: suppressed.occurrences,
+          reason: "context-gate",
+          detail:
+            `"${suppressed.terms.join('", "')}" is context-gated for this file, and this note ` +
+            `mentions none of its related terms` +
+            (gate?.terms?.length ? ` (${gate.terms.slice(0, 6).join(", ")}${gate.terms.length > 6 ? ", …" : ""})` : ""),
+        });
+      }
     }
+  }
+
+  if (surnameTaxon) {
+    addSurnameMatches(app, noteContent, matches, alreadyLinked, filesByFolder, surnameTaxon, excluded, bodyStart);
+  }
+
+  if (matchDeclaredAcronyms) {
+    addAcronymMatches(app, noteContent, matches, noteFile, taxaMappings, excluded, bodyStart);
   }
 
   // Sort by number of occurrences descending
   matches.sort((a, b) => b.positions.length - a.positions.length);
   return matches;
+}
+
+/**
+ * Second-reference surnames: once a person's full name appears in a note, later
+ * bare surnames refer to them.
+ *
+ * Prose introduces someone as "Vladimir Dostoevsky" and calls them "Dostoevsky"
+ * from then on. The plain matcher misses those, since the file is named for the
+ * full name and most people files carry no surname alias. The evidence is local
+ * to the note, so nothing is configured and nothing leaks: the surname only
+ * matches where the full name established who is meant.
+ *
+ * Restricted to one taxon (People) because splitting on whitespace is a naming
+ * convention, not a general rule. "Delay" has no surname.
+ *
+ * A surname shared by two people present in the same note is skipped entirely
+ * rather than guessed, so this never links to the wrong person.
+ */
+function addSurnameMatches(
+  app: App,
+  noteContent: string,
+  matches: UnlinkedMatch[],
+  alreadyLinked: Set<string>,
+  filesByFolder: Map<TaxaMapping, TFile[]>,
+  taxon: TaxaMapping,
+  excluded: Region[],
+  bodyStart: number
+): void {
+  // Everyone the note establishes: linked, or already surfaced as a mention.
+  const present = new Map<string, TFile>();
+  for (const file of filesByFolder.get(taxon) ?? []) {
+    if (alreadyLinked.has(file.path) || matches.some((m) => m.filePath === file.path)) {
+      present.set(file.path, file);
+    }
+  }
+  if (present.size === 0) return;
+
+  // Surname -> the files claiming it. More than one means ambiguous here.
+  const bySurname = new Map<string, TFile[]>();
+  for (const file of present.values()) {
+    const parts = stripPrefix(file.basename, taxon).trim().split(/\s+/);
+    if (parts.length < 2) continue; // single-word name has no separate surname
+    const surname = parts[parts.length - 1];
+    if (surname.length < 3) continue; // initials and particles are too noisy
+    const key = surname.toLowerCase();
+    const list = bySurname.get(key);
+    if (list) list.push(file);
+    else bySurname.set(key, [file]);
+  }
+
+  for (const [, files] of bySurname) {
+    if (files.length > 1) continue; // ambiguous in this note: skip, never guess
+    const file = files[0];
+    const surname = stripPrefix(file.basename, taxon).trim().split(/\s+/).pop()!;
+
+    // Case-sensitive: a surname is a proper noun, so "Wood" is the person and
+    // "wood" is lumber. Without this, common-word surnames flood any note that
+    // happens to mention the person once.
+    const positions = findUnlinkedPositions(noteContent, surname, excluded, true)
+      .filter((offset) => offset >= bodyStart)
+      .map((offset) => ({ offset, len: surname.length, surface: surname }));
+    if (positions.length === 0) continue;
+
+    // Fold into the file's existing row when it already has one, so a person
+    // appears once with all their occurrences rather than twice.
+    const existing = matches.find((m) => m.filePath === file.path);
+    if (existing) {
+      const seen = new Set(existing.positions.map((p) => p.offset));
+      const added = positions.filter((p) => !seen.has(p.offset));
+      if (added.length > 0) {
+        existing.positions = [...existing.positions, ...added].sort((a, b) => a.offset - b.offset);
+      }
+      continue;
+    }
+
+    matches.push({
+      matchText: surname,
+      filePath: file.path,
+      fileName: file.basename,
+      alias: stripPrefix(file.basename, taxon),
+      taxon,
+      positions,
+    });
+  }
+}
+
+/**
+ * Acronyms the note itself declares: a link immediately followed by a
+ * parenthesised short form, as in "[[+just noticeable difference]] (JND)".
+ *
+ * Technical writing introduces a term with its abbreviation once and uses the
+ * abbreviation thereafter. The declaration is written in the document, so this
+ * reads an equivalence the author stated rather than inferring one, and it holds
+ * only inside that note.
+ *
+ * Deliberately narrow. A parenthetical after a link is usually an editorial
+ * aside, not an alias: "(concept)", "(memory)", "(status: final)", a file path.
+ * Requiring acronym shape (uppercase initials, optional periods, optional
+ * trailing "s") excludes those, at the cost of missing lowercase glosses and
+ * foreign-language terms, which cannot be told apart from prose by shape alone.
+ */
+function addAcronymMatches(
+  app: App,
+  noteContent: string,
+  matches: UnlinkedMatch[],
+  noteFile: TFile,
+  taxaMappings: TaxaMapping[],
+  excluded: Region[],
+  bodyStart: number
+): void {
+  // [[target]] or [[target|alias]], then optional space, then (ACRONYM).
+  const declaration = /\[\[([^\]|#]+)(?:\|[^\]]*)?\]\] ?\(([A-Z][A-Za-z]*\.?(?:[A-Z]\.?){1,6}s?)\)/g;
+
+  for (const m of noteContent.matchAll(declaration)) {
+    const target = m[1].trim();
+    const acronym = m[2];
+
+    const dest = app.metadataCache.getFirstLinkpathDest(target, noteFile.path);
+    if (!dest || dest.path === noteFile.path) continue;
+    // Only taxa files: an acronym declared for an ordinary note isn't ours.
+    const taxon = taxaMappings.find((t) => t.folder?.trim() && dest.path.startsWith(t.folder.trim() + "/"));
+    if (!taxon) continue;
+
+    // Case-sensitive: "JND" is the abbreviation, "jnd" is not, and a lowercase
+    // match would fire inside unrelated words.
+    const positions = findUnlinkedPositions(noteContent, acronym, excluded, true)
+      .filter((offset) => offset >= bodyStart)
+      .map((offset) => ({ offset, len: acronym.length, surface: acronym }));
+    if (positions.length === 0) continue;
+
+    const existing = matches.find((x) => x.filePath === dest.path);
+    if (existing) {
+      const seen = new Set(existing.positions.map((p) => p.offset));
+      const added = positions.filter((p) => !seen.has(p.offset));
+      if (added.length > 0) {
+        existing.positions = [...existing.positions, ...added].sort((a, b) => a.offset - b.offset);
+      }
+      continue;
+    }
+
+    matches.push({
+      matchText: acronym,
+      filePath: dest.path,
+      fileName: dest.basename,
+      alias: stripPrefix(dest.basename, taxon),
+      taxon,
+      positions,
+    });
+  }
 }
 
 /**
@@ -90,6 +273,45 @@ export function findTaxaFilesByText(
     for (const file of getTaxaFiles(app, taxon)) {
       const terms = getSearchTerms(app, file, taxon).map((t) => t.toLowerCase());
       if (terms.includes(target)) hits.push({ file, taxon });
+    }
+  }
+  return hits;
+}
+
+/**
+ * Existing taxa files whose name or alias *begins* with `text` at a word
+ * boundary, excluding exact matches.
+ *
+ * The case this serves: selecting "Sarah" when the vault holds @Sarah Cavanagh
+ * and @Sarah Schnitker. Nothing matches exactly, so the plugin would offer to
+ * create a third Sarah, when the user almost certainly meant one of the two.
+ * The match is a prefix from the START of a term, so "Sarah" and even "Sar"
+ * offer "Sarah Cavanagh", while "arah" offers nothing and "act" never drags in
+ * "compact". Anchoring at the start (rather than requiring the prefix to end on
+ * a word boundary) is what makes partial typing work: "Sar" is exactly when a
+ * suggestion is most useful.
+ *
+ * Returns at most `limit` files, since this is a convenience prompt rather than
+ * a search: a selection matching dozens of files is too vague to disambiguate.
+ */
+export function findTaxaFilesByPartialText(
+  app: App,
+  text: string,
+  taxaMappings: TaxaMapping[],
+  limit = 12
+): { file: TFile; taxon: TaxaMapping }[] {
+  const target = text.trim().toLowerCase();
+  // Single characters match far too much to be a useful suggestion.
+  if (target.length < 2) return [];
+
+  const hits: { file: TFile; taxon: TaxaMapping }[] = [];
+  for (const taxon of taxaMappings) {
+    for (const file of getTaxaFiles(app, taxon)) {
+      const terms = getSearchTerms(app, file, taxon).map((t) => t.toLowerCase());
+      // Exact matches are the caller's other branch; only near-misses here.
+      if (terms.includes(target)) continue;
+      if (terms.some((t) => t.startsWith(target))) hits.push({ file, taxon });
+      if (hits.length >= limit) return hits;
     }
   }
   return hits;
@@ -125,7 +347,8 @@ export function findFileMatchPositions(
   taxon: TaxaMapping,
   bodyStart = 0,
   excludedRegions?: Region[],
-  gate?: ContextConfig
+  gate?: ContextConfig,
+  suppressed?: { terms: string[]; occurrences: number }
 ): MatchPosition[] {
   const searchTerms = getSearchTerms(app, taxaFile, taxon);
   const candidates: MatchPosition[] = [];
@@ -159,7 +382,20 @@ export function findFileMatchPositions(
 
   for (const term of searchTerms) {
     if (typeof term !== "string" || term.length < 2) continue;
-    if (isGatedTerm(term) && !noteHasContext()) continue;
+    if (isGatedTerm(term) && !noteHasContext()) {
+      // Withheld by the gate. Record what was suppressed so the sidebar can
+      // show it under Hidden connections instead of the match vanishing.
+      if (suppressed) {
+        const hits = findUnlinkedPositions(noteContent, term, excluded).filter(
+          (o) => o >= bodyStart
+        );
+        if (hits.length > 0) {
+          suppressed.terms.push(term);
+          suppressed.occurrences += hits.length;
+        }
+      }
+      continue;
+    }
 
     // Search both the bare term ("Paul Krugman") and the term carrying this
     // file's own taxon prefix ("@Paul Krugman"). The prefixed form matches only
@@ -302,12 +538,18 @@ function getSearchTerms(
 export function findUnlinkedPositions(
   text: string,
   term: string,
-  excluded?: Region[]
+  excluded?: Region[],
+  /**
+   * Require the occurrence to match the term's capitalization. Used for terms
+   * whose lowercase form is an ordinary word: a person surnamed Wood or Small
+   * should match "Wood" in prose but not "a wood floor".
+   */
+  caseSensitive = false
 ): number[] {
   const positions: number[] = [];
   const regions = excluded ?? findExcludedRegions(text);
-  const lowerText = text.toLowerCase();
-  const lowerTerm = term.toLowerCase();
+  const lowerText = caseSensitive ? text : text.toLowerCase();
+  const lowerTerm = caseSensitive ? term : term.toLowerCase();
   const termLen = term.length;
 
   let searchFrom = 0;
