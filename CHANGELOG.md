@@ -4,6 +4,24 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 - 2026-08-04
+
+### Fixed
+
+- The "Add to domain" list no longer shows the same domain twice. When more than
+  one file carries a domain name, the list now has a single row for it and names
+  the folders those files are in, so you can merge or rename them. A bare
+  `[[≈Name]]` link can't say which of two same-named files it means, so domain
+  membership could land in the wrong one.
+
+### Changed
+
+- The debug report now lists your domain files, grouped by name and with their
+  paths. Names are written so invisible differences show up: two domains that
+  look identical on screen but differ by a trailing space, a non-breaking space,
+  or an accent typed a different way are told apart. It flags both cases:
+  several files sharing one name, and names that only appear to match.
+
 ## 0.5.0 - 2026-07-14
 
 ### Added

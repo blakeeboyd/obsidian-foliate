@@ -218,11 +218,89 @@ export async function buildDebugReport(
     }
   }
 
+  // Every file carrying the domain prefix, grouped by the name the picker shows.
+  // Names that look identical on screen can differ by trailing whitespace, a
+  // non-breaking space, or Unicode normalization (NFC vs NFD), so escapeName
+  // makes those visible: a duplicate row in the picker is only diagnosable if
+  // the report distinguishes "same name, two files" from "two names that render
+  // the same".
+  const domainPrefix = settings.domain.prefix;
+  const domainFiles = app.vault
+    .getMarkdownFiles()
+    .filter((f) => f.basename.startsWith(domainPrefix));
+
+  lines.push("");
+  lines.push(`Domain files (${domainFiles.length}):`);
+
+  if (domainFiles.length === 0) {
+    lines.push("  (none)");
+  } else {
+    const byName = new Map<string, TFile[]>();
+    for (const f of domainFiles) {
+      const name = f.basename.slice(domainPrefix.length);
+      const group = byName.get(name);
+      if (group) group.push(f);
+      else byName.set(name, [f]);
+    }
+
+    for (const name of [...byName.keys()].sort((a, b) => a.localeCompare(b))) {
+      const group = byName.get(name)!;
+      const dup = group.length > 1 ? `  <-- ${group.length} FILES SHARE THIS NAME` : "";
+      lines.push(`  "${escapeName(name)}"${dup}`);
+      for (const f of group) lines.push(`      ${f.path}`);
+      if (group.length > 1) {
+        problems.push(
+          `${group.length} domain files share the name "${name}", so the picker lists it more than once ` +
+            `and a bare [[${domainPrefix}${name}]] link cannot address one of them: ${group
+              .map((f) => f.path)
+              .join(", ")}`
+        );
+      }
+    }
+
+    // Names that differ only by case, whitespace, or Unicode form render alike
+    // in the picker but are distinct strings, so the grouping above keeps them
+    // apart. Flag them separately or they read as an unexplained duplicate.
+    const byLoose = new Map<string, string[]>();
+    for (const name of byName.keys()) {
+      const loose = name.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+      const group = byLoose.get(loose);
+      if (group) group.push(name);
+      else byLoose.set(loose, [name]);
+    }
+    for (const [loose, variants] of byLoose) {
+      if (variants.length < 2) continue;
+      problems.push(
+        `Domain names that render alike but are different strings (${loose}): ` +
+          variants.map((v) => `"${escapeName(v)}"`).join(" vs ")
+      );
+    }
+  }
+
   lines.push("");
   lines.push(problems.length ? "Problems found:" : "Problems found: none");
   problems.forEach((p) => lines.push(`  - ${p}`));
 
   return lines.join("\n");
+}
+
+/**
+ * Render a name so invisible differences survive a copy-paste: non-ASCII
+ * characters become \uXXXX escapes and spaces are marked, so a trailing space or
+ * a decomposed accent is visible in a pasted bug report.
+ */
+function escapeName(name: string): string {
+  return [...name]
+    .map((ch) => {
+      const cp = ch.codePointAt(0)!;
+      if (ch === " ") return " ";
+      if (cp < 0x20 || cp > 0x7e) {
+        return `\\u${cp.toString(16).padStart(4, "0")}`;
+      }
+      return ch;
+    })
+    .join("")
+    .replace(/^ | $/g, "␣"); // open box marks a leading/trailing space
 }
 
 /**

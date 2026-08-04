@@ -65,7 +65,7 @@ Branch names: `type/short-desc`. Prefer Conventional Commit subjects (`feat:`, `
 
 ### Cutting a release (either mode)
 
-1. Move the `## Unreleased` notes in `CHANGELOG.md` under a new `## x.y.z - YYYY-MM-DD` heading (run `date` for the date).
+1. Move the `## Unreleased` notes in `CHANGELOG.md` under a new `## x.y.z - YYYY-MM-DD` heading (run `date` for the date). Write the notes per `docs/writing-release-notes.md` — lead with what the user sees, symptom-first for bug fixes.
 2. Bump the version in `manifest.json` and `package.json`, and add `"x.y.z": "<minAppVersion>"` to `versions.json`. Keep all three in sync.
 3. Commit and push to `main`.
 4. Tag and push: `git tag x.y.z && git push origin x.y.z`. No `v` prefix — the tag must equal `manifest.version`.
