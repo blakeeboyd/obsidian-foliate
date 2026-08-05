@@ -92,3 +92,60 @@ assert.deepStrictEqual(surnamesFor([]), []);
 }
 
 console.log("surname second-reference matching: all assertions passed");
+
+// ---- Never in both sections ----
+// A file must appear under Linked OR Unlinked Mentions, never both. An
+// already-linked person's bare surnames belong to their Linked row as unlinked
+// occurrences, so the unlinked scan must skip them.
+
+function unlinkedSurnameRows(presentNames: string[], linkedNames: string[]) {
+  const linked = new Set(linkedNames);
+  return surnamesFor(presentNames).filter((r) => !linked.has(r.person));
+}
+
+// The reported case: both people linked by full name, surnames used later.
+{
+  const present = ["Pierre Schaeffer", "Pierre Henry"];
+  const r = unlinkedSurnameRows(present, present);
+  assert.deepStrictEqual(r, [], "linked people produce no unlinked surname rows");
+}
+
+// A person mentioned but NOT linked still gets an unlinked row.
+{
+  const r = unlinkedSurnameRows(["Pierre Schaeffer", "Pierre Henry"], ["Pierre Schaeffer"]);
+  assert.deepStrictEqual(
+    r.map((x) => x.surname),
+    ["Henry"],
+    "only the unlinked person surfaces under Unlinked Mentions"
+  );
+}
+
+// A linked person still establishes the note, so an ambiguous surname shared
+// with an unlinked person is skipped rather than attributed to the wrong one.
+{
+  const r = unlinkedSurnameRows(["Blake Boyd", "Stowe Boyd"], ["Blake Boyd"]);
+  assert.deepStrictEqual(r, [], "shared surname stays ambiguous even when one is linked");
+}
+
+// The exclusion is for the SIDEBAR only. The link commands ask what a word
+// means, and there a linked person's surname must still resolve, or linking it
+// offers to create a new file instead.
+function surnamesForLinking(presentNames: string[], linkedNames: string[]) {
+  // excludeLinked=false: linked people keep their surname rows.
+  void linkedNames;
+  return surnamesFor(presentNames);
+}
+
+{
+  const present = ["Pierre Schaeffer", "Pierre Henry"];
+  const forSidebar = unlinkedSurnameRows(present, present);
+  const forLinking = surnamesForLinking(present, present);
+  assert.deepStrictEqual(forSidebar, [], "sidebar: no duplicate rows");
+  assert.deepStrictEqual(
+    forLinking.map((r) => r.surname).sort(),
+    ["Henry", "Schaeffer"],
+    "linking: a linked person's surname still resolves"
+  );
+}
+
+console.log("linked/unlinked exclusivity: all assertions passed");

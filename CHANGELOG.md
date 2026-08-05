@@ -11,27 +11,37 @@ All notable changes to Foliate are documented here. The format follows
 - **Find misplaced and duplicate taxa files**, a new command. It reports taxa and
   domain files that aren't in their taxon's folder, and names used by more than
   one file. Misplaced files can be moved one at a time or all at once. A
-  duplicated name opens a side-by-side comparison of the copies, each showing its
-  folder, how many notes link to it, and its content. Keep one and the rest go to
-  your vault trash, where you can still recover them, and the one you kept moves
-  into the taxon folder.
+  duplicated name has a Compare button that puts the copies side by side, each
+  showing its folder, how many notes link to it, and its content. Keep one and
+  the rest go to your vault trash, where you can still recover them, and the one
+  you kept moves into the taxon folder.
 - **Surnames count as mentions once a full name appears.** In a note that already
   mentions "Vladimir Dostoevsky", a later bare "Dostoevsky" surfaces as a mention
   of that file, with no alias needed. Only within that note, and only for the
   taxon you pick under Settings (People by default). A surname shared by two
   people in the same note is left alone rather than guessed at, and matching is
-  case-sensitive, so someone surnamed Wood doesn't match "a wood floor".
+  case-sensitive, so someone surnamed Wood doesn't match "a wood floor". A
+  person you have already linked keeps their surnames on their existing row
+  rather than gaining a second one, and the surname still links from the word
+  itself.
 - **Acronyms a note declares are honored for that note.** Writing
   "[[just noticeable difference]] (JND)" means later uses of JND in that note
   surface as mentions of it. Only acronym-shaped parentheticals count, so notes
-  like "(concept)" or "(status: final)" are ignored.
+  like "(concept)" or "(status: final)" are ignored, and an acronym written with
+  periods matches either way, so "(D.A.W.)" is found by a plain "DAW".
+- **Match acronyms in file names** (off by default), which treats a trailing
+  acronym in a file name as an alias: "+Spectral band replication (SBR)" matches
+  a bare "SBR". A parenthetical is more often a qualifier than an abbreviation,
+  so it only counts when its letters actually abbreviate the name, which keeps
+  "+attack (ADSR)" from claiming ADSR. A frontmatter alias does the same job
+  without the guesswork, which is why this is off unless you want it.
 - **Add an alias**, a right-click action on any mention that surfaced from a
   surname or a declared acronym. It saves that text to the file's aliases, so
   what one note established starts matching everywhere.
 - **Hidden connections** (off by default), a sidebar section listing mentions
-  that context gating withheld from the current note, and why. There is also a
-  "Why is this shown?" action on any row, explaining what let it through. Turn
-  both on under Settings → Experimental.
+  that context gating withheld from the current note. Right-click a row for why
+  it was withheld, and any visible mention has a "Why is this shown?" action for
+  the converse. Turn it on under Settings → Experimental.
 
 ### Changed
 
@@ -49,6 +59,23 @@ All notable changes to Foliate are documented here. The format follows
   file. Both cases previously went straight to creating another file.
 - The "Add to domain" list only shows files from the domain folder when one is
   configured, so a stray copy elsewhere in the vault is no longer offered.
+- "Link all unlinked taxa in the current note" links the first mention of each
+  file rather than every one, so a note that says "delay" twelve times gets one
+  link. Use a row's "Link all occurrences" when a term really should be linked
+  throughout.
+- Mentions inside headings are no longer matched anywhere. Linking one rewrote
+  the heading text, which broke [[note#Heading]] links pointing at it and filled
+  the outline with link syntax. A term named in a heading links at its first use
+  in the prose below instead.
+- Duplicate detection now catches names that differ only by capitalization or
+  accents, so "+Musique concrete" and "+musique concrète" are reported as one
+  duplicate rather than two unrelated files.
+- New taxa files whose name carries accents or typographic punctuation also get
+  their plain spelling as an alias, so "musique concrete" finds
+  "+musique concrète". Turn it off under Settings.
+- Settings are grouped by what they affect: matching rules sit together under
+  Matching, and the plain-text alias option sits with the other file-creation
+  options.
 
 ## 0.5.1 - 2026-08-04
 

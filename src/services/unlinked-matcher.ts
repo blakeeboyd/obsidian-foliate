@@ -3,6 +3,38 @@ import { TaxaMapping, UnlinkedMatch, MatchPosition, ContextConfig, HiddenMatch }
 import { stripPrefix } from "../taxa";
 
 /**
+ * Options for a scan. An object rather than positional parameters: every caller
+ * has to agree on what a mention IS, and with the flags positional a caller
+ * could reach a later one only by passing `{}, undefined,` for the ones between.
+ * Two callers got that wrong, so the sidebar listed acronym and surname matches
+ * that "Create taxa link" then refused to link.
+ */
+/**
+ * Whether a trailing acronym in a filename counts as an alias. Module-level
+ * rather than threaded through getSearchTerms' three call sites, so every path
+ * that asks "what does this file match?" gets the same answer. Set from
+ * settings on load and on change.
+ */
+let filenameAcronymsEnabled = false;
+
+export function setFilenameAcronymMatching(enabled: boolean): void {
+  filenameAcronymsEnabled = enabled;
+}
+
+export interface MatchOptions {
+  /** Scan files already linked in the note, to surface their other terms. */
+  includeLinkedFiles?: boolean;
+  /** Per-file context gating config, keyed by taxa file path. */
+  contextAware?: Record<string, ContextConfig>;
+  /** Collects mentions the gate withheld, for the Hidden connections section. */
+  hidden?: HiddenMatch[];
+  /** Taxon whose files get second-reference surname matching (People). */
+  surnameTaxon?: TaxaMapping;
+  /** Honor acronyms the note declares as "[[term]] (ACRONYM)". */
+  matchDeclaredAcronyms?: boolean;
+}
+
+/**
  * Scan note text for mentions of existing taxa files that aren't linked.
  * Matches against filenames (without prefix) and frontmatter aliases.
  *
@@ -20,14 +52,15 @@ export function findUnlinkedMatches(
   noteContent: string,
   noteFile: TFile,
   taxaMappings: TaxaMapping[],
-  includeLinkedFiles = false,
-  contextAware: Record<string, ContextConfig> = {},
-  hidden?: HiddenMatch[],
-  /** Taxon whose files get second-reference surname matching (People). */
-  surnameTaxon?: TaxaMapping,
-  /** Honor acronyms the note declares as "[[term]] (ACRONYM)". */
-  matchDeclaredAcronyms = false
+  options: MatchOptions = {}
 ): UnlinkedMatch[] {
+  const {
+    includeLinkedFiles = false,
+    contextAware = {},
+    hidden,
+    surnameTaxon,
+    matchDeclaredAcronyms = false,
+  } = options;
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
 
@@ -84,17 +117,27 @@ export function findUnlinkedMatches(
           hiddenTerms: suppressed.terms,
           occurrences: suppressed.occurrences,
           reason: "context-gate",
+          // Shown on demand (right-click), so it can name a few related terms
+          // without crowding the row.
           detail:
             `"${suppressed.terms.join('", "')}" is context-gated for this file, and this note ` +
             `mentions none of its related terms` +
-            (gate?.terms?.length ? ` (${gate.terms.slice(0, 6).join(", ")}${gate.terms.length > 6 ? ", …" : ""})` : ""),
+            (gate?.terms?.length
+              ? `: ${gate.terms.slice(0, 4).join(", ")}${gate.terms.length > 4 ? `, and ${gate.terms.length - 4} more` : ""}`
+              : ""),
         });
       }
     }
   }
 
   if (surnameTaxon) {
-    addSurnameMatches(app, noteContent, matches, alreadyLinked, filesByFolder, surnameTaxon, excluded, bodyStart);
+    // includeLinkedFiles marks the callers that want everything a word could
+    // mean (the link commands), rather than a display list that must not repeat
+    // a file across two sections (the sidebar).
+    addSurnameMatches(
+      app, noteContent, matches, alreadyLinked, filesByFolder, surnameTaxon, excluded, bodyStart,
+      !includeLinkedFiles
+    );
   }
 
   if (matchDeclaredAcronyms) {
@@ -130,9 +173,13 @@ function addSurnameMatches(
   filesByFolder: Map<TaxaMapping, TFile[]>,
   taxon: TaxaMapping,
   excluded: Region[],
-  bodyStart: number
+  bodyStart: number,
+  excludeLinked: boolean
 ): void {
   // Everyone the note establishes: linked, or already surfaced as a mention.
+  // Linked files count as establishing a person even though their surname
+  // occurrences are reported elsewhere (see below), since a note that links
+  // "Pierre Henry" has still introduced him for the rest of the note.
   const present = new Map<string, TFile>();
   for (const file of filesByFolder.get(taxon) ?? []) {
     if (alreadyLinked.has(file.path) || matches.some((m) => m.filePath === file.path)) {
@@ -157,6 +204,15 @@ function addSurnameMatches(
   for (const [, files] of bySurname) {
     if (files.length > 1) continue; // ambiguous in this note: skip, never guess
     const file = files[0];
+    // For the sidebar, a file must never appear under both Linked and Unlinked
+    // Mentions: an already-linked person's bare surnames are folded into their
+    // Linked row instead (renderLinkedTaxa does it), so listing them here would
+    // show the same person twice.
+    //
+    // The link commands ask a different question, though: "what does the word
+    // under the cursor mean?" There a linked person's surname must still
+    // resolve, or linking it offers to create a new file. Hence the option.
+    if (excludeLinked && alreadyLinked.has(file.path)) continue;
     const surname = stripPrefix(file.basename, taxon).trim().split(/\s+/).pop()!;
 
     // Case-sensitive: a surname is a proper noun, so "Wood" is the person and
@@ -227,11 +283,27 @@ function addAcronymMatches(
     const taxon = taxaMappings.find((t) => t.folder?.trim() && dest.path.startsWith(t.folder.trim() + "/"));
     if (!taxon) continue;
 
+    // Where the declaration's own "(ACRONYM)" sits. It reads as an occurrence
+    // but is part of the declaration, not a mention to link: linking it would
+    // rewrite the very text that established the abbreviation. Only later uses
+    // count.
+    const declEnd = (m.index ?? 0) + m[0].length;
+    const declAcronymStart = declEnd - acronym.length - 1;
+
     // Case-sensitive: "JND" is the abbreviation, "jnd" is not, and a lowercase
-    // match would fire inside unrelated words.
-    const positions = findUnlinkedPositions(noteContent, acronym, excluded, true)
-      .filter((offset) => offset >= bodyStart)
-      .map((offset) => ({ offset, len: acronym.length, surface: acronym }));
+    // match would fire inside unrelated words. Both spellings are searched, so
+    // a note declaring "(D.A.W.)" also matches a later plain "DAW".
+    const forms = [acronym];
+    const undotted = acronym.replace(/\./g, "");
+    if (undotted !== acronym && undotted.length >= 2) forms.push(undotted);
+
+    const positions = forms
+      .flatMap((form) =>
+        findUnlinkedPositions(noteContent, form, excluded, true)
+          .filter((offset) => offset >= bodyStart && offset !== declAcronymStart)
+          .map((offset) => ({ offset, len: form.length, surface: form }))
+      )
+      .sort((a, b) => a.offset - b.offset);
     if (positions.length === 0) continue;
 
     const existing = matches.find((x) => x.filePath === dest.path);
@@ -493,6 +565,40 @@ function getTaxaFilesByFolder(
  * Get all terms to search for a given taxa file:
  * the name without prefix, plus all frontmatter aliases.
  */
+/**
+ * Whether `acronym` plausibly abbreviates `phrase`.
+ *
+ * Two ways to qualify, because real abbreviations are written both ways:
+ * word initials in order ("SBR" from "Spectral band replication"), or the
+ * letters appearing in order anywhere in the phrase, which covers contractions
+ * ("EQ" from "equalization") and phrases that already contain an acronym
+ * ("DPCM" from "Differential PCM", "SACD" from "Super Audio CD").
+ *
+ * What it rejects is the case that matters: an acronym-shaped parenthetical
+ * naming the family a concept belongs to rather than abbreviating its title.
+ * "+attack (ADSR)", "+envelope (ADSR)" and "+release time (ADSR)" would
+ * otherwise all claim "ADSR", when "+ADSR" is the file that means it.
+ */
+function abbreviates(acronym: string, phrase: string): boolean {
+  const letters = acronym.replace(/[^A-Za-z]/g, "").toLowerCase();
+  if (letters.length === 0) return false;
+
+  // Word initials, in order.
+  let i = 0;
+  for (const word of phrase.split(/[\s\-/]+/)) {
+    const ch = word[0]?.toLowerCase();
+    if (ch && i < letters.length && ch === letters[i]) i++;
+  }
+  if (i === letters.length) return true;
+
+  // Letters in order anywhere in the phrase.
+  let j = 0;
+  for (const ch of phrase.replace(/[^A-Za-z]/g, "").toLowerCase()) {
+    if (j < letters.length && ch === letters[j]) j++;
+  }
+  return j === letters.length;
+}
+
 function getSearchTerms(
   app: App,
   file: TFile,
@@ -501,6 +607,35 @@ function getSearchTerms(
   const terms: string[] = [];
   const nameWithoutPrefix = stripPrefix(file.basename, taxon);
   terms.push(nameWithoutPrefix);
+
+  // A trailing acronym in the filename is an alias the user wrote into the
+  // title: "+Spectral band replication (SBR)" should match a bare "SBR".
+  //
+  // Only the acronym is taken, never the base name. A parenthetical is far more
+  // often a disambiguator than an abbreviation ("+pitch (music)", "+noise
+  // (audio)"), and stripping it would make "noise" match two files and
+  // "transfer function" three, which is the ambiguity the qualifier was added
+  // to prevent. Shape decides: SBR and EQ qualify, "music" and "audio" do not.
+  // It must also abbreviate the base name. Shape alone isn't enough: "+attack
+  // (ADSR)", "+envelope (ADSR)" and "+release time (ADSR)" all carry an
+  // acronym-shaped qualifier naming the family they belong to, and taking it
+  // would make a bare "ADSR" match four files when "+ADSR" is the one that
+  // means it. An abbreviation's letters come from the words it abbreviates.
+  const trailing = filenameAcronymsEnabled
+    ? nameWithoutPrefix.match(/^(.*?)\s*\(([^)]+)\)\s*$/)
+    : null;
+  if (trailing) {
+    const base = trailing[1];
+    const paren = trailing[2].trim();
+    if (/^[A-Z][A-Za-z]*\.?(?:[A-Z]\.?){1,6}s?$/.test(paren) && abbreviates(paren, base)) {
+      terms.push(paren);
+      // An acronym gets written both with and without periods, and a reader may
+      // type either. A title carrying "(D.A.W.)" should still match a plain
+      // "DAW" in prose.
+      const undotted = paren.replace(/\./g, "");
+      if (undotted !== paren && undotted.length >= 2) terms.push(undotted);
+    }
+  }
 
   const cache: CachedMetadata | null = app.metadataCache.getFileCache(file);
   if (cache?.frontmatter?.aliases) {
@@ -617,6 +752,16 @@ export function findExcludedRegions(text: string): Region[] {
         : text.length;
     regions.push({ start: blockStart, end: blockEnd });
     fenceOpen.lastIndex = blockEnd;
+  }
+
+  // ATX headings: the whole line, hashes included. A link in a heading rewrites
+  // the heading text, so [[note#Heading]] links to it break and the outline
+  // fills with link syntax. A term named in a heading is nearly always used in
+  // the prose below, which is where the link belongs.
+  const heading = /^[ \t]{0,3}#{1,6}[ \t][^\n]*/gm;
+  let hm: RegExpExecArray | null;
+  while ((hm = heading.exec(text)) !== null) {
+    regions.push({ start: hm.index, end: hm.index + hm[0].length });
   }
 
   // Inline code spans: `code` (allow multi-backtick runs `` ` ``).

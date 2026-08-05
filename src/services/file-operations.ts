@@ -108,6 +108,12 @@ export async function createTaxaFile(
       // before we touch the frontmatter, so its <% %> commands resolve.
       if (tmpl.hasTemplater) await runTemplater(app, newFile);
       if (settings.autoAddAlias) await addAliasToFile(app, newFile, cleanName);
+      // An accented title is only reachable by typing the accents. Save the
+      // plain spelling too so the ordinary keyboard version matches.
+      if (settings.autoAddPlainAlias) {
+        const plain = plainTextForm(cleanName);
+        if (plain) await addAliasToFile(app, newFile, plain);
+      }
       return newFile;
     } catch (e) {
       new Notice(`Failed to create ${fileName}: ${e}`);
@@ -300,7 +306,7 @@ export async function buildDebugReport(
     lines.push("Duplicate names: none");
   } else {
     lines.push(`Duplicate names: ${duplicateCount}`);
-    lines.push(`  fix: command "Find misplaced and duplicate taxa files" > Resolve`);
+    lines.push(`  fix: command "Find misplaced and duplicate taxa files" > Compare`);
   }
 
   lines.push("");
@@ -686,22 +692,28 @@ export function findDuplicateTaxaNames(
   // Longest prefix first so a multi-character prefix isn't shadowed.
   const sorted = [...taxa].sort((a, b) => b.prefix.length - a.prefix.length);
 
+  // Group on a folded name, so files that differ only by capitalization or
+  // accents land together: "+Musique concrete" and "+musique concrete" are one
+  // concept written two ways, and a link can only reach one of them.
   const byName = new Map<string, { taxon: TaxaMapping; files: TFile[] }>();
   for (const file of app.vault.getMarkdownFiles()) {
     const taxon = sorted.find((t) => t.prefix && file.basename.startsWith(t.prefix));
     if (!taxon) continue;
-    const entry = byName.get(file.basename);
+    const key = foldName(file.basename);
+    const entry = byName.get(key);
     if (entry) entry.files.push(file);
-    else byName.set(file.basename, { taxon, files: [file] });
+    else byName.set(key, { taxon, files: [file] });
   }
 
   const dupes: DuplicateTaxaName[] = [];
-  for (const [name, { taxon, files }] of byName) {
+  for (const [, { taxon, files }] of byName) {
     if (files.length < 2) continue;
     const folder = taxon.folder?.trim();
     const inFolder = folder ? files.filter((f) => f.parent?.path === folder) : [];
     dupes.push({
-      name,
+      // Report a real basename rather than the folded key, so the name shown
+      // is one that exists on disk.
+      name: files[0].basename,
       taxon,
       files: [...files].sort((a, b) => a.path.localeCompare(b.path)),
       canonical: inFolder.length === 1 ? inFolder[0] : null,
@@ -710,4 +722,42 @@ export function findDuplicateTaxaNames(
   return dupes.sort(
     (a, b) => a.taxon.label.localeCompare(b.taxon.label) || a.name.localeCompare(b.name)
   );
+}
+
+/**
+ * A name reduced to what a link actually has to get right: lowercase, accents
+ * stripped, whitespace collapsed.
+ *
+ * "Musique concrète" and "musique concrete" are the same concept typed two ways,
+ * and a reader writing either expects to reach the same file. Folding them
+ * together is what lets duplicate detection see them as one name, and what lets
+ * a plain-text alias be derived from an accented title.
+ *
+ * NFD splits an accented character into its base letter plus a combining mark,
+ * so removing the marks leaves the plain letter behind.
+ */
+export function foldName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/\p{Mn}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The plain-ASCII spelling of a name, or null when the name has no special
+ * characters and an alias would add nothing. Capitalization is preserved, since
+ * matching is case-insensitive anyway and the alias reads better as written.
+ */
+export function plainTextForm(name: string): string | null {
+  const plain = name
+    .normalize("NFD")
+    .replace(/\p{Mn}/gu, "")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain !== name.trim() ? plain : null;
 }

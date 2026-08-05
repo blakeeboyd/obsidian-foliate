@@ -162,3 +162,43 @@ const p = (basename: string, folder: string): FakeFile & { path: string } => ({
 }
 
 console.log("duplicate-name detection: all assertions passed");
+
+// ---- Folded duplicate detection ----
+// Names that differ only by case or accents are the same concept written two
+// ways, and a link can only reach one of the files.
+
+function foldName(name: string): string {
+  return name.normalize("NFD").replace(/\p{Mn}/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function foldedDuplicates(basenames: string[]) {
+  const byKey = new Map<string, string[]>();
+  for (const b of basenames) {
+    const k = foldName(b);
+    const g = byKey.get(k);
+    if (g) g.push(b);
+    else byKey.set(k, [b]);
+  }
+  return [...byKey.values()].filter((g) => g.length > 1);
+}
+
+// The reported case: capital M and an accented e, one concept.
+{
+  const r = foldedDuplicates(["+Musique concrete", "+musique concrète"]);
+  assert.strictEqual(r.length, 1, "case + accent difference is one duplicate group");
+  assert.strictEqual(r[0].length, 2);
+}
+
+// Case alone.
+assert.strictEqual(foldedDuplicates(["@Ada Lovelace", "@ada lovelace"]).length, 1);
+
+// Accent alone.
+assert.strictEqual(foldedDuplicates(["©Orphee", "©Orphée"]).length, 1);
+
+// Genuinely different names stay separate.
+assert.deepStrictEqual(foldedDuplicates(["+delay", "+reverb"]), []);
+
+// Exact duplicates still group (the pre-existing behavior must not regress).
+assert.strictEqual(foldedDuplicates(["©The Wild Bull", "©The Wild Bull"]).length, 1);
+
+console.log("folded duplicate detection: all assertions passed");

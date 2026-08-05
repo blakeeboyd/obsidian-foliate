@@ -568,19 +568,18 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  color: var(--text-muted);
+  /* Match .foliate-match-text so a hidden row reads at the same weight as a
+     mention row, rather than louder than the section it sits under. */
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-normal);
 }
 
 .foliate-hidden-count {
-  font-size: var(--font-smallest);
-  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-muted);
   white-space: nowrap;
-}
-
-.foliate-hidden-reason {
-  font-size: var(--font-smallest);
-  color: var(--text-faint);
-  line-height: 1.3;
 }
 
 /* Misplaced taxa files modal */

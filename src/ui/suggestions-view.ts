@@ -810,11 +810,12 @@ export class SuggestionsView extends ItemView {
       content,
       file,
       this.plugin.settings.taxaMappings,
-      false,
-      this.plugin.activeContextAware(),
-      this.plugin.settings.showHiddenConnections ? hiddenMatches : undefined,
-      this.plugin.surnameTaxon(),
-      this.plugin.settings.matchDeclaredAcronyms
+      {
+        contextAware: this.plugin.activeContextAware(),
+        hidden: this.plugin.settings.showHiddenConnections ? hiddenMatches : undefined,
+        surnameTaxon: this.plugin.surnameTaxon(),
+        matchDeclaredAcronyms: this.plugin.settings.matchDeclaredAcronyms,
+      }
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 
     // Scope to the viewport: keep only occurrences on screen, drop empty matches.
@@ -954,13 +955,41 @@ export class SuggestionsView extends ItemView {
           cls: "foliate-hidden-count",
           text: item.occurrences === 1 ? "1 mention" : `${item.occurrences} mentions`,
         });
-        row.createDiv({ cls: "foliate-hidden-reason", text: item.detail });
+
+        // The reason is available on demand, not printed under every row. What
+        // the reader wants at a glance is WHICH mentions were withheld; why any
+        // particular one was is a follow-up question, and spelling it out for
+        // each made the section louder than the mentions above it.
+        row.setAttribute("aria-label", item.detail);
 
         // Opening the file is the fix path: the user judges the call and edits
         // the file's context terms if the gate got it wrong.
         row.addEventListener("click", () => {
           const f = this.app.vault.getAbstractFileByPath(item.filePath);
           if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+        });
+
+        // Right-click for the reason, matching "Why is this shown?" on a
+        // visible row.
+        row.addEventListener("contextmenu", (evt) => {
+          evt.preventDefault();
+          const menu = new Menu();
+          menu.addItem((mi) =>
+            mi
+              .setTitle("Why is this hidden?")
+              .setIcon("help-circle")
+              .onClick(() => new Notice(`${item.fileName}\n\n${item.detail}`, 10000))
+          );
+          menu.addItem((mi) =>
+            mi
+              .setTitle("Open note")
+              .setIcon("file-text")
+              .onClick(() => {
+                const f = this.app.vault.getAbstractFileByPath(item.filePath);
+                if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+              })
+          );
+          menu.showAtMouseEvent(evt);
         });
       }
     }
@@ -1611,6 +1640,25 @@ export class SuggestionsView extends ItemView {
             if (this.plugin.settings.matchLinkedAliases && dest) {
               for (const mp of findFileMatchPositions(this.app, content, dest, mapping, bodyStart, excluded)) {
                 if (!byOffset.has(mp.offset)) byOffset.set(mp.offset, mp);
+              }
+            }
+
+            // Fold in bare surnames of an already-linked person ("Henry" after
+            // "[[@Pierre Henry]]"). The unlinked scan deliberately skips linked
+            // files, so without this the occurrences would be counted nowhere.
+            // Case-sensitive, matching the unlinked rule: "Wood" is the person,
+            // "wood" is lumber.
+            const surnameTaxon = this.plugin.surnameTaxon();
+            if (dest && surnameTaxon && mapping.prefix === surnameTaxon.prefix) {
+              const parts = stripPrefix(dest.basename, mapping).trim().split(/\s+/);
+              const surname = parts.length > 1 ? parts[parts.length - 1] : "";
+              if (surname.length >= 3) {
+                for (const idx of findUnlinkedPositions(content, surname, excluded, true)) {
+                  if (idx < bodyStart || byOffset.has(idx)) continue;
+                  // Skip occurrences sitting inside the wikilink itself.
+                  if ([...byOffset.keys()].some((p) => idx > p && idx < p + wikiPattern.length + 2)) continue;
+                  byOffset.set(idx, { offset: idx, len: surname.length, surface: surname });
+                }
               }
             }
 

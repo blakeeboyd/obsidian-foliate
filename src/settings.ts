@@ -603,6 +603,18 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Add a plain-text alias for accented names")
+      .setDesc(
+        "When a new taxa file's name has accents or typographic punctuation, also save its plain spelling as an alias, so typing \"musique concrete\" finds \"+musique concrète\". Names that are already plain get nothing extra."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.autoAddPlainAlias).onChange(async (value) => {
+          this.plugin.settings.autoAddPlainAlias = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(el)
       .setName("Auto-move files on creation")
       .setDesc("Move files to taxa folders when created or renamed with a taxa prefix.")
       .addToggle((toggle) =>
@@ -727,6 +739,51 @@ export class FoliateSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.showSearchBar).onChange(async (value) => {
           this.plugin.settings.showSearchBar = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el).setName("Matching").setHeading();
+
+    new Setting(el)
+      .setName("Match acronyms a note declares")
+      .setDesc(
+        "When a note writes a link followed by a parenthesised acronym, as in \"[[just noticeable difference]] (JND)\", later uses of that acronym in the same note count as mentions of that file. Only acronym-shaped parentheticals qualify, so editorial asides like \"(concept)\" are ignored. Right-click a match to save it as a permanent alias."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.matchDeclaredAcronyms).onChange(async (value) => {
+          this.plugin.settings.matchDeclaredAcronyms = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
+      .setName("Match surnames after a full name")
+      .setDesc(
+        "In a note that already mentions someone's full name, a later bare surname counts as a mention of them: \"Dostoevsky\" after \"Vladimir Dostoevsky\". Applies to one taxon, since only names split this way. A surname shared by two people in the same note is skipped."
+      )
+      .addDropdown((dd) => {
+        dd.addOption("", "Off");
+        for (const t of this.plugin.settings.taxaMappings) {
+          if (t.prefix) dd.addOption(t.prefix, `${t.prefix} ${t.label}`);
+        }
+        dd.setValue(this.plugin.settings.surnameMatchPrefix ?? "").onChange(async (value) => {
+          this.plugin.settings.surnameMatchPrefix = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        });
+      });
+
+    new Setting(el)
+      .setName("Match acronyms in file names")
+      .setDesc(
+        "Treat a trailing acronym in a file name as an alias, so \"+Spectral band replication (SBR)\" matches a bare \"SBR\". Off by default: a parenthetical is more often a qualifier than an abbreviation (\"+pitch (music)\", \"+attack (ADSR)\"), and telling the two apart is guesswork. A frontmatter alias does the same job exactly."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.matchFilenameAcronyms).onChange(async (value) => {
+          this.plugin.settings.matchFilenameAcronyms = value;
           await this.plugin.saveSettings();
           this.plugin.refreshSuggestionsView();
         })
@@ -892,36 +949,6 @@ export class FoliateSettingTab extends PluginSettingTab {
 
     el.appendChild(contextFilesRow);
     renderContextFilesRow();
-
-    new Setting(el)
-      .setName("Match surnames after a full name")
-      .setDesc(
-        "In a note that already mentions someone's full name, a later bare surname counts as a mention of them: \"Dostoevsky\" after \"Vladimir Dostoevsky\". Applies to one taxon, since only names split this way. A surname shared by two people in the same note is skipped."
-      )
-      .addDropdown((dd) => {
-        dd.addOption("", "Off");
-        for (const t of this.plugin.settings.taxaMappings) {
-          if (t.prefix) dd.addOption(t.prefix, `${t.prefix} ${t.label}`);
-        }
-        dd.setValue(this.plugin.settings.surnameMatchPrefix ?? "").onChange(async (value) => {
-          this.plugin.settings.surnameMatchPrefix = value;
-          await this.plugin.saveSettings();
-          this.plugin.refreshSuggestionsView();
-        });
-      });
-
-    new Setting(el)
-      .setName("Match acronyms a note declares")
-      .setDesc(
-        "When a note writes a link followed by a parenthesised acronym, as in \"[[just noticeable difference]] (JND)\", later uses of that acronym in the same note count as mentions of that file. Only acronym-shaped parentheticals qualify, so editorial asides like \"(concept)\" are ignored. Right-click a match to save it as a permanent alias."
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.matchDeclaredAcronyms).onChange(async (value) => {
-          this.plugin.settings.matchDeclaredAcronyms = value;
-          await this.plugin.saveSettings();
-          this.plugin.refreshSuggestionsView();
-        })
-      );
 
     new Setting(el)
       .setName("Show hidden connections")

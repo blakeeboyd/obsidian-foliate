@@ -85,6 +85,20 @@ export interface FoliateSettings {
    * reads it rather than guessing.
    */
   matchDeclaredAcronyms: boolean;
+  /**
+   * Treat a trailing acronym in a FILENAME as an alias: "+Spectral band
+   * replication (SBR)" matching a bare "SBR". Off by default. A parenthetical
+   * is more often a qualifier than an abbreviation, and the guard against that
+   * ("+attack (ADSR)" must not claim "ADSR") is a heuristic, so a wrong link is
+   * possible. A frontmatter alias does the same job with no guessing.
+   */
+  matchFilenameAcronyms: boolean;
+  /**
+   * When a new taxa file's name carries accents or typographic punctuation, also
+   * save its plain-ASCII spelling as an alias, so "musique concrete" reaches
+   * "+musique concrète". Nothing is added when the name is already plain.
+   */
+  autoAddPlainAlias: boolean;
   highlightOnJump: boolean;
   highlightDurationSeconds: number;
   selectOnJump: boolean;

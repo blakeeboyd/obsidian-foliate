@@ -16,7 +16,7 @@ import {
 import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { MisplacedFilesModal } from "./ui/misplaced-files-modal";
 import { DebugReportModal } from "./ui/debug-report-modal";
-import { findUnlinkedMatches, findTaxaFilesByText, findTaxaFilesByPartialText, resolveOverlaps } from "./services/unlinked-matcher";
+import { findUnlinkedMatches, findTaxaFilesByText, findTaxaFilesByPartialText, resolveOverlaps, setFilenameAcronymMatching } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import { FilePickerModal } from "./ui/file-picker-modal";
 import {
@@ -47,6 +47,8 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   showHiddenConnections: false,
   surnameMatchPrefix: "@",
   matchDeclaredAcronyms: true,
+  matchFilenameAcronyms: false,
+  autoAddPlainAlias: true,
   highlightOnJump: true,
   highlightDurationSeconds: 2.5,
   selectOnJump: true,
@@ -60,6 +62,7 @@ export default class FoliatePlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    setFilenameAcronymMatching(this.settings.matchFilenameAcronyms);
     addIcon(FOLIATE_ICON_ID, FOLIATE_ICON_SVG);
     this.addSettingTab(new FoliateSettingTab(this.app, this));
     this.registerCommands();
@@ -325,7 +328,15 @@ export default class FoliatePlugin extends Plugin {
     // alias). The matcher yields whole-term spans, one set per candidate file.
     // No context gating here: the cursor is a deliberate action on a specific
     // word, so a gated alias under the cursor should still link.
-    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, true);
+    // Surname and acronym rules are passed here too, so the cursor sees exactly
+    // what the sidebar shows. Omitting them meant a mention the sidebar listed
+    // (a declared acronym, a second-reference surname) could not be linked from
+    // the word itself: the command fell through to offering a new file.
+    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, {
+      includeLinkedFiles: true,
+      surnameTaxon: this.surnameTaxon(),
+      matchDeclaredAcronyms: this.settings.matchDeclaredAcronyms,
+    });
     let bestLen = -1;
     let span: { offset: number; surface: string } | null = null;
     const targets: string[] = []; // distinct file names matching at the best span
@@ -474,14 +485,14 @@ export default class FoliatePlugin extends Plugin {
     // that are already linked somewhere in the note. Context gating applies here
     // (bulk auto-link) so a gated common-word alias isn't linked in a note that
     // isn't about its subject.
-    const matches = findUnlinkedMatches(
-      this.app,
-      content,
-      file,
-      this.settings.taxaMappings,
-      true,
-      this.activeContextAware()
-    );
+    const matches = findUnlinkedMatches(this.app, content, file, this.settings.taxaMappings, {
+      includeLinkedFiles: true,
+      contextAware: this.activeContextAware(),
+      // Same rules the sidebar uses, so bulk linking covers every mention it
+      // lists rather than a subset.
+      surnameTaxon: this.surnameTaxon(),
+      matchDeclaredAcronyms: this.settings.matchDeclaredAcronyms,
+    });
 
     interface Occurrence {
       offset: number;
@@ -489,11 +500,21 @@ export default class FoliatePlugin extends Plugin {
       surface: string;
       target: string;
     }
+    // One link per file, at its first occurrence. Linking every occurrence turns
+    // a note that says "delay" twelve times into a wall of links, and the first
+    // mention is the one that carries the reference. Use a row's "Link all
+    // occurrences" action when a specific file really should be linked
+    // throughout.
     const occurrences: Occurrence[] = [];
     for (const match of matches) {
-      for (const p of match.positions) {
-        occurrences.push({ offset: p.offset, len: p.len, surface: p.surface, target: match.fileName });
-      }
+      const first = [...match.positions].sort((a, b) => a.offset - b.offset)[0];
+      if (!first) continue;
+      occurrences.push({
+        offset: first.offset,
+        len: first.len,
+        surface: first.surface,
+        target: match.fileName,
+      });
     }
     if (occurrences.length === 0) {
       new Notice("No unlinked taxa mentions found.");
@@ -719,6 +740,9 @@ export default class FoliatePlugin extends Plugin {
   }
 
   async saveSettings() {
+    // Keep the matcher's copy in step, so toggling the setting takes effect
+    // without a reload.
+    setFilenameAcronymMatching(this.settings.matchFilenameAcronyms);
     await this.saveData(this.settings);
   }
 }

@@ -138,8 +138,8 @@ export class MisplacedFilesModal extends Modal {
   /**
    * Files sharing a name across folders. Reported first because it is the more
    * damaging problem: a misplaced file still resolves, an ambiguous name does
-   * not. "Resolve" opens a comparison rather than fixing anything directly,
-   * since which copy survives is a judgment about content.
+   * not. "Compare" opens the copies side by side rather than fixing anything
+   * directly, since which one survives is a judgment about content.
    */
   private renderDuplicates(contentEl: HTMLElement) {
     if (this.duplicates.length === 0) return;
@@ -150,7 +150,7 @@ export class MisplacedFilesModal extends Modal {
       text:
         `${this.duplicates.length} name${this.duplicates.length === 1 ? " is" : "s are"} used by more than one file. ` +
         "Obsidian allows two files to have the same name if they are not in the same folder. " +
-        "Press the resolve button to choose which file you would like to keep and move to the correct folder.",
+        "Press the compare button to choose which file you would like to keep and move to the correct folder.",
     });
 
     const list = contentEl.createDiv("foliate-misplaced-list");
@@ -172,8 +172,8 @@ export class MisplacedFilesModal extends Modal {
         });
       }
 
-      const resolve = row.createEl("button", { text: "Resolve" });
-      resolve.addEventListener("click", () => {
+      const compare = row.createEl("button", { text: "Compare" });
+      compare.addEventListener("click", () => {
         new ResolveDuplicateModal(this.app, dupe, () => {
           const r = this.rescan();
           this.items = r.misplaced;
