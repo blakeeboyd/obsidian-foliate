@@ -18,6 +18,9 @@ Foliate ships with these prefixes and labels. Folders start unset; assign one pe
 | `¡`    | Images        | (unset)        |
 | `º`    | Organizations | (unset)        |
 | `∞`    | Events        | (unset)        |
+| `≈`    | Domains       | (unset)        |
+
+Domains are a higher-order taxon: they group other taxa files by subject rather than appearing as mentions in your notes.
 
 All prefixes, labels, and folders are configurable in settings. [Full taxa system docs →](docs/taxa-system.md)
 
@@ -25,7 +28,13 @@ All prefixes, labels, and folders are configurable in settings. [Full taxa syste
 
 ### Smart linking
 
-Select text and run **Create taxa link** from the command palette. If the text starts with a known prefix, Foliate creates the file in the right folder and replaces the selection with a wikilink. If there's no prefix but the selection matches an existing taxa file, it links straight to that file; otherwise a picker lets you choose the taxa type.
+Select text, or put the cursor in a word, and run **Create taxa link**. Foliate works from the most certain interpretation to the least:
+
+1. Text starting with a known prefix creates the file in that taxon's folder.
+2. Text matching one existing taxa file links straight to it.
+3. Text matching several opens a picker.
+4. Text matching none exactly, but prefixing some ("Bill" with several Bills in the vault), offers those before creating anything.
+5. Nothing matches: choose a taxon and Foliate creates the file.
 
 [Smart linking docs →](docs/smart-linking.md)
 
@@ -36,7 +45,7 @@ A sidebar panel with two sections for the active note:
 - **Linked mentions:** all taxa currently linked in the note, grouped by type. Click a name to jump through occurrences (wikilinks and plain text). If a linked file still has plain-text mentions, link the remaining ones in one action.
 - **Unlinked mentions:** existing taxa files whose names or aliases appear in your note but aren't linked yet. Link individual mentions or all at once.
 
-Right-click any row for its full set of actions (link, open, unlink, ignore, dismiss, …); choose which of those also show as inline buttons under **Sidebar Buttons** in settings. The sidebar refreshes on file switch and content edits.
+Right-click any row for its full set of actions (link, open, unlink, ignore, dismiss, …); choose which of those also show as inline buttons under **Inline buttons** in settings. The sidebar refreshes on file switch and content edits.
 
 > **Quote numeric aliases.** YAML reads an unquoted alias like `5.1` or `2024` as a number, not text. Foliate ignores non-string aliases, so they won't be searched. Quote them in frontmatter to keep them working as aliases:
 >
@@ -54,6 +63,28 @@ Right-click any row for its full set of actions (link, open, unlink, ignore, dis
 
 [Navigation docs →](docs/navigation.md)
 
+### Domains
+
+A domain (`≈`) groups taxa files by subject. Run **Add current file to a domain** on any taxa file and pick one: the file gains a `domains` entry linking to it, and the domain file is created if it doesn't exist. On a taxa or domain file, the sidebar's Backlinks section lists the other taxa files linking to it. This is how a domain shows its members.
+
+Domains are left out of mention scanning. They never appear as unlinked mentions in your notes.
+
+### Note-local matching
+
+Two rules read what a note itself establishes. Nothing is configured, and nothing applies outside that note.
+
+**Name parts.** In a note mentioning "Vladimir Dostoevsky", a later bare "Dostoevsky" or "Vladimir" matches that file. Matching is case-sensitive: someone surnamed Wood does not match "a wood floor". When two people in a note share a part, each gets a row and linking opens a picker.
+
+**Declared acronyms.** Writing `[[just noticeable difference]] (JND)` makes a later JND match in that note. Only acronym-shaped parentheticals count: `(concept)` and `(status: final)` are ignored.
+
+Right-click either kind of match and choose **Add an alias** to write it into the file's frontmatter. This promotes it from that one note to the whole vault.
+
+### Vault hygiene
+
+**Find misplaced and duplicate taxa files** reports two problems. Files outside their taxon's folder can be moved individually or in bulk. Names used by more than one file get a Compare view showing each copy's folder, backlink count, and content; keeping one trashes the rest to the vault trash and moves the keeper into the taxon folder.
+
+**Run debug report** shows plugin state in a window with a copy button: per-taxon file counts, misplaced and duplicate counts, and checks for configuration that silently does nothing, such as a taxon with no folder, two taxa sharing a prefix, or context-aware entries pointing at deleted files.
+
 ### Auto-move
 
 Files created or renamed with a taxa prefix are automatically moved to the matching folder. Collision detection prevents overwrites. Toggle in settings.
@@ -64,9 +95,12 @@ Files created or renamed with a taxa prefix are automatically moved to the match
 
 | Command | Description |
 |---------|-------------|
-| Create taxa link | Link selected text as a taxon. With nothing selected, acts on the cursor (see "Link word under cursor" setting): links an existing taxa term at the cursor, or the word it sits in when that matches a taxa file |
+| Create taxa link | Link the selection, or the word under the cursor, to a taxa file |
 | Move current note to taxa folder | Move the active file based on its prefix |
-| Link all unlinked taxa in the current note | Wrap every unlinked taxa mention in the note in one pass |
+| Add current file to a domain | Record the current taxa file's membership in a `≈` domain |
+| Link all unlinked taxa in the current note | Link the first mention of each file in one pass |
+| Find misplaced and duplicate taxa files | Report files outside their taxon's folder, and names used by more than one file |
+| Run debug report | Show plugin state and configuration problems, with a copy button |
 | Open Foliate sidebar | Show the Foliate panel |
 | Toggle auto-scan | Turn the sidebar's auto-scan on or off |
 
@@ -105,10 +139,10 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 |---------|---------|-------------|
 | Taxa Mappings | 8 prefixes, no folders | Add, edit, or remove prefix/label/folder mappings |
 | Auto-add alias | On | On link creation, add the linked name to the target file's aliases |
-| Auto-Move File On Creation | On | Automatically move files to taxa folders when created or renamed |
+| Auto-move files on creation | On | Automatically move files to taxa folders when created or renamed |
 | Create folders if missing | On | Create target folders that don't exist |
-| Enable Sidebar | On | Make the sidebar available (requires reload); off uses commands + auto-move only |
-| Open sidebar on startup | On | Auto-open the Foliate sidebar on plugin load |
+| Enable sidebar | On | Make the sidebar available (requires reload); off uses commands + auto-move only |
+| Open on startup | On | Auto-open the Foliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
 | Limit to visible area | Off | Only show mentions in the editor's current view; also toggleable from the sidebar header (synced) |
 | Sort entries | Mentions, high to low | Order entries within each category by mention count or name |
@@ -116,11 +150,16 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Shift+click action | Open in Split View | Same choices, for Shift+click |
 | Cmd/Ctrl+click action | Open in the current tab | Same choices, for Cmd/Ctrl+click |
 | Option/Alt+click action | Open options menu | Same choices, for Option/Alt+click |
-| Sidebar Buttons | Link, Link all, Unlink | Which row actions show as inline buttons; all actions are always available via right-click |
+| Inline buttons | Link, Link all, Unlink | Which row actions show as inline buttons; all actions are always available via right-click |
 | Match aliases of linked files | On | Fold unlinked alias mentions of already-linked files into their Linked Mentions entry |
+| Match acronyms a note declares | On | `[[term]] (ABC)` in a note makes ABC match in that note |
+| Match surnames after a full name | People | Once a full name appears in a note, its parts match there. Off, or any taxon |
+| Match acronyms in file names | Off | A trailing acronym in a file name acts as an alias when its letters abbreviate the name |
+| Add a plain-text alias for accented names | On | New files with accented names also get their plain spelling as an alias |
+| Show hidden connections | Off | Sidebar section listing mentions that context gating withheld |
 | Highlight on jump | On | Flash highlight when jumping to an occurrence |
 | Highlight color | Yellow | Custom color for the jump highlight |
-| Blocklist | (none) | Permanently ignored suggestion terms |
+| Blocked terms | (none) | Permanently ignored suggestion terms |
 
 ## Documentation
 

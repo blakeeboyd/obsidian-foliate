@@ -25,27 +25,38 @@ Changes take effect immediately after saving.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Auto-add alias | On | When you create a taxa link, add the linked name to the target file's `aliases` so plain-text mentions resolve and surface as unlinked mentions. Turn off to leave the target file's frontmatter untouched |
-| Link word under cursor when nothing is selected | On | Lets "Create taxa link" work without a selection: it acts on the cursor, linking an existing taxa term whose span covers it, or the word it sits in when that matches a taxa file or carries a prefix. A word that matches nothing is left alone (no file is created from an unselected word). Turn off to require a selection |
+| Add a plain-text alias for accented names | On | When a new taxa file's name carries accents or typographic punctuation, also save its plain spelling as an alias. "musique concrete" then finds "+musique concrète". Names that are already plain get nothing extra |
 
 ## Auto-Move
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Auto-Move File On Creation | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
+| Auto-move files on creation | On | Automatically move files to taxa folders when created or renamed with a taxa prefix |
 | Create folders if missing | On | Create target folders that don't exist yet (including intermediate directories) |
 
 ## Sidebar
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Enable Sidebar | On | Make the Foliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
-| Open sidebar on startup | On | Automatically open the Foliate sidebar when the plugin loads |
+| Enable sidebar | On | Make the Foliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
+| Open on startup | On | Automatically open the Foliate sidebar when the plugin loads |
 | Auto-scan | On | Scan the active note automatically as you switch files and edit. Turn off to scan only when you click **Scan** in the sidebar header |
 | Limit to visible area | Off | Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Edit mode only. Also toggleable from the eye button in the sidebar header (the two stay in sync) |
 | Sort entries | Mentions, high to low | Order of entries within each taxa category: by mention count (either direction) or by name (A to Z / Z to A) |
 | Match aliases of linked files | On | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Select text on jump | On | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
 | Show search bar | On | Show the filter box at the top of the Foliate sidebar |
+
+## Matching
+
+Rules for what counts as a mention. Each is independent of the others.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Match aliases of linked files | On | Fold unlinked alias mentions of an already-linked file into its Linked Mentions entry. A file never appears in both sections |
+| Match acronyms a note declares | On | `[[term]] (ABC)` in a note makes later uses of ABC in that note count as mentions of that file. Only acronym-shaped parentheticals qualify: `(concept)` and `(status: final)` are ignored. Periods are optional in either direction, so `(D.A.W.)` matches a plain "DAW" |
+| Match surnames after a full name | `@` People | Once a note mentions someone's full name, later bare parts of it count as mentions of that file, within that note. Matching is case-sensitive. Two people in a note sharing a part each get a row, and linking opens a picker. Set to Off, or to any taxon |
+| Match acronyms in file names | Off | Treat a trailing acronym in a file name as an alias: "+Spectral band replication (SBR)" then matches a bare "SBR". It only counts when the acronym's letters abbreviate the name. This keeps "+attack (ADSR)" from claiming ADSR. A frontmatter alias does the same job without the guesswork |
 
 ## Click Actions
 
@@ -58,7 +69,7 @@ Bind each click and modifier-click on a sidebar item to an action. Every binding
 | Cmd/Ctrl+click action | Open in the current tab | Cmd (macOS) / Ctrl (Windows/Linux) |
 | Option/Alt+click action | Open options menu | Option (macOS) / Alt (Windows/Linux) |
 
-## Sidebar Buttons
+## Inline buttons
 
 A toggle per action controls whether it appears as an inline button on sidebar rows. Every action is always available by right-clicking a row, so these toggles only affect the inline buttons (to keep the panel uncluttered). Defaults on: **Link**, **Link all**, **Unlink**.
 
@@ -88,3 +99,10 @@ Terms that have been permanently ignored via the "Ignore" button in the suggesti
 - View all blocklisted terms in the settings panel
 - Click **×** next to a term to remove it from the blocklist
 - Blocklisted terms are stored in the plugin's data file and persist across sessions
+
+## Experimental
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Context-aware mentions | Off | A file's common-word alias surfaces only in notes that also mention one of the file's related terms. When off the gating is dormant and its sidebar action is hidden; configured files are kept and reactivate if you turn it back on |
+| Show hidden connections | Off | Add a collapsed "Hidden connections" section to the sidebar listing mentions that context gating withheld from the current note. Right-click a row for the reason. Visible mentions gain a "Why is this shown?" action for the converse |
