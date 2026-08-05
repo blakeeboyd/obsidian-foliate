@@ -150,20 +150,28 @@ export function findUnlinkedMatches(
 }
 
 /**
- * Second-reference surnames: once a person's full name appears in a note, later
- * bare surnames refer to them.
+ * Second reference by name part: once a person's full name appears in a note,
+ * later bare parts of that name refer to them.
  *
  * Prose introduces someone as "Vladimir Dostoevsky" and calls them "Dostoevsky"
- * from then on. The plain matcher misses those, since the file is named for the
- * full name and most people files carry no surname alias. The evidence is local
- * to the note, so nothing is configured and nothing leaks: the surname only
- * matches where the full name established who is meant.
+ * from then on, or introduces "Bill Viola" and later says "Bill". The plain
+ * matcher misses both, since the file is named for the full name and most
+ * people files carry no part alias. The evidence is local to the note, so
+ * nothing is configured and nothing leaks: a part only matches where the full
+ * name established who is meant.
  *
  * Restricted to one taxon (People) because splitting on whitespace is a naming
  * convention, not a general rule. "Delay" has no surname.
  *
- * A surname shared by two people present in the same note is skipped entirely
- * rather than guessed, so this never links to the wrong person.
+ * A part shared by two people in the same note (two Bills, two Boyds) is never
+ * attributed to one of them. Every candidate gets a row, and linking one opens
+ * the picker, the same way ambiguity is handled everywhere else. Dropping the
+ * part instead hid the mention, leaving nothing to disambiguate from.
+ *
+ * Note scope is what makes first names workable here: "Sarah" is hopeless
+ * across a 1351-person vault, but in a note that established one Sarah it is
+ * unambiguous, and in a note that established three it is a three-way pick
+ * rather than a guess.
  */
 function addSurnameMatches(
   app: App,
@@ -188,61 +196,86 @@ function addSurnameMatches(
   }
   if (present.size === 0) return;
 
-  // Surname -> the files claiming it. More than one means ambiguous here.
-  const bySurname = new Map<string, TFile[]>();
+  // Name part -> the files claiming it. More than one means ambiguous here.
+  //
+  // Every part counts, not just the surname. Once a note has established
+  // "Bill Viola", a later bare "Bill" almost certainly means him, and offering
+  // five Bills asks a question the note already answered. First names are
+  // weaker evidence than surnames in general, but the scope here is people the
+  // NOTE established, which is what removes the ambiguity: two Bills present
+  // and the part is skipped, exactly as with a shared surname.
+  const byPart = new Map<string, TFile[]>();
   for (const file of present.values()) {
     const parts = stripPrefix(file.basename, taxon).trim().split(/\s+/);
-    if (parts.length < 2) continue; // single-word name has no separate surname
-    const surname = parts[parts.length - 1];
-    if (surname.length < 3) continue; // initials and particles are too noisy
-    const key = surname.toLowerCase();
-    const list = bySurname.get(key);
-    if (list) list.push(file);
-    else bySurname.set(key, [file]);
+    if (parts.length < 2) continue; // a mononym has no part to separate out
+    for (const part of parts) {
+      if (part.length < 3) continue; // initials and particles are too noisy
+      const key = part.toLowerCase();
+      const list = byPart.get(key);
+      // One file can claim a part only once, so "John Johnson" doesn't look
+      // like two people to the ambiguity check below.
+      if (list) {
+        if (!list.includes(file)) list.push(file);
+      } else byPart.set(key, [file]);
+    }
   }
 
-  for (const [, files] of bySurname) {
-    if (files.length > 1) continue; // ambiguous in this note: skip, never guess
-    const file = files[0];
-    // For the sidebar, a file must never appear under both Linked and Unlinked
-    // Mentions: an already-linked person's bare surnames are folded into their
-    // Linked row instead (renderLinkedTaxa does it), so listing them here would
-    // show the same person twice.
-    //
-    // The link commands ask a different question, though: "what does the word
-    // under the cursor mean?" There a linked person's surname must still
-    // resolve, or linking it offers to create a new file. Hence the option.
-    if (excludeLinked && alreadyLinked.has(file.path)) continue;
-    const surname = stripPrefix(file.basename, taxon).trim().split(/\s+/).pop()!;
+  for (const [part, files] of byPart) {
+    // Several people in this note share the part ("Bill" with two Bills). Every
+    // candidate gets a row rather than the part being dropped: skipping hid the
+    // mention entirely, so there was nothing to disambiguate from. Linking one
+    // opens the picker, which is how ambiguity is handled everywhere else.
+    // Note: when a part is shared with an already-linked person, only the
+    // unlinked candidates get rows here. That is fine: the linked person is
+    // visible in Linked Mentions, so the reader has the context to judge, and a
+    // row is a suggestion rather than an answer.
+    for (const file of files) {
+      // For the sidebar, a file must never appear under both Linked and
+      // Unlinked Mentions: an already-linked person's bare name parts are
+      // folded into their Linked row instead (renderLinkedTaxa does it), so
+      // listing them here would show the same person twice.
+      //
+      // The link commands ask a different question, though: "what does the word
+      // under the cursor mean?" There a linked person's name parts must still
+      // resolve, or linking one offers to create a new file. Hence the option.
+      if (excludeLinked && alreadyLinked.has(file.path)) continue;
 
-    // Case-sensitive: a surname is a proper noun, so "Wood" is the person and
-    // "wood" is lumber. Without this, common-word surnames flood any note that
-    // happens to mention the person once.
-    const positions = findUnlinkedPositions(noteContent, surname, excluded, true)
-      .filter((offset) => offset >= bodyStart)
-      .map((offset) => ({ offset, len: surname.length, surface: surname }));
-    if (positions.length === 0) continue;
+      // Search the part as the file spells it, not as the map key lowercased it.
+      const term =
+        stripPrefix(file.basename, taxon)
+          .trim()
+          .split(/\s+/)
+          .find((w) => w.toLowerCase() === part) ?? part;
 
-    // Fold into the file's existing row when it already has one, so a person
-    // appears once with all their occurrences rather than twice.
-    const existing = matches.find((m) => m.filePath === file.path);
-    if (existing) {
-      const seen = new Set(existing.positions.map((p) => p.offset));
-      const added = positions.filter((p) => !seen.has(p.offset));
-      if (added.length > 0) {
-        existing.positions = [...existing.positions, ...added].sort((a, b) => a.offset - b.offset);
+      // Case-sensitive: a name is a proper noun, so "Wood" is the person and
+      // "wood" is lumber. Without this, common-word names flood any note that
+      // happens to mention the person once.
+      const positions = findUnlinkedPositions(noteContent, term, excluded, true)
+        .filter((offset) => offset >= bodyStart)
+        .map((offset) => ({ offset, len: term.length, surface: term }));
+      if (positions.length === 0) continue;
+
+      // Fold into the file's existing row when it already has one, so a person
+      // appears once with all their occurrences rather than twice.
+      const existing = matches.find((m) => m.filePath === file.path);
+      if (existing) {
+        const seen = new Set(existing.positions.map((p) => p.offset));
+        const added = positions.filter((p) => !seen.has(p.offset));
+        if (added.length > 0) {
+          existing.positions = [...existing.positions, ...added].sort((a, b) => a.offset - b.offset);
+        }
+        continue;
       }
-      continue;
-    }
 
-    matches.push({
-      matchText: surname,
-      filePath: file.path,
-      fileName: file.basename,
-      alias: stripPrefix(file.basename, taxon),
-      taxon,
-      positions,
-    });
+      matches.push({
+        matchText: term,
+        filePath: file.path,
+        fileName: file.basename,
+        alias: stripPrefix(file.basename, taxon),
+        taxon,
+        positions,
+      });
+    }
   }
 }
 

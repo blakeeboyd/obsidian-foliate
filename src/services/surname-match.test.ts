@@ -11,52 +11,83 @@ import * as assert from "assert";
 
 /** Surnames that should match in this note, given who the note establishes. */
 function surnamesFor(presentNames: string[]) {
-  const bySurname = new Map<string, string[]>();
+  const byPart = new Map<string, string[]>();
   for (const name of presentNames) {
     const parts = name.trim().split(/\s+/);
     if (parts.length < 2) continue;
-    const surname = parts[parts.length - 1];
-    if (surname.length < 3) continue;
-    const key = surname.toLowerCase();
-    const list = bySurname.get(key);
-    if (list) list.push(name);
-    else bySurname.set(key, [name]);
+    for (const part of parts) {
+      if (part.length < 3) continue;
+      const key = part.toLowerCase();
+      const list = byPart.get(key);
+      if (list) {
+        if (!list.includes(name)) list.push(name);
+      } else byPart.set(key, [name]);
+    }
   }
+  // Every candidate surfaces, including shared parts: the row exists so the
+  // ambiguity is visible, and linking it opens the picker.
   const out: { surname: string; person: string }[] = [];
-  for (const [, people] of bySurname) {
-    if (people.length > 1) continue; // ambiguous here: skip, never guess
-    const person = people[0];
-    out.push({ surname: person.trim().split(/\s+/).pop()!, person });
+  for (const [part, people] of byPart) {
+    for (const person of people) {
+      const term = person.trim().split(/\s+/).find((w) => w.toLowerCase() === part)!;
+      out.push({ surname: term, person });
+    }
   }
   return out;
 }
 
-// The case that motivated this: full name established, surname follows.
+// The case that motivated this: full name established, a bare part follows.
+// BOTH parts resolve now: prose says "Dostoevsky" on second reference, and a
+// note that established one Bill says "Bill".
 {
   const r = surnamesFor(["Vladimir Dostoevsky"]);
-  assert.deepStrictEqual(r, [{ surname: "Dostoevsky", person: "Vladimir Dostoevsky" }]);
-}
-
-// Two people sharing a surname in one note: skipped rather than guessed.
-{
-  const r = surnamesFor(["Blake Boyd", "Stowe Boyd"]);
-  assert.deepStrictEqual(r, [], "shared surname is ambiguous, so no match");
-}
-
-// Three Sarahs: surnames all differ, so each still resolves.
-{
-  const r = surnamesFor(["Sarah Cavanagh", "Sarah Elaine Eaton", "Sarah Schnitker"]);
   assert.deepStrictEqual(
     r.map((x) => x.surname).sort(),
-    ["Cavanagh", "Eaton", "Schnitker"],
-    "distinct surnames each match; the shared FIRST name is never used"
+    ["Dostoevsky", "Vladimir"],
+    "every part of an unambiguous name resolves"
   );
 }
 
-// A multi-part name uses only its last part, so "Elaine" never matches.
+// Two people sharing a surname: "Boyd" surfaces for BOTH, so the ambiguity is
+// visible and linking it offers a choice. Dropping it hid the mention entirely.
+{
+  const r = surnamesFor(["Blake Boyd", "Stowe Boyd"]);
+  const boyds = r.filter((x) => x.surname === "Boyd").map((x) => x.person).sort();
+  assert.deepStrictEqual(boyds, ["Blake Boyd", "Stowe Boyd"], "both candidates surface");
+  assert.ok(r.some((x) => x.surname === "Blake"), "distinct first names still resolve");
+}
+
+// Three Sarahs: each surname resolves to one person, and "Sarah" surfaces as a
+// three-way choice rather than a guess or a silent drop.
+{
+  const r = surnamesFor(["Sarah Cavanagh", "Sarah Elaine Eaton", "Sarah Schnitker"]);
+  assert.strictEqual(r.filter((x) => x.surname === "Sarah").length, 3, "all three offered");
+  for (const s of ["Cavanagh", "Eaton", "Schnitker"]) {
+    assert.strictEqual(r.filter((x) => x.surname === s).length, 1, `${s} is unambiguous`);
+  }
+}
+
+// A one-person note resolves every part of their name, middle names included.
 {
   const r = surnamesFor(["Sarah Elaine Eaton"]);
-  assert.deepStrictEqual(r, [{ surname: "Eaton", person: "Sarah Elaine Eaton" }]);
+  assert.deepStrictEqual(
+    r.map((x) => x.surname).sort(),
+    ["Eaton", "Elaine", "Sarah"],
+    "unambiguous here, so all parts resolve"
+  );
+}
+
+// The motivating case: one Bill established, so a bare "Bill" is not a question.
+{
+  const r = surnamesFor(["Bill Viola"]);
+  assert.ok(r.some((x) => x.surname === "Bill"), "first name resolves when unique in the note");
+}
+
+// Two Bills in one note: "Bill" surfaces for both, so linking it asks which.
+{
+  const r = surnamesFor(["Bill Viola", "Bill Whitlock"]);
+  assert.strictEqual(r.filter((x) => x.surname === "Bill").length, 2, "both Bills offered");
+  assert.ok(r.some((x) => x.surname === "Viola"), "distinct surnames still resolve");
 }
 
 // Single-word names have no separable surname.
@@ -65,30 +96,24 @@ function surnamesFor(presentNames: string[]) {
   assert.deepStrictEqual(r, [], "mononym contributes nothing");
 }
 
-// A middle initial doesn't interfere: the surname is still the last part.
+// Short parts are skipped wherever they sit: a middle initial "S", a "Jr".
 {
   const r = surnamesFor(["Harry S Truman"]);
-  assert.deepStrictEqual(r, [{ surname: "Truman", person: "Harry S Truman" }]);
+  assert.deepStrictEqual(r.map((x) => x.surname).sort(), ["Harry", "Truman"], "initial skipped");
 }
-
-// The length guard applies to the LAST part, so a trailing initial is skipped:
-// "Ed" would otherwise match far too much prose.
 {
   const r = surnamesFor(["Wilson Pickett Jr"]);
-  assert.deepStrictEqual(r, [], "two-letter trailing part is not matched");
+  assert.ok(!r.some((x) => x.surname === "Jr"), "two-letter suffix not matched");
 }
 
 // Nobody established in the note means nothing to match.
 assert.deepStrictEqual(surnamesFor([]), []);
 
-// One ambiguous pair does not suppress an unrelated unambiguous person.
+// An ambiguous part doesn't disturb unrelated unambiguous ones.
 {
   const r = surnamesFor(["Blake Boyd", "Stowe Boyd", "Vladimir Dostoevsky"]);
-  assert.deepStrictEqual(
-    r.map((x) => x.surname),
-    ["Dostoevsky"],
-    "only the ambiguous surname is dropped"
-  );
+  assert.strictEqual(r.filter((x) => x.surname === "Boyd").length, 2, "Boyd is a choice");
+  assert.strictEqual(r.filter((x) => x.surname === "Dostoevsky").length, 1, "unaffected");
 }
 
 console.log("surname second-reference matching: all assertions passed");
@@ -110,21 +135,30 @@ function unlinkedSurnameRows(presentNames: string[], linkedNames: string[]) {
   assert.deepStrictEqual(r, [], "linked people produce no unlinked surname rows");
 }
 
-// A person mentioned but NOT linked still gets an unlinked row.
+// A person mentioned but NOT linked still gets unlinked rows, including their
+// half of a shared part. The linked Pierre is visible in Linked Mentions, so
+// the shared "Pierre" row is a suggestion the reader has context to judge.
 {
   const r = unlinkedSurnameRows(["Pierre Schaeffer", "Pierre Henry"], ["Pierre Schaeffer"]);
   assert.deepStrictEqual(
-    r.map((x) => x.surname),
-    ["Henry"],
-    "only the unlinked person surfaces under Unlinked Mentions"
+    r.map((x) => x.surname).sort(),
+    ["Henry", "Pierre"],
+    "only the unlinked person's rows surface"
   );
+  assert.ok(r.every((x) => x.person === "Pierre Henry"), "no rows for the linked person");
 }
 
-// A linked person still establishes the note, so an ambiguous surname shared
-// with an unlinked person is skipped rather than attributed to the wrong one.
+// A linked person still establishes the note, so a part shared with an unlinked
+// person stays ambiguous rather than being attributed to the wrong one.
 {
   const r = unlinkedSurnameRows(["Blake Boyd", "Stowe Boyd"], ["Blake Boyd"]);
-  assert.deepStrictEqual(r, [], "shared surname stays ambiguous even when one is linked");
+  // Blake is linked, so his rows are excluded from Unlinked Mentions; Stowe
+  // isn't, so his stay, including his half of the shared "Boyd".
+  assert.deepStrictEqual(
+    r.map((x) => x.surname).sort(),
+    ["Boyd", "Stowe"],
+    "only the unlinked person's rows remain"
+  );
 }
 
 // The exclusion is for the SIDEBAR only. The link commands ask what a word
@@ -141,10 +175,14 @@ function surnamesForLinking(presentNames: string[], linkedNames: string[]) {
   const forSidebar = unlinkedSurnameRows(present, present);
   const forLinking = surnamesForLinking(present, present);
   assert.deepStrictEqual(forSidebar, [], "sidebar: no duplicate rows");
-  assert.deepStrictEqual(
-    forLinking.map((r) => r.surname).sort(),
-    ["Henry", "Schaeffer"],
+  assert.ok(
+    forLinking.some((r) => r.surname === "Schaeffer"),
     "linking: a linked person's surname still resolves"
+  );
+  assert.strictEqual(
+    forLinking.filter((r) => r.surname === "Pierre").length,
+    2,
+    "linking: a shared first name offers both, rather than resolving to one"
   );
 }
 

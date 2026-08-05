@@ -386,7 +386,23 @@ export default class FoliatePlugin extends Plugin {
 
     const hasPrefix = findTaxonByPrefix(word.text, this.settings.taxaMappings) !== null;
     const fileHits = findTaxaFilesByText(this.app, word.text, this.settings.taxaMappings);
+
+    // Nothing matches the word exactly, but files may still start with it:
+    // "Bill" with five Bills in the vault, none aliased to the bare first name.
+    // Offer those instead of reporting nothing found, as the selection path
+    // already does.
     if (!hasPrefix && fileHits.length === 0) {
+      const partial = findTaxaFilesByPartialText(this.app, word.text, this.settings.taxaMappings);
+      if (partial.length > 0) {
+        this.pickTaxaFile(
+          partial.map((h) => h.file.basename),
+          (basename) => {
+            editor.replaceRange(`[[${basename}|${word.text}]]`, word.from, word.to);
+            this.refreshSuggestionsView();
+          }
+        );
+        return;
+      }
       new Notice("No taxa mention under the cursor.");
       return;
     }

@@ -4,78 +4,56 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.5.2 - 2026-08-05
 
 ### Added
 
-- **Find misplaced and duplicate taxa files**, a new command. It reports taxa and
-  domain files that aren't in their taxon's folder, and names used by more than
-  one file. Misplaced files can be moved one at a time or all at once. A
-  duplicated name has a Compare button that puts the copies side by side, each
-  showing its folder, how many notes link to it, and its content. Keep one and
-  the rest go to your vault trash, where you can still recover them, and the one
-  you kept moves into the taxon folder.
-- **Surnames count as mentions once a full name appears.** In a note that already
-  mentions "Vladimir Dostoevsky", a later bare "Dostoevsky" surfaces as a mention
-  of that file, with no alias needed. Only within that note, and only for the
-  taxon you pick under Settings (People by default). A surname shared by two
-  people in the same note is left alone rather than guessed at, and matching is
-  case-sensitive, so someone surnamed Wood doesn't match "a wood floor". A
-  person you have already linked keeps their surnames on their existing row
-  rather than gaining a second one, and the surname still links from the word
-  itself.
-- **Acronyms a note declares are honored for that note.** Writing
-  "[[just noticeable difference]] (JND)" means later uses of JND in that note
-  surface as mentions of it. Only acronym-shaped parentheticals count, so notes
-  like "(concept)" or "(status: final)" are ignored, and an acronym written with
-  periods matches either way, so "(D.A.W.)" is found by a plain "DAW".
-- **Match acronyms in file names** (off by default), which treats a trailing
-  acronym in a file name as an alias: "+Spectral band replication (SBR)" matches
-  a bare "SBR". A parenthetical is more often a qualifier than an abbreviation,
-  so it only counts when its letters actually abbreviate the name, which keeps
-  "+attack (ADSR)" from claiming ADSR. A frontmatter alias does the same job
-  without the guesswork, which is why this is off unless you want it.
-- **Add an alias**, a right-click action on any mention that surfaced from a
-  surname or a declared acronym. It saves that text to the file's aliases, so
-  what one note established starts matching everywhere.
-- **Hidden connections** (off by default), a sidebar section listing mentions
-  that context gating withheld from the current note. Right-click a row for why
-  it was withheld, and any visible mention has a "Why is this shown?" action for
-  the converse. Turn it on under Settings → Experimental.
+- **Find misplaced and duplicate taxa files**, a new command. Reports taxa and
+  domain files outside their taxon's folder, and names used by more than one
+  file. Move misplaced files one at a time or all at once. A duplicated name
+  gets a Compare view showing each copy's folder, backlink count, and content.
+  Keep one; the rest go to vault trash (recoverable) and the keeper moves into
+  the taxon folder.
+- **Name parts match once the full name appears in a note.** "Vladimir
+  Dostoevsky" makes a later bare "Dostoevsky" or "Vladimir" match, no alias
+  needed. Case-sensitive, scoped to that note. Taxon is configurable (People by
+  default). Two people sharing a part each get a row; linking opens a picker.
+- **Declared acronyms match for that note.** "[[just noticeable difference]]
+  (JND)" makes JND match afterward. Shape test rejects non-acronym
+  parentheticals like "(concept)" or "(status: final)". Periods optional in
+  either direction, so "(D.A.W.)" matches "DAW".
+- **Match acronyms in file names**, off by default. A trailing acronym acts as
+  an alias only when its letters abbreviate the name, so
+  "+Spectral band replication (SBR)" matches "SBR" but "+attack (ADSR)" does
+  not claim ADSR.
+- **Add an alias**, a right-click action on a name-part or declared-acronym
+  match. Promotes it to the file's frontmatter aliases.
+- **Hidden connections**, an off-by-default sidebar section for mentions that
+  context gating withheld. Right-click a row for the reason; visible mentions
+  get a "Why is this shown?" action for the converse. Enable under
+  Settings → Experimental.
 
 ### Changed
 
-- The debug report opens in a window instead of going straight to the clipboard,
-  with a copy button. It now reports how many files each taxon has and how many
-  sit outside its folder, how many names are duplicated, and the command that
-  fixes each. It also flags configuration that silently does nothing: a taxon
-  with no folder or no prefix, two taxa sharing a prefix, one taxon's folder
-  nested inside another's, inline actions that no longer exist, context-aware
-  entries pointing at deleted files or gating no terms, and blocklist entries
-  matching nothing.
-- Selecting text that matches several taxa files now asks which one to link.
-  Selecting text that matches none exactly but is the start of some (typing
-  "Sarah" with three Sarahs in the vault) offers those before creating a new
-  file. Both cases previously went straight to creating another file.
-- The "Add to domain" list only shows files from the domain folder when one is
-  configured, so a stray copy elsewhere in the vault is no longer offered.
-- "Link all unlinked taxa in the current note" links the first mention of each
-  file rather than every one, so a note that says "delay" twelve times gets one
-  link. Use a row's "Link all occurrences" when a term really should be linked
-  throughout.
-- Mentions inside headings are no longer matched anywhere. Linking one rewrote
-  the heading text, which broke [[note#Heading]] links pointing at it and filled
-  the outline with link syntax. A term named in a heading links at its first use
-  in the prose below instead.
-- Duplicate detection now catches names that differ only by capitalization or
-  accents, so "+Musique concrete" and "+musique concrète" are reported as one
-  duplicate rather than two unrelated files.
-- New taxa files whose name carries accents or typographic punctuation also get
-  their plain spelling as an alias, so "musique concrete" finds
-  "+musique concrète". Turn it off under Settings.
-- Settings are grouped by what they affect: matching rules sit together under
-  Matching, and the plain-text alias option sits with the other file-creation
-  options.
+- Debug report is now a modal with a copy button, not a clipboard write. Adds
+  per-taxon file counts, misplaced/duplicate counts with the fixing command,
+  and checks for silently-broken config: taxa with no folder or prefix,
+  shared prefixes, nested taxon folders, stale inline actions, orphaned
+  context-aware entries, and dead blocklist entries.
+- "Create taxa link" disambiguates instead of creating: exact multi-match
+  opens a picker, prefix-only match offers those candidates first. Selection
+  and cursor now behave the same.
+- Domain picker only lists files from the configured domain folder.
+- "Link all unlinked taxa" links the first mention per file, not every
+  occurrence. Use a row's "Link all occurrences" for the rest.
+- Headings are excluded from matching everywhere, so linking a heading term no
+  longer rewrites the heading and breaks `[[note#Heading]]` links.
+- Duplicate detection folds case and accents, so "+Musique concrete" and
+  "+musique concrète" report as one duplicate.
+- New taxa files with accented or typographic names also get a plain-ASCII
+  alias. Toggle under Settings.
+- Settings regrouped: matching rules under Matching, plain-text alias option
+  with file-creation options.
 
 ## 0.5.1 - 2026-08-04
 
