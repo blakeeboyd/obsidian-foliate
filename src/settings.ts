@@ -2,6 +2,7 @@ import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, ColorCompo
 import type FoliatePlugin from "./main";
 import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
+import { SymbolPickerModal } from "./ui/symbol-picker";
 import { mineContextTerms, fileTerms, taxonForFile } from "./services/context-mining";
 
 class ConfirmModal extends Modal {
@@ -1019,11 +1020,38 @@ export class FoliateSettingTab extends PluginSettingTab {
     row.style.alignItems = "center";
     row.style.marginBottom = "8px";
 
-    const prefixInput = row.createEl("input", { type: "text", placeholder: "Prefix", value: mapping.prefix });
+    // Clicking opens the picker. Most default prefixes need a modifier to type,
+    // so a user who clears this field cannot retype what shipped. Typing still
+    // works for anyone who knows the combination or wants a symbol not listed.
+    const prefixInput = row.createEl("input", {
+      type: "text",
+      placeholder: "Prefix",
+      value: mapping.prefix,
+    });
     prefixInput.style.width = "50px";
-    prefixInput.addEventListener("change", async () => {
-      mapping.prefix = prefixInput.value;
+    prefixInput.setAttribute("aria-label", "Taxa prefix, click to choose a symbol");
+
+    const applyPrefix = async (value: string) => {
+      // One symbol per taxon. The matcher can handle longer prefixes, and the
+      // length sorting that supports them stays in place for any config that
+      // already has one, but nothing needs them and a picker implies one click,
+      // one character. Take the first character of a paste rather than
+      // rejecting it outright.
+      const first = [...value.trim()][0] ?? "";
+      mapping.prefix = first;
+      prefixInput.value = first;
       await this.plugin.saveSettings();
+      this.plugin.refreshSuggestionsView();
+    };
+
+    prefixInput.addEventListener("change", () => void applyPrefix(prefixInput.value));
+    prefixInput.addEventListener("focus", () => {
+      const all = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+      new SymbolPickerModal(this.app, all, mapping, (char) => {
+        void applyPrefix(char);
+      }).open();
+      // Drop focus so closing the picker doesn't immediately reopen it.
+      prefixInput.blur();
     });
 
     const labelInput = row.createEl("input", { type: "text", placeholder: "Label", value: mapping.label });

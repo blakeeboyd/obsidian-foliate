@@ -777,3 +777,80 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* Symbol picker for taxa prefixes */
+.foliate-symbol-modal {
+  width: min(560px, 92vw);
+}
+
+.foliate-symbol-modal .modal-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.foliate-symbol-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.foliate-symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px;
+}
+
+.foliate-symbol-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  text-align: center;
+  min-width: 0;
+}
+
+.foliate-symbol-cell:hover {
+  background-color: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+/* Already used by another taxon: visible so the conflict is legible, but not
+   selectable, since two taxa sharing a prefix means one can never match. */
+.foliate-symbol-cell.is-taken {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.foliate-symbol-cell.is-taken:hover {
+  background-color: transparent;
+  border-color: var(--background-modifier-border);
+}
+
+.foliate-symbol-char {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.foliate-symbol-keys {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
+
+.foliate-symbol-name,
+.foliate-symbol-taken {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.foliate-symbol-taken {
+  color: var(--text-warning);
+}
+
+.foliate-symbol-empty {
+  color: var(--text-muted);
+}

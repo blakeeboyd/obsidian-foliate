@@ -16,9 +16,7 @@ function findMisplaced(files: FakeFile[], taxa: Taxon[], existingPaths: Set<stri
 
   const out: { name: string; from: string; to: string; blocked: boolean }[] = [];
   for (const file of files) {
-    const taxon = [...scoped]
-      .sort((a, b) => b.prefix.length - a.prefix.length)
-      .find((t) => file.basename.startsWith(t.prefix));
+    const taxon = scoped.find((t) => t.prefix && file.basename.startsWith(t.prefix));
     if (!taxon) continue;
 
     const target = taxon.folder.trim();
@@ -84,15 +82,15 @@ const TAXA: Taxon[] = [
   assert.deepStrictEqual(r, []);
 }
 
-// Longest prefix wins, so a multi-char prefix isn't shadowed by a shorter one
-// that happens to be its first character.
+// A prefix is one character, so the first taxon whose prefix the name starts
+// with is the only candidate. Nothing can shadow anything else.
 {
-  const overlapping: Taxon[] = [
-    { prefix: "+", label: "Concepts", folder: "Concepts" },
-    { prefix: "++", label: "Meta", folder: "Meta" },
-  ];
-  const r = findMisplaced([f("++framework", "Inbox")], overlapping, new Set());
-  assert.strictEqual(r[0].to, "Meta", "longest matching prefix picks the taxon");
+  const r = findMisplaced([f("+entropy", "Inbox"), f("@Ada", "Inbox")], TAXA, new Set());
+  assert.deepStrictEqual(
+    r.map((x) => x.to).sort(),
+    ["Concepts", "People"],
+    "each name resolves to the taxon its single-character prefix names"
+  );
 }
 
 console.log("misplaced-file detection: all assertions passed");
@@ -100,10 +98,9 @@ console.log("misplaced-file detection: all assertions passed");
 // ---- Duplicate detection ----
 
 function findDuplicates(files: (FakeFile & { path: string })[], taxa: Taxon[]) {
-  const sorted = [...taxa].sort((a, b) => b.prefix.length - a.prefix.length);
   const byName = new Map<string, { taxon: Taxon; files: (FakeFile & { path: string })[] }>();
   for (const file of files) {
-    const taxon = sorted.find((t) => t.prefix && file.basename.startsWith(t.prefix));
+    const taxon = taxa.find((t) => t.prefix && file.basename.startsWith(t.prefix));
     if (!taxon) continue;
     const e = byName.get(file.basename);
     if (e) e.files.push(file);

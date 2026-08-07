@@ -238,11 +238,10 @@ export async function buildDebugReport(
   // Unicode normalization (NFC vs NFD), and that distinction is the difference
   // between "one name, two files" and "two names that render alike".
   const allTaxa = [...settings.taxaMappings, settings.domain];
-  const sortedTaxa = [...allTaxa].sort((a, b) => b.prefix.length - a.prefix.length);
 
   const filesByTaxon = new Map<TaxaMapping, TFile[]>(allTaxa.map((t) => [t, []]));
   for (const f of app.vault.getMarkdownFiles()) {
-    const taxon = sortedTaxa.find((t) => t.prefix && f.basename.startsWith(t.prefix));
+    const taxon = allTaxa.find((t) => t.prefix && f.basename.startsWith(t.prefix));
     if (taxon) filesByTaxon.get(taxon)!.push(f);
   }
 
@@ -634,11 +633,7 @@ export function findMisplacedTaxaFiles(
 
   const misplaced: MisplacedFile[] = [];
   for (const file of app.vault.getMarkdownFiles()) {
-    // Longest prefix first, so a multi-character prefix isn't shadowed by a
-    // single-character one that happens to be its first character.
-    const taxon = [...taxa]
-      .sort((a, b) => b.prefix.length - a.prefix.length)
-      .find((t) => file.basename.startsWith(t.prefix));
+    const taxon = taxa.find((t) => t.prefix && file.basename.startsWith(t.prefix));
     if (!taxon) continue;
 
     const target = taxon.folder.trim();
@@ -689,15 +684,12 @@ export function findDuplicateTaxaNames(
   settings: FoliateSettings
 ): DuplicateTaxaName[] {
   const taxa = [...settings.taxaMappings, settings.domain];
-  // Longest prefix first so a multi-character prefix isn't shadowed.
-  const sorted = [...taxa].sort((a, b) => b.prefix.length - a.prefix.length);
-
   // Group on a folded name, so files that differ only by capitalization or
   // accents land together: "+Musique concrete" and "+musique concrete" are one
   // concept written two ways, and a link can only reach one of them.
   const byName = new Map<string, { taxon: TaxaMapping; files: TFile[] }>();
   for (const file of app.vault.getMarkdownFiles()) {
-    const taxon = sorted.find((t) => t.prefix && file.basename.startsWith(t.prefix));
+    const taxon = taxa.find((t) => t.prefix && file.basename.startsWith(t.prefix));
     if (!taxon) continue;
     const key = foldName(file.basename);
     const entry = byName.get(key);

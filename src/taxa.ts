@@ -21,12 +21,10 @@ export function findTaxonByPrefix(
   text: string,
   mappings: TaxaMapping[]
 ): TaxaMapping | null {
-  // Sort by prefix length descending so multi-char prefixes match first
-  const sorted = [...mappings].sort(
-    (a, b) => b.prefix.length - a.prefix.length
-  );
-  for (const mapping of sorted) {
-    if (text.startsWith(mapping.prefix)) {
+  // A prefix is one character, so no two can shadow each other and the first
+  // match is the only match.
+  for (const mapping of mappings) {
+    if (mapping.prefix && text.startsWith(mapping.prefix)) {
       return mapping;
     }
   }

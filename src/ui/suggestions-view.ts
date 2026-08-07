@@ -670,7 +670,8 @@ export class SuggestionsView extends ItemView {
 
   /**
    * Build the pinned header: the "Foliate" title, a toggle for limiting to the
-   * visible area, and — when auto-scan is off — a Scan button.
+   * visible area, a shortcut to Foliate's settings, and a Scan button when
+   * auto-scan is off.
    */
   private buildStickyHeader(stickyTop: HTMLElement) {
     const header = stickyTop.createDiv("foliate-suggestions-header");
@@ -688,6 +689,25 @@ export class SuggestionsView extends ItemView {
       this.plugin.settings.scopeToView = !this.plugin.settings.scopeToView;
       await this.plugin.saveSettings();
       this.refresh();
+    });
+
+    // Foliate's own settings, rather than Obsidian's plugin list. Most of what
+    // the sidebar shows is governed by them, so reaching them from here saves a
+    // trip through Settings > Community plugins.
+    const settingsBtn = controls.createEl("button", {
+      cls: "foliate-action-btn",
+      attr: { "aria-label": "Foliate settings" },
+    });
+    setIcon(settingsBtn, "settings");
+    settingsBtn.addEventListener("click", () => {
+      const app = this.app as unknown as {
+        setting: {
+          open: () => void;
+          openTabById: (id: string) => void;
+        };
+      };
+      app.setting.open();
+      app.setting.openTabById(this.plugin.manifest.id);
     });
 
     if (!this.plugin.settings.autoScan) {
