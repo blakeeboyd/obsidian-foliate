@@ -1,8 +1,10 @@
-import { App, Modal, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder } from "obsidian";
 import type FoliatePlugin from "./main";
 import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
 import { SymbolPickerModal } from "./ui/symbol-picker";
+import { DetectedTaxaModal } from "./ui/detected-taxa-modal";
+import { detectTaxaPrefixes } from "./services/detect-taxa";
 import { mineContextTerms, fileTerms, taxonForFile } from "./services/context-mining";
 
 class ConfirmModal extends Modal {
@@ -480,6 +482,26 @@ export class FoliateSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /**
+   * Taxa states from before each change, newest last.
+   *
+   * A prefix is written the moment a symbol is clicked, and the label and
+   * folder fields save on change, so a mistap is persisted with no way back.
+   * The stack lives as long as the settings tab is open: it walks back through
+   * this sitting's edits one at a time, rather than restoring a snapshot that
+   * could silently undo something deliberate from minutes earlier.
+   */
+  private taxaUndo: TaxaMapping[][] = [];
+
+  /** Record the current taxa before a change, so it can be stepped back to. */
+  pushTaxaUndo(): void {
+    this.taxaUndo.push(
+      this.plugin.settings.taxaMappings.map((m) => ({ ...m }))
+    );
+    // A settings tab session is short; keep the stack from growing unbounded.
+    if (this.taxaUndo.length > 50) this.taxaUndo.shift();
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -558,11 +580,33 @@ export class FoliateSettingTab extends PluginSettingTab {
     new Setting(el)
       .addButton((btn) =>
         btn.setButtonText("Add taxa").onClick(async () => {
+          this.pushTaxaUndo();
           this.plugin.settings.taxaMappings.push({ prefix: "", label: "", folder: "" });
           await this.plugin.saveSettings();
           this.display();
         })
       )
+      .addButton((btn) => {
+        // Disabled rather than hidden, so it is a visible promise that edits
+        // here are recoverable.
+        btn
+          .setButtonText("Undo")
+          .setTooltip(
+            this.taxaUndo.length > 0
+              ? `Undo the last taxa change (${this.taxaUndo.length} to step back)`
+              : "No taxa changes to undo in this settings session"
+          )
+          .setDisabled(this.taxaUndo.length === 0)
+          .onClick(async () => {
+            const previous = this.taxaUndo.pop();
+            if (!previous) return;
+            this.plugin.settings.taxaMappings = previous;
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+            this.display();
+            new Notice("Taxa change undone.");
+          });
+      })
       .addButton((btn) =>
         btn
           .setButtonText("Restore defaults")
@@ -573,6 +617,7 @@ export class FoliateSettingTab extends PluginSettingTab {
               "Restore the default set of taxa (prefixes and labels)? Your existing folder paths are kept; newly added taxa start with an empty folder for you to set. This does not move or rename any files.",
               "Restore defaults",
               async () => {
+                this.pushTaxaUndo();
                 const folders = new Map(
                   this.plugin.settings.taxaMappings.map((m) => [m.prefix, m.folder])
                 );
@@ -693,19 +738,6 @@ export class FoliateSettingTab extends PluginSettingTab {
     new Setting(el).setName("Display").setHeading();
 
     new Setting(el)
-      .setName("Limit to visible area")
-      .setDesc(
-        "Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Also toggleable from the eye button in the sidebar header. Edit mode only."
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.scopeToView).onChange(async (value) => {
-          this.plugin.settings.scopeToView = value;
-          await this.plugin.saveSettings();
-          this.plugin.refreshSuggestionsView();
-        })
-      );
-
-    new Setting(el)
       .setName("Sort entries")
       .setDesc("Order of entries within each taxa category in the sidebar.")
       .addDropdown((dd) =>
@@ -742,6 +774,28 @@ export class FoliateSettingTab extends PluginSettingTab {
           this.plugin.settings.showSearchBar = value;
           await this.plugin.saveSettings();
           this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
+      .setName("Find prefixes used in this vault")
+      .setDesc(
+        "Scan file names for characters that start enough of them to look like a convention, then add the ones you confirm as taxa."
+      )
+      .addButton((btn) =>
+        btn.setButtonText("Scan").onClick(() => {
+          const all = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+          const found = detectTaxaPrefixes(this.app, all);
+          if (found.length === 0) {
+            new Notice("No unconfigured prefix is used by enough files to look like a convention.");
+            return;
+          }
+          new DetectedTaxaModal(this.app, found, async (mappings) => {
+            this.plugin.settings.taxaMappings.push(...mappings);
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+            this.display();
+          }).open();
         })
       );
 
@@ -952,6 +1006,19 @@ export class FoliateSettingTab extends PluginSettingTab {
     renderContextFilesRow();
 
     new Setting(el)
+      .setName("Limit to visible area")
+      .setDesc(
+        "Scope the sidebar to mentions in the editor's current view, updating as you scroll. Off by default: it works in edit mode only, and re-scoping on scroll can make the list feel unstable. Turning it on adds an eye button to the sidebar header."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.scopeToView).onChange(async (value) => {
+          this.plugin.settings.scopeToView = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
       .setName("Show hidden connections")
       .setDesc(
         "Add a collapsed \"Hidden connections\" section to the sidebar listing mentions that context gating withheld from the current note, and why. Use it to check the gating is making the calls you expect."
@@ -996,9 +1063,11 @@ export class FoliateSettingTab extends PluginSettingTab {
     container.empty();
     mappings.forEach((mapping, index) => {
       this.renderMappingRow(container, mapping, async () => {
+        this.pushTaxaUndo();
         mappings.splice(index, 1);
         await this.plugin.saveSettings();
         this.renderTaxaMappings(container, mappings);
+        this.display();
       });
     });
   }
@@ -1032,12 +1101,12 @@ export class FoliateSettingTab extends PluginSettingTab {
     prefixInput.setAttribute("aria-label", "Taxa prefix, click to choose a symbol");
 
     const applyPrefix = async (value: string) => {
-      // One symbol per taxon. The matcher can handle longer prefixes, and the
-      // length sorting that supports them stays in place for any config that
-      // already has one, but nothing needs them and a picker implies one click,
-      // one character. Take the first character of a paste rather than
-      // rejecting it outright.
+      // One symbol per taxon. Take the first character of a paste rather than
+      // rejecting it outright, using the spread so an astral character isn't
+      // split into half a surrogate pair.
       const first = [...value.trim()][0] ?? "";
+      if (first === mapping.prefix) return;
+      this.pushTaxaUndo();
       mapping.prefix = first;
       prefixInput.value = first;
       await this.plugin.saveSettings();
@@ -1045,35 +1114,57 @@ export class FoliateSettingTab extends PluginSettingTab {
     };
 
     prefixInput.addEventListener("change", () => void applyPrefix(prefixInput.value));
-    prefixInput.addEventListener("focus", () => {
+
+    // Open on click, not focus. Closing the modal returns focus to this input,
+    // and a focus handler would reopen it immediately: pressing X did nothing
+    // visible because the picker closed and instantly came back. The guard
+    // covers the same loop for the click that follows a modal close.
+    let pickerOpen = false;
+    prefixInput.addEventListener("click", () => {
+      if (pickerOpen) return;
+      pickerOpen = true;
       const all = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
-      new SymbolPickerModal(this.app, all, mapping, (char) => {
+      const modal = new SymbolPickerModal(this.app, all, mapping, (char) => {
         void applyPrefix(char);
-      }).open();
-      // Drop focus so closing the picker doesn't immediately reopen it.
-      prefixInput.blur();
+      });
+      const restore = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        restore();
+        pickerOpen = false;
+        prefixInput.blur();
+      };
+      modal.open();
     });
 
     const labelInput = row.createEl("input", { type: "text", placeholder: "Label", value: mapping.label });
     labelInput.style.width = "100px";
     labelInput.addEventListener("change", async () => {
+      if (labelInput.value === mapping.label) return;
+      this.pushTaxaUndo();
       mapping.label = labelInput.value;
       await this.plugin.saveSettings();
     });
 
     const folderInput = addClearableInput(row, "Folder path", mapping.folder, "200px", async (v) => {
+      if (v === mapping.folder) return;
+      this.pushTaxaUndo();
       mapping.folder = v;
       await this.plugin.saveSettings();
     });
     new FolderSuggest(this.app, folderInput).onSelect(async (folder) => {
       folderInput.value = folder.path;
       folderInput.dispatchEvent(new Event("input"));
-      mapping.folder = folder.path;
-      await this.plugin.saveSettings();
+      if (folder.path !== mapping.folder) {
+        this.pushTaxaUndo();
+        mapping.folder = folder.path;
+        await this.plugin.saveSettings();
+      }
     });
 
     const saveTemplate = async (value: string) => {
       const trimmed = value.trim();
+      if (trimmed === (mapping.template ?? "")) return;
+      this.pushTaxaUndo();
       if (trimmed) mapping.template = trimmed;
       else delete mapping.template;
       await this.plugin.saveSettings();

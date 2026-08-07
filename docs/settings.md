@@ -41,7 +41,6 @@ Changes take effect immediately after saving.
 | Enable sidebar | On | Make the Foliate sidebar available. Turn off to use the commands and auto-move without it. Requires plugin reload |
 | Open on startup | On | Automatically open the Foliate sidebar when the plugin loads |
 | Auto-scan | On | Scan the active note automatically as you switch files and edit. Turn off to scan only when you click **Scan** in the sidebar header |
-| Limit to visible area | Off | Only show mentions whose occurrences are in the editor's current view, updating as you scroll. Edit mode only. Also toggleable from the eye button in the sidebar header (the two stay in sync) |
 | Sort entries | Mentions, high to low | Order of entries within each taxa category: by mention count (either direction) or by name (A to Z / Z to A) |
 | Match aliases of linked files | On | Under Linked Mentions, fold in a file's unlinked alias occurrences so you can cycle through them (e.g. "USA" for an already-linked United States) |
 | Select text on jump | On | Select the matched text in the editor when jumping to an occurrence (edit mode only) |
@@ -104,5 +103,6 @@ Terms that have been permanently ignored via the "Ignore" button in the suggesti
 
 | Setting | Default | Description |
 |---------|---------|-------------|
+| Limit to visible area | Off | Scope the sidebar to mentions in the editor's current view, updating as you scroll. Edit mode only, and re-scoping on scroll can make the list feel unstable. Turning it on adds an eye button to the sidebar header |
 | Context-aware mentions | Off | A file's common-word alias surfaces only in notes that also mention one of the file's related terms. When off the gating is dormant and its sidebar action is hidden; configured files are kept and reactivate if you turn it back on |
 | Show hidden connections | Off | Add a collapsed "Hidden connections" section to the sidebar listing mentions that context gating withheld from the current note. Right-click a row for the reason. Visible mentions gain a "Why is this shown?" action for the converse |

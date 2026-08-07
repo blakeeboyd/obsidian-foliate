@@ -16,6 +16,8 @@ import {
 import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { MisplacedFilesModal } from "./ui/misplaced-files-modal";
 import { DebugReportModal } from "./ui/debug-report-modal";
+import { DetectedTaxaModal } from "./ui/detected-taxa-modal";
+import { detectTaxaPrefixes } from "./services/detect-taxa";
 import { findUnlinkedMatches, findTaxaFilesByText, findTaxaFilesByPartialText, resolveOverlaps, setFilenameAcronymMatching } from "./services/unlinked-matcher";
 import { TaxaPickerModal } from "./ui/taxa-picker-modal";
 import { FilePickerModal } from "./ui/file-picker-modal";
@@ -198,6 +200,24 @@ export default class FoliatePlugin extends Plugin {
           async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
           scan
         ).open();
+      },
+    });
+
+    this.addCommand({
+      id: "foliate-detect-taxa",
+      name: "Find taxa prefixes used in this vault",
+      callback: () => {
+        const all = [...this.settings.taxaMappings, this.settings.domain];
+        const found = detectTaxaPrefixes(this.app, all);
+        if (found.length === 0) {
+          new Notice("No unconfigured prefix is used by enough files to look like a convention.");
+          return;
+        }
+        new DetectedTaxaModal(this.app, found, async (mappings) => {
+          this.settings.taxaMappings.push(...mappings);
+          await this.saveSettings();
+          this.refreshSuggestionsView();
+        }).open();
       },
     });
 

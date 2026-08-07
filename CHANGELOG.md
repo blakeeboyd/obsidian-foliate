@@ -4,6 +4,40 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Symbol picker for taxa prefixes.**
+  - Clicking a prefix field opens a grid of candidate symbols, each with its
+    character, US key combination, and name. Six of the ten defaults need an
+    Option combination to type.
+  - Search by name: "infinity" finds ∞, "wave" finds ≈, "copyright" finds ©.
+    Symbols also answer to the taxon they ship as.
+  - A symbol another taxon already uses is shown but not selectable.
+- **Find taxa prefixes used in this vault**, a new command.
+  - Scans file names for characters that start at least three of them, which
+    separates a convention from a stray symbol or an emoji in one file name.
+  - Suggests the folder those files share, and nothing is added until you
+    confirm it.
+- **Undo for taxa changes**, beside Add taxa.
+  - Steps back through prefix, label, folder, template, add, delete, and
+    restore-defaults changes made while the settings tab is open.
+
+### Changed
+
+- A taxon's prefix is one character. Multi-character prefixes are no longer
+  creatable, and the length-sorting that supported them is gone.
+- Settings button in the sidebar header, right of the eye icon.
+- **Limit to visible area** moved to Experimental and is off by default. It
+  works in edit mode only, and re-scoping on scroll makes the list unstable.
+  Its eye button appears in the sidebar header only when it is enabled.
+
+### Fixed
+
+- The prefix picker's close button works. The picker opened on focus, so
+  closing it returned focus to the field and reopened it immediately.
+
 ## 0.5.2 - 2026-08-05
 
 ### Added

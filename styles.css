@@ -854,3 +854,83 @@
 .foliate-symbol-empty {
   color: var(--text-muted);
 }
+
+/* Detected taxa: prefix conventions found in the vault */
+.foliate-detected-modal {
+  width: min(600px, 92vw);
+}
+
+.foliate-detected-modal .modal-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.foliate-detected-intro {
+  color: var(--text-muted);
+}
+
+.foliate-detected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.foliate-detected-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary);
+}
+
+.foliate-detected-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.foliate-detected-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.foliate-detected-prefix {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.foliate-detected-count {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+}
+
+.foliate-detected-examples {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+.foliate-detected-fields {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.foliate-detected-fields input {
+  flex: 1;
+  min-width: 0;
+}
+
+.foliate-detected-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}

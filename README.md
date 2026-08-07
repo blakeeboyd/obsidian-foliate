@@ -59,7 +59,6 @@ Right-click any row for its full set of actions (link, open, unlink, ignore, dis
 ### Navigation
 
 - **Click actions:** the plain click and each modifier-click (Cmd/Ctrl, Option/Alt, Shift) are configurable: jump to the next occurrence (cycling through all positions with an optional highlight flash), open the note (current tab, new tab, Split View, or new window), copy a wikilink, or open the options menu. Defaults: click jumps, Cmd/Ctrl opens in the current tab, Option/Alt opens the options menu, Shift opens in Split View.
-- **Limit to visible area:** an eye toggle in the sidebar header scopes the list to occurrences in the editor's current view, updating as you scroll.
 
 [Navigation docs →](docs/navigation.md)
 
@@ -144,7 +143,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plu
 | Enable sidebar | On | Make the sidebar available (requires reload); off uses commands + auto-move only |
 | Open on startup | On | Auto-open the Foliate sidebar on plugin load |
 | Auto-scan | On | Scan the active note automatically; turn off to scan only via the Scan button |
-| Limit to visible area | Off | Only show mentions in the editor's current view; also toggleable from the sidebar header (synced) |
+| Limit to visible area | Off | Experimental. Scope the sidebar to mentions in the editor's current view. Edit mode only |
 | Sort entries | Mentions, high to low | Order entries within each category by mention count or name |
 | Click action | Jump to term in the document | What a click on a sidebar item does: jump, open in current tab / new tab / Split View / new window, copy a wikilink, or open the options menu |
 | Shift+click action | Open in Split View | Same choices, for Shift+click |

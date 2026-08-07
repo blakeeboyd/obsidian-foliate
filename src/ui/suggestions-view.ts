@@ -669,9 +669,9 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Build the pinned header: the "Foliate" title, a toggle for limiting to the
-   * visible area, a shortcut to Foliate's settings, and a Scan button when
-   * auto-scan is off.
+   * Build the pinned header: the "Foliate" title, a shortcut to Foliate's
+   * settings, and two conditional buttons. The eye appears only when
+   * view-scoping is on, the Scan button only when auto-scan is off.
    */
   private buildStickyHeader(stickyTop: HTMLElement) {
     const header = stickyTop.createDiv("foliate-suggestions-header");
@@ -679,17 +679,21 @@ export class SuggestionsView extends ItemView {
 
     const controls = header.createDiv("foliate-header-controls");
 
-    const viewBtn = controls.createEl("button", {
-      cls: "foliate-action-btn",
-      attr: { "aria-label": "Limit to visible area" },
-    });
-    setIcon(viewBtn, "eye");
-    if (this.plugin.settings.scopeToView) viewBtn.addClass("is-active");
-    viewBtn.addEventListener("click", async () => {
-      this.plugin.settings.scopeToView = !this.plugin.settings.scopeToView;
-      await this.plugin.saveSettings();
-      this.refresh();
-    });
+    // Only once the feature is enabled. The button is a quick way to turn
+    // view-scoping off again while using it, which is worth a header slot only
+    // to someone who turned it on in the first place.
+    if (this.plugin.settings.scopeToView) {
+      const viewBtn = controls.createEl("button", {
+        cls: "foliate-action-btn is-active",
+        attr: { "aria-label": "Limit to visible area" },
+      });
+      setIcon(viewBtn, "eye");
+      viewBtn.addEventListener("click", async () => {
+        this.plugin.settings.scopeToView = false;
+        await this.plugin.saveSettings();
+        this.refresh();
+      });
+    }
 
     // Foliate's own settings, rather than Obsidian's plugin list. Most of what
     // the sidebar shows is governed by them, so reaching them from here saves a
