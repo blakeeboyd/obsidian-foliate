@@ -106,6 +106,14 @@ export class SuggestionsView extends ItemView {
     this.stickyObserver = new ResizeObserver(() => this.updateStickyOffsets());
     this.stickyObserver.observe(this.contentEl);
 
+    // A scan skipped while the tab was hidden runs when the tab is revealed
+    // (sidebar tab switches fire layout-change).
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        if (this.staleWhileHidden && this.containerEl.isShown()) this.refresh();
+      })
+    );
+
     this.onActiveFileChange();
   }
 
@@ -608,9 +616,14 @@ export class SuggestionsView extends ItemView {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private debounceRefresh() {
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    // 3s, deliberately longer than Obsidian's ~2s auto-save cadence: while the
+    // user types continuously, each save re-arms the timer and the scan never
+    // fires; it runs once after a real pause. At 1s the timer expired between
+    // saves, so a full scan (every taxa file's terms against the whole note)
+    // ran every couple of seconds DURING typing — felt as editor lag.
     this.debounceTimer = setTimeout(() => {
       this.refresh();
-    }, 1000);
+    }, 3000);
   }
 
   /**
@@ -748,7 +761,21 @@ export class SuggestionsView extends ItemView {
     window.requestAnimationFrame(() => this.updateStickyOffsets());
   }
 
+  /** Set when a refresh was skipped because the tab wasn't visible; the
+   *  layout-change listener repays the debt on reveal. */
+  private staleWhileHidden = false;
+
   async refresh() {
+    // A hidden sidebar tab must not pay for scans it can't show: with
+    // thousands of taxa files a rescan is real main-thread work, and it was
+    // running behind whatever tab covered this one, on every auto-save,
+    // while the user typed. Mark stale and scan on reveal instead.
+    if (!this.containerEl.isShown()) {
+      this.staleWhileHidden = true;
+      return;
+    }
+    this.staleWhileHidden = false;
+
     // Keep the scroll listener matched to the current setting and editor.
     this.registerScrollListener();
 
