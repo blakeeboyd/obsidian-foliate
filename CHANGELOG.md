@@ -4,7 +4,7 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.6.0 - 2026-08-12
 
 ### Added
 
@@ -12,8 +12,8 @@ All notable changes to Foliate are documented here. The format follows
   - Clicking a prefix field opens a grid of candidate symbols, each with its
     character, US key combination, and name. Six of the ten defaults need an
     Option combination to type.
-  - Search by name: "infinity" finds ∞, "wave" finds ≈, "copyright" finds ©.
-    Symbols also answer to the taxon they ship as.
+  - Search by name: "infinity" finds ∞, "wave" finds ≈, "copyright" finds ©. A
+    symbol also answers to the name of the taxon it ships as a default for.
   - A symbol another taxon already uses is shown but not selectable.
 - **Find taxa prefixes used in this vault**, a new command.
   - Scans file names for characters that start at least three of them, which
@@ -35,8 +35,13 @@ All notable changes to Foliate are documented here. The format follows
 
 ### Fixed
 
-- The prefix picker's close button works. The picker opened on focus, so
-  closing it returned focus to the field and reopened it immediately.
+- The prefix picker's close button no longer reopens the picker. It opened on
+  focus, so closing it returned focus to the field and reopened it
+  immediately.
+- Typing in a large vault no longer stutters. Foliate rescanned the whole note
+  every couple of seconds while you were still typing, and kept scanning even
+  when its tab sat hidden behind another sidebar tab. It now waits for a pause,
+  and a hidden tab scans once when you bring it back.
 
 ## 0.5.2 - 2026-08-05
 

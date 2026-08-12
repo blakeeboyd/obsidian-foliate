@@ -1,7 +1,7 @@
 {
   "id": "obsidian-foliate",
   "name": "Foliate",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "minAppVersion": "1.4.0",
   "description": "Taxa-based knowledge organization with smart linking, auto-filing, and unlinked-mention suggestions.",
   "author": "Blake Boyd",
