@@ -1,4 +1,4 @@
-import { App, Modal, Notice, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting, AbstractInputSuggest, ColorComponent, TFile, TFolder, setIcon } from "obsidian";
 import type FoliatePlugin from "./main";
 import { TaxaMapping, ClickAction, SortOrder, INLINE_ACTION_OPTIONS, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
@@ -437,10 +437,15 @@ function addClearableInput(
   width: string,
   onSave: (value: string) => void | Promise<void>
 ): HTMLInputElement {
-  const wrap = row.createSpan();
+  const wrap = row.createSpan("foliate-col-input");
   wrap.style.position = "relative";
-  wrap.style.display = "inline-block";
-  wrap.style.width = width;
+  // An explicit width pins the field; empty means "share the leftover space
+  // with the other unpinned fields", which is what keeps the row on one line
+  // as the settings pane narrows.
+  if (width) {
+    wrap.style.display = "inline-block";
+    wrap.style.width = width;
+  }
 
   const input = wrap.createEl("input", { type: "text", placeholder, value });
   input.style.width = "100%";
@@ -562,12 +567,14 @@ export class FoliateSettingTab extends PluginSettingTab {
   /** Column headers for a mappings table, widths matched to the row inputs. */
   private renderMappingHeader(el: HTMLElement): void {
     const head = el.createDiv("foliate-taxa-head");
-    ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180], ["Color", 60]] as const).forEach(
-      ([text, w]) => {
-        const c = head.createSpan({ text });
-        c.style.width = `${w}px`;
-      }
-    );
+    // Widths live in styles.css so the headers track the row's flex columns;
+    // setting them inline here would override that and drift out of alignment
+    // whenever a column changes. The trailing empty span stands over the
+    // delete button, which every row has (as a hidden spacer on the domain
+    // row): without it "Color" lands one column right, on top of the ✕.
+    for (const text of ["Prefix", "Label", "Folder", "Template", "Color", ""]) {
+      head.createSpan({ text });
+    }
   }
 
   /** A bold sub-label with a description line, for groups within a section. */
@@ -1118,11 +1125,6 @@ export class FoliateSettingTab extends PluginSettingTab {
     onDelete?: () => void | Promise<void>
   ): void {
     const row = container.createDiv("foliate-taxa-row");
-    row.style.display = "flex";
-    row.style.flexWrap = "wrap";
-    row.style.gap = "8px";
-    row.style.alignItems = "center";
-    row.style.marginBottom = "8px";
 
     // Clicking opens the picker. Most default prefixes need a modifier to type,
     // so a user who clears this field cannot retype what shipped. Typing still
@@ -1132,7 +1134,7 @@ export class FoliateSettingTab extends PluginSettingTab {
       placeholder: "Prefix",
       value: mapping.prefix,
     });
-    prefixInput.style.width = "50px";
+    prefixInput.addClass("foliate-col-prefix");
     prefixInput.setAttribute("aria-label", "Taxa prefix, click to choose a symbol");
 
     const applyPrefix = async (value: string) => {
@@ -1172,7 +1174,7 @@ export class FoliateSettingTab extends PluginSettingTab {
     });
 
     const labelInput = row.createEl("input", { type: "text", placeholder: "Label", value: mapping.label });
-    labelInput.style.width = "100px";
+    labelInput.addClass("foliate-col-label");
     labelInput.addEventListener("change", async () => {
       if (labelInput.value === mapping.label) return;
       this.pushTaxaUndo();
@@ -1180,7 +1182,7 @@ export class FoliateSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
     });
 
-    const folderInput = addClearableInput(row, "Folder path", mapping.folder, "200px", async (v) => {
+    const folderInput = addClearableInput(row, "Folder path", mapping.folder, "", async (v) => {
       if (v === mapping.folder) return;
       this.pushTaxaUndo();
       mapping.folder = v;
@@ -1204,7 +1206,7 @@ export class FoliateSettingTab extends PluginSettingTab {
       else delete mapping.template;
       await this.plugin.saveSettings();
     };
-    const templateInput = addClearableInput(row, "Template (optional)", mapping.template || "", "180px", saveTemplate);
+    const templateInput = addClearableInput(row, "Template (optional)", mapping.template || "", "", saveTemplate);
     new FileSuggest(this.app, templateInput).onSelect(async (file) => {
       templateInput.value = file.path;
       templateInput.dispatchEvent(new Event("input"));
@@ -1250,8 +1252,17 @@ export class FoliateSettingTab extends PluginSettingTab {
     });
 
     if (onDelete) {
-      const deleteBtn = row.createEl("button", { text: "\u2715" });
+      // A trash can, not an ✕: this destroys the taxon, while the ✕ beside the
+      // swatch only clears a color. Same glyph for both read as the same
+      // weight of action.
+      const deleteBtn = row.createEl("button", { cls: "foliate-col-delete" });
+      setIcon(deleteBtn, "trash-2");
+      deleteBtn.setAttribute("aria-label", `Delete ${mapping.label || "this taxon"}`);
       deleteBtn.addEventListener("click", () => void onDelete());
+    } else {
+      // The domain row has nothing to delete. An empty cell of the same width
+      // keeps its color swatch in the same column as the taxa rows below.
+      row.createDiv("foliate-col-delete foliate-col-spacer");
     }
   }
 }

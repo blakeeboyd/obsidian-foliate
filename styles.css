@@ -943,10 +943,110 @@
   color: var(--foliate-link-color, var(--link-color));
 }
 
+/* One taxon per line. Prefix, label, color and delete are fixed; the folder
+   and template fields absorb the rest, so the row fits any pane width instead
+   of wrapping the delete button onto its own line. */
+.foliate-taxa-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.foliate-col-prefix {
+  width: 50px;
+  flex: 0 0 50px;
+}
+
+.foliate-col-label {
+  width: 100px;
+  flex: 0 0 100px;
+}
+
+/* min-width:0 lets a flex item shrink below its content width; without it the
+   inputs refuse to narrow and the row overflows. */
+.foliate-taxa-row .foliate-col-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .foliate-taxa-row .foliate-color-cell {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+}
+
+.foliate-col-delete {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Match the icon to the surrounding text size, and warn on hover so the
+   destructive action reads as one before it is clicked. */
+.foliate-col-delete .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.foliate-col-delete:hover {
+  color: var(--text-error);
+}
+
+/* Occupies the delete button's slot on rows that have none, so every row's
+   columns line up. Sized from the button it stands in for. */
+.foliate-col-spacer {
+  width: var(--foliate-delete-width, 30px);
+  visibility: hidden;
+}
+
+/* Header labels track the row's fixed columns; the two flexible headers share
+   the middle exactly as their inputs do. */
+.foliate-taxa-head {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+/* Six columns, matching the six children of a row: prefix, label, folder,
+   template, color, delete. The color and delete headers are sized to the
+   controls they label so "Color" sits over the swatch, not over the ✕. */
+.foliate-taxa-head span:nth-child(1) { flex: 0 0 50px; }
+.foliate-taxa-head span:nth-child(2) { flex: 0 0 100px; }
+.foliate-taxa-head span:nth-child(3),
+.foliate-taxa-head span:nth-child(4) { flex: 1 1 0; min-width: 0; }
+.foliate-taxa-head span:nth-child(5) { flex: 0 0 auto; width: 28px; }
+.foliate-taxa-head span:nth-child(6) { flex: 0 0 auto; width: var(--foliate-delete-width, 30px); }
+
+/* A native <input type="color"> is drawn by the browser with its own padding
+   and border, so the color area sat inset in the control. Strip both and let
+   the swatch fill the box. The vendor-prefixed pseudo-elements are the only
+   handle on the inner color area; the unprefixed rule covers Firefox. */
+.foliate-color-cell input[type="color"] {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.foliate-color-cell input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.foliate-color-cell input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+.foliate-color-cell input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 3px;
 }
 
 /* Reset-to-theme button, shown only once a color is set. */
