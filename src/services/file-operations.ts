@@ -753,3 +753,55 @@ export function plainTextForm(name: string): string | null {
     .trim();
   return plain !== name.trim() ? plain : null;
 }
+
+/**
+ * Terms that more than one taxa file answers to, mapped to the files claiming
+ * them.
+ *
+ * A collision is not a cosmetic problem. When two files both answer to "noise",
+ * every unlinked mention of that word offers both, linking has to disambiguate,
+ * and any relatedness score computed from those mentions is split between two
+ * halves of one idea. This vault had 217 such terms, most of them invisible
+ * until something went looking.
+ *
+ * Built from the same name-plus-aliases the matcher uses, so a collision here
+ * is exactly what the matcher will collide on. Case and accents are folded,
+ * because a link only has to get the word right, not its typography.
+ */
+export function findTermCollisions(
+  app: App,
+  settings: FoliateSettings
+): Map<string, TFile[]> {
+  const taxa = [...settings.taxaMappings, settings.domain];
+  const owners = new Map<string, TFile[]>();
+
+  for (const file of app.vault.getMarkdownFiles()) {
+    const taxon = taxa.find((t) => t.prefix && file.basename.startsWith(t.prefix));
+    if (!taxon) continue;
+
+    const terms = [stripPrefix(file.basename, taxon)];
+    const aliases = app.metadataCache.getFileCache(file)?.frontmatter?.aliases;
+    if (Array.isArray(aliases)) {
+      for (const a of aliases) if (typeof a === "string") terms.push(a);
+    } else if (typeof aliases === "string") {
+      terms.push(aliases);
+    }
+
+    for (const term of terms) {
+      const key = foldName(term);
+      if (key.length < 2) continue;
+      const list = owners.get(key);
+      if (list) {
+        if (!list.includes(file)) list.push(file);
+      } else {
+        owners.set(key, [file]);
+      }
+    }
+  }
+
+  // Only the contested ones.
+  for (const [term, files] of owners) {
+    if (files.length < 2) owners.delete(term);
+  }
+  return owners;
+}

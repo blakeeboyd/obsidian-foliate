@@ -265,3 +265,91 @@ console.log("index: overlap assertions passed");
 }
 
 console.log("index: taxon-filter and curation assertions passed");
+
+// --- merged concepts: two files, one node ---
+{
+  // The user has confirmed these name one idea, kept as two files.
+  const a = "c/+Open Sound Control.md";
+  const b = "c/+Open Sound Control (OSC).md";
+  const peer = "c/+Max MSP.md";
+
+  // Each half is mentioned in its own notes, so the evidence is split.
+  const raw: Set<string>[] = [];
+  for (let i = 0; i < 5; i++) raw.push(new Set([a, peer]));
+  for (let i = 0; i < 5; i++) raw.push(new Set([b, peer]));
+
+  const split = computeStats(raw);
+  assert.strictEqual(split.df.get(a), 5);
+  assert.strictEqual(split.df.get(b), 5);
+  assert.strictEqual(split.cooc.get(pairKey(a, peer)), 5, "half the evidence");
+
+  // Folding onto the keeper is what the index does before deriving stats.
+  const canonical = new Map([[b, a]]);
+  const fold = (s: Set<string>) =>
+    new Set([...s].map((p) => canonical.get(p) ?? p));
+  const merged = computeStats(raw.map(fold));
+
+  assert.strictEqual(merged.df.get(a), 10, "both halves now count as one concept");
+  assert.strictEqual(merged.df.get(b), undefined, "the folded path is gone");
+  assert.strictEqual(
+    merged.cooc.get(pairKey(a, peer)),
+    10,
+    "the relationship carries its full weight instead of being halved"
+  );
+}
+
+console.log("index: merge assertions passed");
+
+// --- shared terms separate "one concept" from "two things discussed together" ---
+{
+  const noiseA = "c/+Noise.md", noiseB = "c/+noise (audio).md";
+  const hospA = "c/+Hospitality in array.md", hospB = "c/+Hospitality in chain.md";
+  // Both pairs overlap perfectly in the notes: co-occurrence alone cannot tell
+  // them apart, which is the whole reason this signal exists.
+  const sets: Set<string>[] = [];
+  for (let i = 0; i < 12; i++) sets.push(new Set([noiseA, noiseB]));
+  for (let i = 0; i < 12; i++) sets.push(new Set([hospA, hospB]));
+  const stats = computeStats(sets);
+
+  const TERMS: Record<string, string[]> = {
+    // Each file claims the other's name: any note saying "noise" hits both.
+    [noiseA]: ["noise"],
+    [noiseB]: ["noise (audio)", "noise"],
+    // Distinct names, no collision. Two ideas, always discussed together.
+    [hospA]: ["hospitality in array"],
+    [hospB]: ["hospitality in chain"],
+  };
+  const overlaps = findUsageOverlaps(stats, {
+    minJaccard: 0.4, minDf: 5, minTogether: 3,
+    termsOf: (p) => TERMS[p] ?? [],
+  });
+
+  const noise = overlaps.find((o) => o.a === noiseA || o.b === noiseA);
+  const hosp = overlaps.find((o) => o.a === hospA || o.b === hospA);
+  assert.deepStrictEqual(noise?.sharedTerms, ["noise"], "a name collision is detected");
+  assert.deepStrictEqual(hosp?.sharedTerms, [], "distinct names share nothing");
+  // The collision is the stronger claim, so it is listed first even at equal overlap.
+  assert.ok(overlaps.indexOf(noise!) < overlaps.indexOf(hosp!));
+}
+
+console.log("index: shared-term assertions passed");
+
+// --- a shared term qualifies a pair on its own ---
+{
+  // Two files claiming one word, barely co-occurring: below every statistical
+  // bar. The sidebar marks this pair, so the modal has to contain it, or
+  // clicking the mark opens a list that does not include what was clicked.
+  const a = "c/+bleed.md", b = "c/+bleed (audio).md";
+  const stats = computeStats([new Set([a, b])]);
+
+  const withoutTerms = findUsageOverlaps(stats, {});
+  assert.strictEqual(withoutTerms.length, 0, "co-occurrence alone is far too thin");
+
+  const withTerms = findUsageOverlaps(stats, {
+    termsOf: (p) => (p === a ? ["bleed"] : ["bleed (audio)", "bleed"]),
+  });
+  assert.strictEqual(withTerms.length, 1, "the shared term qualifies it regardless");
+  assert.deepStrictEqual(withTerms[0].sharedTerms, ["bleed"]);
+}
+
+console.log("index: shared-term-qualifies assertions passed");

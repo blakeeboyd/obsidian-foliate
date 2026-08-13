@@ -13,6 +13,7 @@ import {
   findUsageOverlaps,
   UsageOverlap,
   curationRatio,
+  pairKey,
 } from "./stats";
 import {
   openIndexDb,
@@ -61,6 +62,11 @@ export class MentionIndex {
   private stats: CorpusStats | null = null;
   /** Note path to its unlinked-mention set, the in-memory mirror of the store. */
   private sets = new Map<string, Set<string>>();
+  /**
+   * Alternate path to the path that stands for its concept, from the user's
+   * confirmed merges. Empty until they confirm one.
+   */
+  private canonical = new Map<string, string>();
   /**
    * Note path to the taxa it LINKS, from Obsidian's own graph.
    *
@@ -191,11 +197,37 @@ export class MentionIndex {
    * vault grows enough for that to stop being true, the delta path in the plan
    * is the upgrade.
    */
+  /**
+   * Record which taxa files the user has confirmed are one concept.
+   *
+   * Applied when the statistics are derived, not when notes are scanned, so the
+   * stored mention sets stay a faithful record of what each note actually says
+   * and a merge can be undone by recomputing rather than rescanning the vault.
+   */
+  setMergedConcepts(merges: Record<string, string[]>): void {
+    this.canonical = new Map();
+    for (const [keeper, others] of Object.entries(merges)) {
+      for (const other of others) this.canonical.set(other, keeper);
+    }
+    if (this.stats) this.rebuildStats();
+  }
+
+  /** Fold a set onto its canonical paths, collapsing merged concepts into one. */
+  private fold(set: Set<string>): Set<string> {
+    if (this.canonical.size === 0) return set;
+    const out = new Set<string>();
+    for (const path of set) out.add(this.canonical.get(path) ?? path);
+    return out;
+  }
+
   private rebuildStats(): void {
     // Link sets first: the statistics take them as a second input, so the graph
     // has to be read before the counts are derived from it.
     this.rebuildLinkSets();
-    this.stats = computeStats([...this.sets.values()], [...this.links.values()]);
+    this.stats = computeStats(
+      [...this.sets.values()].map((s) => this.fold(s)),
+      [...this.links.values()].map((s) => this.fold(s))
+    );
     this.linkCounts = null;
   }
 
@@ -351,7 +383,24 @@ export class MentionIndex {
           return prefixes.find((p) => name.startsWith(p)) ?? "";
         }
       : undefined;
-    return findUsageOverlaps(this.stats, { minJaccard, prefixOf });
+    // A merged pair is a settled question. Folding already collapsed them into
+    // one node, so they cannot co-occur with themselves and would not surface
+    // anyway; the explicit filter keeps that true if folding ever changes.
+    const merged = new Set<string>();
+    for (const [keeper, others] of this.canonical) merged.add(pairKey(keeper, others));
+    // Terms come from the same dictionary the scan uses, so "shared term" means
+    // exactly what the matcher would collide on.
+    const termsOf = (path: string): string[] => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) return [];
+      const taxon = taxonForFile(file, taxaMappings ?? []);
+      if (!taxon) return [];
+      return fileTerms(this.app, file, taxon).map((t) => t.toLowerCase());
+    };
+
+    return findUsageOverlaps(this.stats, { minJaccard, prefixOf, termsOf }).filter(
+      (o) => !merged.has(pairKey(o.a, o.b))
+    );
   }
 
   /**

@@ -21,36 +21,82 @@ import { UsageOverlap } from "../services/index/stats";
  *   Weaker evidence than a name collision, so it is a suggestion: a founder and
  *   their company are inseparable in the data and are not one file.
  */
+export interface MisplacedModalOptions {
+  items: MisplacedFile[];
+  duplicates: DuplicateTaxaName[];
+  move: (file: TFile, item: MisplacedFile) => Promise<boolean>;
+  rescan: () => { misplaced: MisplacedFile[]; duplicates: DuplicateTaxaName[] };
+  similar?: UsageOverlap[];
+  taxonOf?: (file: TFile) => DuplicateTaxaName["taxon"];
+  merges?: {
+    get: () => Record<string, string[]>;
+    merge: (keeper: string, other: string) => Promise<void>;
+    unmerge: (keeper: string) => Promise<void>;
+  };
+  /** Open scrolled to this term, for arriving from the sidebar's mark. */
+  focusTerm?: string | null;
+}
+
 export class MisplacedFilesModal extends Modal {
   private items: MisplacedFile[];
   private duplicates: DuplicateTaxaName[];
   private similar: UsageOverlap[];
   private taxonOf: (file: TFile) => DuplicateTaxaName["taxon"];
+  private mergedConcepts: () => Record<string, string[]>;
+  private mergeConcepts: (keeper: string, other: string) => Promise<void>;
+  private unmergeConcept: (keeper: string) => Promise<void>;
   private move: (file: TFile, item: MisplacedFile) => Promise<boolean>;
   private rescan: () => { misplaced: MisplacedFile[]; duplicates: DuplicateTaxaName[] };
 
-  constructor(
-    app: App,
-    items: MisplacedFile[],
-    duplicates: DuplicateTaxaName[],
-    move: (file: TFile, item: MisplacedFile) => Promise<boolean>,
-    rescan: () => { misplaced: MisplacedFile[]; duplicates: DuplicateTaxaName[] },
-    similar: UsageOverlap[] = [],
-    taxonOf: (file: TFile) => DuplicateTaxaName["taxon"] = () =>
-      ({ prefix: "", label: "", folder: "" } as DuplicateTaxaName["taxon"])
-  ) {
+  /** A term to scroll to and flash on open, set when arriving from a sidebar mark. */
+  private focusTerm: string | null;
+
+  constructor(app: App, opts: MisplacedModalOptions) {
     super(app);
-    this.items = items;
-    this.duplicates = duplicates;
-    this.similar = similar;
-    this.move = move;
-    this.rescan = rescan;
-    this.taxonOf = taxonOf;
+    this.items = opts.items;
+    this.duplicates = opts.duplicates;
+    this.similar = opts.similar ?? [];
+    this.move = opts.move;
+    this.rescan = opts.rescan;
+    this.taxonOf =
+      opts.taxonOf ?? (() => ({ prefix: "", label: "", folder: "" } as DuplicateTaxaName["taxon"]));
+    const merges = opts.merges ?? {
+      get: () => ({}),
+      merge: async () => {},
+      unmerge: async () => {},
+    };
+    this.mergedConcepts = merges.get;
+    this.mergeConcepts = merges.merge;
+    this.unmergeConcept = merges.unmerge;
+    this.focusTerm = opts.focusTerm ?? null;
   }
 
   onOpen() {
     this.modalEl.addClass("foliate-misplaced-modal");
     this.render();
+    if (this.focusTerm) this.scrollToTerm(this.focusTerm);
+  }
+
+  /**
+   * Bring the row claiming `term` into view and flash it.
+   *
+   * Arriving from a sidebar mark, the modal can be long and the relevant pair
+   * anywhere in it; landing at the top means hunting for the thing you just
+   * clicked. Deferred a frame so the rows exist and have been laid out.
+   */
+  private scrollToTerm(term: string): void {
+    const needle = term.trim().toLowerCase();
+    window.requestAnimationFrame(() => {
+      const rows = this.contentEl.querySelectorAll<HTMLElement>("[data-terms]");
+      for (const row of Array.from(rows)) {
+        const terms = (row.dataset.terms ?? "").split("\u0000");
+        if (!terms.includes(needle)) continue;
+        row.scrollIntoView({ block: "center" });
+        row.addClass("foliate-row-flash");
+        window.setTimeout(() => row.removeClass("foliate-row-flash"), 1600);
+        return;
+      }
+    });
   }
 
   private render() {
@@ -220,9 +266,10 @@ export class MisplacedFilesModal extends Modal {
     contentEl.createEl("p", {
       cls: "foliate-misplaced-summary",
       text:
-        `${this.similar.length} pair${this.similar.length === 1 ? " is" : "s are"} mentioned in nearly the same notes, ` +
-        "which can mean one concept written two ways. It can also mean two things that genuinely travel together, " +
-        "so read both before deciding. Compare opens the same side-by-side view as a duplicate name.",
+        `${this.similar.length} pair${this.similar.length === 1 ? " is" : "s are"} mentioned in nearly the same notes. ` +
+        "Pairs that share a name or alias are listed first: those are two files competing for one word, " +
+        "and are usually one concept written twice. The rest share no name, and are more often two things " +
+        "your notes discuss together than one thing written two ways.",
     });
 
     const list = contentEl.createDiv("foliate-misplaced-list");
@@ -232,11 +279,32 @@ export class MisplacedFilesModal extends Modal {
       if (!(fileA instanceof TFile) || !(fileB instanceof TFile)) continue;
 
       const row = list.createDiv("foliate-misplaced-row foliate-duplicate-row");
+      // The shared terms are the handle the sidebar's mark arrives on.
+      if (pair.sharedTerms.length) {
+        row.dataset.terms = pair.sharedTerms.map((t) => t.toLowerCase()).join("\u0000");
+      }
       const info = row.createDiv("foliate-misplaced-info");
 
       info.createDiv("foliate-misplaced-name").setText(
         `${fileA.basename}  ·  ${fileB.basename}`
       );
+
+      // What kind of pair this is, which the overlap number alone cannot say.
+      const collision = pair.sharedTerms.length > 0;
+      const verdict = info.createDiv("foliate-misplaced-path");
+      if (collision) {
+        verdict.addClass("is-collision");
+        verdict.setText(
+          `Both answer to ${pair.sharedTerms.map((t) => `"${t}"`).join(", ")}. ` +
+            "Every note using that word matches both files, which is why they travel together. " +
+            "Usually one concept written twice."
+        );
+      } else {
+        verdict.setText(
+          "No shared name or alias. Two different things the notes discuss together, " +
+            "such as co-authors or a pair of related ideas. Rarely one concept."
+        );
+      }
 
       info
         .createDiv("foliate-misplaced-path")
@@ -254,7 +322,31 @@ export class MisplacedFilesModal extends Modal {
         });
       }
 
-      const compare = row.createEl("button", { text: "Compare" });
+      const actions = row.createDiv("foliate-similar-actions");
+
+      // Two different answers to "these look like one thing", because the
+      // question has two different right answers. Merging files is for one
+      // concept written twice. Treating them as one concept is for two files
+      // that belong apart but always travel together, where splitting the
+      // evidence between them is what distorts the scoring.
+      const merge = actions.createEl("button", { text: "Treat as one concept" });
+      if (!collision) {
+        // Offered, not recommended: without a shared term the pair is usually
+        // two things that travel together, and merging them would tell the
+        // scoring that two distinct ideas are one.
+        merge.addClass("is-unlikely");
+        merge.setAttribute(
+          "aria-label",
+          "These share no name or alias, so they are probably not one concept"
+        );
+      }
+      merge.addEventListener("click", async () => {
+        await this.mergeConcepts(fileA.path, fileB.path);
+        this.similar = this.similar.filter((s) => s !== pair);
+        this.render();
+      });
+
+      const compare = actions.createEl("button", { text: "Compare" });
       compare.addEventListener("click", () => {
         // Shaped as a DuplicateTaxaName so the existing resolver handles it
         // unchanged. canonical is null on purpose: neither name is more correct
@@ -274,9 +366,50 @@ export class MisplacedFilesModal extends Modal {
         }).open();
       });
     }
+
+    this.renderMerged(contentEl);
+  }
+
+  /**
+   * Concepts the user has already confirmed are one, with a way back out.
+   *
+   * Listed because a merge changes what the plugin believes about the vault
+   * while changing nothing visible in it. A decision with invisible effects has
+   * to be inspectable, or it becomes a thing nobody remembers making.
+   */
+  private renderMerged(contentEl: HTMLElement) {
+    const merged = Object.entries(this.mergedConcepts());
+    if (merged.length === 0) return;
+
+    contentEl.createEl("h3", { text: "Treated as one concept" });
+    contentEl.createEl("p", {
+      cls: "foliate-misplaced-summary",
+      text:
+        "Scoring counts these as a single concept. The files are untouched: nothing was renamed, moved, or linked differently.",
+    });
+
+    const list = contentEl.createDiv("foliate-misplaced-list");
+    for (const [keeper, others] of merged) {
+      const row = list.createDiv("foliate-misplaced-row");
+      const info = row.createDiv("foliate-misplaced-info");
+      info.createDiv("foliate-misplaced-name").setText(
+        [keeper, ...others].map((p) => baseName(p)).join("  ·  ")
+      );
+      const undo = row.createEl("button", { text: "Separate" });
+      undo.addEventListener("click", async () => {
+        await this.unmergeConcept(keeper);
+        this.render();
+      });
+    }
   }
 
   onClose() {
     this.contentEl.empty();
   }
+}
+
+/** File name without folder or extension, for display. */
+function baseName(path: string): string {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  return name.endsWith(".md") ? name.slice(0, -3) : name;
 }

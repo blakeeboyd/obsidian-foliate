@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import type FoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition, HiddenMatch } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
-import { createTaxaFile, addAliasToFile } from "../services/file-operations";
+import { createTaxaFile, addAliasToFile, findTermCollisions, foldName } from "../services/file-operations";
 import { mineContextTerms, fileTerms } from "../services/context-mining";
 import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
@@ -847,6 +847,14 @@ export class SuggestionsView extends ItemView {
       });
     }
 
+    // Contested terms, computed before ANY section renders. Linked Mentions is
+    // awaited first, so populating this alongside the unlinked scan below left
+    // it empty for every linked row: the marker silently did nothing on the
+    // section where a collision is hardest to notice.
+    this.collisions = this.plugin.settings.markContestedTerms
+      ? findTermCollisions(this.app, this.plugin.settings)
+      : new Map();
+
     // Linked Mentions (awaited so it renders above Unlinked Mentions)
     await this.renderLinkedTaxa(container, file, viewRange);
 
@@ -1356,6 +1364,49 @@ export class SuggestionsView extends ItemView {
     this.refreshAfterMetadataUpdate(noteFile);
   }
 
+  /**
+   * Terms claimed by more than one taxa file, refreshed with the view.
+   *
+   * Computed once per refresh rather than per row: it walks every taxa file,
+   * which is the kind of per-row work that made the sidebar slow before.
+   */
+  private collisions: Map<string, TFile[]> = new Map();
+
+  /**
+   * Mark a row whose term more than one file answers to.
+   *
+   * The duplicates command can find these, but only if the user thinks to run
+   * it. The moment a collision actually matters is the moment it appears in the
+   * sidebar offering two files for one word, so the marker belongs here, where
+   * the user already is. Passive: it explains itself on hover and does nothing
+   * until acted on.
+   */
+  private markIfContested(target: HTMLElement, term: string, resolvedPath: string): void {
+    if (this.collisions.size === 0 || !term) return;
+    // foldName, not toLowerCase: the map was built with it, so anything else
+    // misses every accented or oddly-spaced term, and misses silently.
+    const claimants = this.collisions.get(foldName(term));
+    if (!claimants || claimants.length < 2) return;
+
+    const others = claimants.filter((f) => f.path !== resolvedPath);
+    if (others.length === 0) return;
+
+    const mark = target.createSpan({ cls: "foliate-contested-mark", text: "*" });
+    mark.setAttribute("aria-label",
+      `"${term}" is also claimed by ${others
+        .map((f) => f.basename)
+        .join(", ")}. Click to resolve.`
+    );
+    // The mark states a problem; clicking it goes to where the problem is
+    // fixed, scrolled to this pair. stopPropagation because the row itself
+    // jumps to the occurrence, which is not what a click here means.
+    mark.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      evt.preventDefault();
+      this.plugin.openMisplacedModal(term);
+    });
+  }
+
   private renderUnlinkedMatch(
     container: HTMLElement,
     match: UnlinkedMatch,
@@ -1374,6 +1425,9 @@ export class SuggestionsView extends ItemView {
       text: match.fileName,
       cls: "foliate-match-text foliate-clickable",
     });
+    // Beside the name, inside the info block: a bare child of the flex row
+    // lands after the action buttons, where it reads as unrelated to the term.
+    this.markIfContested(info, match.alias, match.filePath);
 
     const actionsEl = top.createDiv("foliate-suggestion-actions");
 
@@ -1769,6 +1823,12 @@ export class SuggestionsView extends ItemView {
           nameSpan.setAttribute("aria-label", "No file yet");
           nameSpan.title = "No file yet";
         }
+        // Also marked here, and arguably this is where it matters most: once a
+        // term is linked it looks resolved, with nothing to show that another
+        // file answers to the same word and might have been the one meant.
+        const linkedFile = this.app.metadataCache.getFirstLinkpathDest(item.link, file.path);
+        this.markIfContested(info, item.matchName, linkedFile?.path ?? "");
+
         const jumpKey = `linked:${item.link}`;
         if (item.positions.length > 0) {
           info.createSpan({

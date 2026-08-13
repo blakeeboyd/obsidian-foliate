@@ -1224,3 +1224,51 @@ a.internal-link.foliate-link,
 .foliate-index-count.is-uncurated {
   color: var(--text-error);
 }
+
+/* Two answers to "these look like one thing", side by side. */
+.foliate-similar-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+/* A pair competing for the same word: the stronger duplicate claim. */
+.foliate-misplaced-path.is-collision {
+  color: var(--text-accent);
+}
+
+/* Offered but unlikely: no shared name, so probably two things, not one. */
+.foliate-similar-actions button.is-unlikely {
+  opacity: 0.6;
+}
+
+/* A term more than one taxa file answers to.
+   display:inline-block and the explicit size matter: the mark sits inside a
+   name span that wraps, where a bare styled character is easy to lose against
+   the row's other text. */
+.foliate-contested-mark {
+  display: inline-block;
+  color: var(--text-accent);
+  font-weight: 700;
+  font-size: 1.1em;
+  line-height: 1;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.foliate-contested-mark:hover {
+  color: var(--text-error);
+}
+
+/* Flash the row the sidebar's mark sent us to, so it is findable in a long
+   list without a permanent highlight to dismiss. */
+.foliate-row-flash {
+  animation: foliate-flash 1.6s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes foliate-flash {
+  0%, 40% { background: var(--text-selection); }
+  100% { background: transparent; }
+}

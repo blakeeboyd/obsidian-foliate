@@ -586,6 +586,19 @@ export class FoliateSettingTab extends PluginSettingTab {
   private renderMappingsSection(containerEl: HTMLElement): void {
     const el = this.section(containerEl, "Mappings");
 
+    new Setting(el)
+      .setName("Mark contested terms")
+      .setDesc(
+        "Put an asterisk on a sidebar row whose word another taxa file also answers to. Two files claiming one word means every mention of it offers both, so linking has to guess. Use \u201cFind misplaced and duplicate taxa files\u201d to resolve them."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.markContestedTerms).onChange(async (v) => {
+          this.plugin.settings.markContestedTerms = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
     // Domain: the single higher-order taxon that groups other taxa.
     this.subGroup(
       el,

@@ -111,6 +111,34 @@ export interface FoliateSettings {
   showSearchBar: boolean;
   collapsedCategories: string[];
   highlightColor: string;
+  /**
+   * Taxa files the user has confirmed refer to one concept, kept as separate
+   * files on purpose.
+   *
+   * Keyed by the path that stands for the group, valued by the other paths
+   * folded into it. Scoring treats them as one node: two files for one idea
+   * otherwise split its co-occurrence evidence in half and can land the halves
+   * in different clusters.
+   *
+   * The plugin proposes these and never applies one on its own. It can see that
+   * two files are used interchangeably; it cannot see whether that means they
+   * are the same idea (+Noise and +noise (audio)) or two ideas that always
+   * travel together (Ranganathan's hospitality in array and in chain). Only the
+   * user knows, so the decision is theirs and stays visible and reversible here.
+   *
+   * Nothing is written to the vault: the files, their names, and their links are
+   * untouched.
+   */
+  mergedConcepts: Record<string, string[]>;
+  /**
+   * Mark a sidebar row whose term another taxa file also answers to.
+   *
+   * On by default. A collision is already costing the user something (the
+   * matcher offers two files for one word), so pointing at it is information
+   * they are missing rather than noise being added. Off for anyone who
+   * knowingly keeps colliding names.
+   */
+  markContestedTerms: boolean;
 }
 
 /**

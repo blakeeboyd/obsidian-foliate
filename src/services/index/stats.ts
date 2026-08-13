@@ -205,6 +205,21 @@ export interface UsageOverlap {
   /** Notes mentioning each. */
   dfA: number;
   dfB: number;
+  /**
+   * Terms both files answer to, if any.
+   *
+   * The difference between "one concept written twice" and "two ideas that
+   * travel together", and it does not come from the co-occurrence data at all.
+   * Two files claiming the same word are competing for it: every note saying
+   * "noise" matches both, which is WHY they co-occur everywhere. The overlap is
+   * a symptom of the collision, not evidence of sameness.
+   *
+   * Two files with no shared term that still co-occur are a different thing
+   * entirely: two names for two ideas the user discusses together. Hospitality
+   * in array and in chain, co-authors, philosophers in one tradition. Merging
+   * those would be wrong.
+   */
+  sharedTerms: string[];
 }
 
 /**
@@ -240,22 +255,37 @@ export function findUsageOverlaps(
      * central concept. Related, and obviously not the same file.
      */
     prefixOf?: (path: string) => string;
+    /** Every term a taxa file answers to: its name and aliases, lowercased. */
+    termsOf?: (path: string) => string[];
   } = {}
 ): UsageOverlap[] {
-  const { minJaccard = 0.4, minDf = 8, minTogether = 4, prefixOf } = options;
+  const { minJaccard = 0.4, minDf = 8, minTogether = 4, prefixOf, termsOf } = options;
   const out: UsageOverlap[] = [];
 
   for (const [key, together] of stats.cooc) {
-    if (together < minTogether) continue;
     const sep = key.indexOf("\n");
     if (sep < 0) continue;
     const a = key.slice(0, sep);
     const b = key.slice(sep + 1);
     const dfA = stats.df.get(a) ?? 0;
     const dfB = stats.df.get(b) ?? 0;
-    // Both must be established. Two notes that each mention a pair once give a
-    // perfect-looking Jaccard from no evidence at all.
-    if (dfA < minDf || dfB < minDf) continue;
+
+    // A shared term needs no statistical support: it is observed, not inferred.
+    // The evidence bars below exist to stop a thin co-occurrence pattern from
+    // looking certain, which is a different problem.
+    const shared = termsOf
+      ? (() => {
+          const tb = new Set(termsOf(b));
+          return termsOf(a).filter((t) => tb.has(t));
+        })()
+      : [];
+
+    if (shared.length === 0) {
+      if (together < minTogether) continue;
+      // Both must be established. Two notes that each mention a pair once give
+      // a perfect-looking Jaccard from no evidence at all.
+      if (dfA < minDf || dfB < minDf) continue;
+    }
 
     if (prefixOf) {
       const pa = prefixOf(a);
@@ -266,12 +296,22 @@ export function findUsageOverlaps(
     const union = dfA + dfB - together;
     if (union <= 0) continue;
     const jaccard = together / union;
-    if (jaccard < minJaccard) continue;
+    // A shared term is direct evidence and stands on its own: two files
+    // answering to one word is a fact about the vault, not an inference from
+    // how often they happen to appear together. Requiring the overlap bar too
+    // would hide exactly the pairs the sidebar marks but the modal cannot show.
+    if (jaccard < minJaccard && shared.length === 0) continue;
 
-    out.push({ a, b, jaccard, together, dfA, dfB });
+    out.push({ a, b, jaccard, together, dfA, dfB, sharedTerms: shared });
   }
 
-  return out.sort((x, y) => y.jaccard - x.jaccard);
+  // A shared term first, then overlap. A name collision is the stronger claim
+  // and deserves the top of the list.
+  return out.sort(
+    (x, y) =>
+      Number(y.sharedTerms.length > 0) - Number(x.sharedTerms.length > 0) ||
+      y.jaccard - x.jaccard
+  );
 }
 
 export interface Neighbor {

@@ -63,6 +63,8 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   showSearchBar: true,
   collapsedCategories: [],
   highlightColor: "",
+  mergedConcepts: {},
+  markContestedTerms: true,
 };
 
 export default class FoliatePlugin extends Plugin {
@@ -131,6 +133,7 @@ export default class FoliatePlugin extends Plugin {
    */
   private registerIndexUpdates() {
     this.app.workspace.onLayoutReady(() => {
+      this.mentionIndex.setMergedConcepts(this.settings.mergedConcepts);
       void this.mentionIndex.load().catch(() => {
         // A missing or unreadable index is not an error worth interrupting for;
         // the build command reports properly when the user asks for one.
@@ -158,6 +161,71 @@ export default class FoliatePlugin extends Plugin {
         })
       );
     });
+  }
+
+  /**
+   * The misplaced / duplicate / similar-usage modal.
+   *
+   * Opened by the command with no argument, or from a sidebar row's contested
+   * mark carrying the term that prompted it, which the modal scrolls to.
+   *
+   * The empty check counts all three kinds: pairs that merely share a term
+   * arrive through the index's usage overlaps rather than the name-duplicate
+   * scan, so checking only the first two would report "nothing to fix" while
+   * the modal had rows to show.
+   */
+  openMisplacedModal(focusTerm: string | null = null) {
+    const scan = () => {
+      const duplicates = findDuplicateTaxaNames(this.app, this.settings);
+      // A duplicated file is reported once, under Duplicates. Resolving a
+      // duplicate already puts the keeper in the taxon folder, so listing it as
+      // movable too would offer a fix that collides with its twin.
+      const dupePaths = new Set(duplicates.flatMap((d) => d.files.map((f) => f.path)));
+      return {
+        misplaced: findMisplacedTaxaFiles(this.app, this.settings).filter(
+          (m) => !dupePaths.has(m.file.path)
+        ),
+        duplicates,
+      };
+    };
+
+    const { misplaced, duplicates } = scan();
+    const all = [...this.settings.taxaMappings, this.settings.domain];
+    const similar = this.mentionIndex.usageOverlaps(0.4, all);
+
+    if (misplaced.length === 0 && duplicates.length === 0 && similar.length === 0) {
+      new Notice("Every taxa and domain file is in its taxon's folder, and no two share a name.");
+      return;
+    }
+
+    new MisplacedFilesModal(this.app, {
+      items: misplaced,
+      duplicates,
+      move: async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
+      rescan: scan,
+      // Index-found pairs, when an index exists. Without one this is empty and
+      // the command behaves exactly as it did before the index.
+      similar,
+      taxonOf: (file) =>
+        all.find((t) => t.prefix && file.basename.startsWith(t.prefix)) ?? all[0],
+      focusTerm,
+      merges: {
+        get: () => this.settings.mergedConcepts,
+        merge: async (keeper: string, other: string) => {
+          const existing = this.settings.mergedConcepts[keeper] ?? [];
+          if (!existing.includes(other)) {
+            this.settings.mergedConcepts[keeper] = [...existing, other];
+          }
+          await this.saveSettings();
+          this.mentionIndex.setMergedConcepts(this.settings.mergedConcepts);
+        },
+        unmerge: async (keeper: string) => {
+          delete this.settings.mergedConcepts[keeper];
+          await this.saveSettings();
+          this.mentionIndex.setMergedConcepts(this.settings.mergedConcepts);
+        },
+      },
+    }).open();
   }
 
   private registerLinkColors() {
@@ -244,39 +312,7 @@ export default class FoliatePlugin extends Plugin {
     this.addCommand({
       id: "foliate-find-misplaced",
       name: "Find misplaced and duplicate taxa files",
-      callback: () => {
-        const scan = () => {
-          const duplicates = findDuplicateTaxaNames(this.app, this.settings);
-          // A duplicated file is reported once, under Duplicates. Resolving a
-          // duplicate already puts the keeper in the taxon folder, so listing
-          // it as movable too would offer a fix that collides with its twin.
-          const dupePaths = new Set(duplicates.flatMap((d) => d.files.map((f) => f.path)));
-          return {
-            misplaced: findMisplacedTaxaFiles(this.app, this.settings).filter(
-              (m) => !dupePaths.has(m.file.path)
-            ),
-            duplicates,
-          };
-        };
-        const { misplaced, duplicates } = scan();
-        if (misplaced.length === 0 && duplicates.length === 0) {
-          new Notice("Every taxa and domain file is in its taxon's folder, and no two share a name.");
-          return;
-        }
-        const all = [...this.settings.taxaMappings, this.settings.domain];
-        new MisplacedFilesModal(
-          this.app,
-          misplaced,
-          duplicates,
-          async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
-          scan,
-          // Index-found pairs, when an index exists. Without one this is empty
-          // and the command behaves exactly as before.
-          this.mentionIndex.usageOverlaps(0.4, all),
-          (file) =>
-            all.find((t) => t.prefix && file.basename.startsWith(t.prefix)) ?? all[0]
-        ).open();
-      },
+      callback: () => this.openMisplacedModal(),
     });
 
     this.addCommand({
