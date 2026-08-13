@@ -29,6 +29,8 @@ import {
   buildLinkColorPostProcessor,
   buildLinkColorExtension,
 } from "./services/link-colors";
+import { MentionIndex } from "./services/index/mention-index";
+import { IndexReportModal } from "./ui/index-report-modal";
 
 const DEFAULT_SETTINGS: FoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
@@ -65,6 +67,13 @@ const DEFAULT_SETTINGS: FoliateSettings = {
 
 export default class FoliatePlugin extends Plugin {
   settings: FoliateSettings = DEFAULT_SETTINGS;
+  /**
+   * The shared mention index. Context gating thresholds its relevance score and
+   * related-documents ranks the same score, so it is built once and read two
+   * directions. Loaded from IndexedDB on layout-ready when a build exists;
+   * never built automatically, since a first build is a whole-vault scan.
+   */
+  mentionIndex: MentionIndex = new MentionIndex(this.app);
 
   async onload() {
     await this.loadSettings();
@@ -73,6 +82,7 @@ export default class FoliatePlugin extends Plugin {
     this.addSettingTab(new FoliateSettingTab(this.app, this));
     this.registerLinkColors();
     this.registerCommands();
+    this.registerIndexUpdates();
     this.registerAutoMover();
     if (this.settings.sidebarEnabled) {
       this.registerView(
@@ -111,6 +121,45 @@ export default class FoliatePlugin extends Plugin {
    * off state. An extra toggle only created a way to pick a color and have
    * nothing happen.
    */
+  /**
+   * Keep the index current, and load it if one was built before.
+   *
+   * The index is never built automatically: a first build is a whole-vault
+   * scan, and starting one on its own because the user installed an update is
+   * exactly the surprise a plugin should not spring. Updates only run once an
+   * index exists.
+   */
+  private registerIndexUpdates() {
+    this.app.workspace.onLayoutReady(() => {
+      void this.mentionIndex.load().catch(() => {
+        // A missing or unreadable index is not an error worth interrupting for;
+        // the build command reports properly when the user asks for one.
+      });
+
+      const taxa = () => [...this.settings.taxaMappings, this.settings.domain];
+
+      this.registerEvent(
+        this.app.vault.on("modify", (file) => {
+          if (file instanceof TFile && file.extension === "md") {
+            void this.mentionIndex.updateNote(file, taxa());
+          }
+        })
+      );
+      this.registerEvent(
+        this.app.vault.on("delete", (file) => {
+          void this.mentionIndex.removeNote(file.path);
+        })
+      );
+      this.registerEvent(
+        this.app.vault.on("rename", (file, oldPath) => {
+          if (file instanceof TFile && file.extension === "md") {
+            void this.mentionIndex.renameNote(oldPath, file, taxa());
+          }
+        })
+      );
+    });
+  }
+
   private registerLinkColors() {
     const getTaxa = () => [...this.settings.taxaMappings, this.settings.domain];
     this.registerMarkdownPostProcessor(buildLinkColorPostProcessor(getTaxa));
@@ -221,6 +270,40 @@ export default class FoliatePlugin extends Plugin {
           async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
           scan
         ).open();
+      },
+    });
+
+    this.addCommand({
+      id: "foliate-build-index",
+      name: "Build mention index",
+      callback: () => {
+        const notice = new Notice("Building mention index...", 0);
+        const taxa = [...this.settings.taxaMappings, this.settings.domain];
+        this.mentionIndex
+          .build(taxa, (p) => {
+            notice.setMessage(`Building mention index: ${p.scanned}/${p.total} notes`);
+          })
+          .then((r) => {
+            notice.hide();
+            new Notice(
+              `Indexed ${r.notes.toLocaleString()} notes, ${r.taxa.toLocaleString()} taxa, ` +
+                `${r.pairs.toLocaleString()} pairs in ${(r.ms / 1000).toFixed(1)}s`,
+              8000
+            );
+            new IndexReportModal(this.app, this.mentionIndex).open();
+          })
+          .catch((e: unknown) => {
+            notice.hide();
+            new Notice(`Index build failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+          });
+      },
+    });
+
+    this.addCommand({
+      id: "foliate-index-report",
+      name: "Show mention index report",
+      callback: () => {
+        new IndexReportModal(this.app, this.mentionIndex).open();
       },
     });
 

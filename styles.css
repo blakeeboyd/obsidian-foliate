@@ -1066,3 +1066,103 @@ a.internal-link.foliate-link,
 .foliate-color-clear:hover {
   color: var(--text-normal);
 }
+
+/* Mention index report */
+.foliate-index-report {
+  width: min(720px, 92vw);
+}
+
+.foliate-index-summary {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.foliate-index-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.foliate-index-stat-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.foliate-index-stat-value {
+  font-size: var(--font-ui-large);
+  font-weight: 600;
+}
+
+.foliate-index-list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.foliate-index-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.foliate-index-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.foliate-index-ratio {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-accent);
+  min-width: 48px;
+}
+
+.foliate-index-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.foliate-index-count {
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* The evidence line: a term whose neighbours are its own domain is gateable.
+   min-width:0 is what actually makes this wrap: the row is a flex/grid child,
+   and a flex item defaults to min-content width, so a long comma-separated
+   list refuses to break and overflows the modal no matter what overflow-wrap
+   says. */
+.foliate-index-neighbors {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  padding-left: 56px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.foliate-index-item {
+  min-width: 0;
+}
+
+.foliate-index-item-head {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* The modal body itself must not become wider than the dialog. */
+.foliate-index-report,
+.foliate-index-report p,
+.foliate-index-list {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.foliate-index-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
