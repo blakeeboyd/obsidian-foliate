@@ -61,7 +61,6 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   showSearchBar: true,
   collapsedCategories: [],
   highlightColor: "",
-  colorTaxaLinks: false,
 };
 
 export default class FoliatePlugin extends Plugin {
@@ -104,15 +103,16 @@ export default class FoliatePlugin extends Plugin {
 
   /**
    * Both link colorers read the live settings through a getter rather than a
-   * snapshot, so toggling a color in settings takes effect on the next render
-   * without re-registering anything. The toggle is read here too: off means
-   * the taxa list is empty, and an empty list makes both paths no-ops.
+   * snapshot, so setting a color takes effect on the next render without
+   * re-registering anything.
+   *
+   * There is no separate on/off setting: a taxon with no color set is filtered
+   * out downstream and contributes nothing, so "no colors set" is already the
+   * off state. An extra toggle only created a way to pick a color and have
+   * nothing happen.
    */
   private registerLinkColors() {
-    const getTaxa = () =>
-      this.settings.colorTaxaLinks
-        ? [...this.settings.taxaMappings, this.settings.domain]
-        : [];
+    const getTaxa = () => [...this.settings.taxaMappings, this.settings.domain];
     this.registerMarkdownPostProcessor(buildLinkColorPostProcessor(getTaxa));
     this.registerEditorExtension(buildLinkColorExtension(getTaxa));
   }

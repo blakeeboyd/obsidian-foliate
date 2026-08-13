@@ -586,19 +586,6 @@ export class FoliateSettingTab extends PluginSettingTab {
   private renderMappingsSection(containerEl: HTMLElement): void {
     const el = this.section(containerEl, "Mappings");
 
-    new Setting(el)
-      .setName("Color taxa links")
-      .setDesc(
-        "Color links to taxa files by type, in reading view and the editor. Each taxon's color is set in its row below; a taxon with no color set keeps your theme's link color."
-      )
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.colorTaxaLinks).onChange(async (v) => {
-          this.plugin.settings.colorTaxaLinks = v;
-          await this.plugin.saveSettings();
-          this.plugin.rerenderMarkdownViews();
-        })
-      );
-
     // Domain: the single higher-order taxon that groups other taxa.
     this.subGroup(
       el,
@@ -613,7 +600,7 @@ export class FoliateSettingTab extends PluginSettingTab {
     this.subGroup(
       el,
       "Taxa",
-      "Prefix characters that classify a file by type. Each maps a prefix to a label and a folder, so every file of that type lives in the same place."
+      "Prefix characters that classify a file by type. Each maps a prefix to a label and a folder, so every file of that type lives in the same place. Set a color to tint links to that taxon's files; leave it unset to keep your theme's link color."
     );
     this.renderMappingHeader(el);
     const taxaContainer = el.createDiv("foliate-taxa-mappings");

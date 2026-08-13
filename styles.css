@@ -939,6 +939,12 @@
    -view processor and the editor decoration; only elements that carry it are
    recolored, so an uncolored taxon keeps the theme's --link-color. Themes and
    snippets can override by redefining --foliate-link-color. */
+/* a.internal-link.foliate-link, not .foliate-link alone: Obsidian's own
+   .internal-link rule is more specific than a single class, so a bare
+   .foliate-link loses and the link renders in the theme color no matter what
+   the swatch says. The editor decoration is not an anchor, so it is matched
+   separately. */
+a.internal-link.foliate-link,
 .foliate-link {
   color: var(--foliate-link-color, var(--link-color));
 }

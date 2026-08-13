@@ -111,12 +111,6 @@ export interface FoliateSettings {
   showSearchBar: boolean;
   collapsedCategories: string[];
   highlightColor: string;
-  /**
-   * Color resolved wikilinks by taxon, in reading view and the editor. Off by
-   * default: link color is a strong visual change and not every user wants
-   * their links to stop looking like links.
-   */
-  colorTaxaLinks: boolean;
 }
 
 /**
