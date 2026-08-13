@@ -4,6 +4,27 @@ All notable changes to Foliate are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 - 2026-08-13
+
+### Added
+
+- **A color per taxon**, set in its row under Mappings.
+  - Links to that taxon's files carry the color, in reading view and while
+    editing, so a person link looks different from a concept link at a glance.
+  - Leave a color unset and links keep the color your theme gives them, in
+    light and dark alike. The ✕ beside a swatch returns that taxon to it.
+  - Links to files that do not exist keep their usual unresolved color, so a
+    broken link still looks broken.
+  - Colors apply through a `--foliate-link-color` custom property on a
+    `.foliate-link` class, so a theme or snippet can override them.
+
+### Changed
+
+- Each taxon in Mappings stays on one line. The folder and template fields
+  share the available width rather than wrapping the row.
+- Deleting a taxon is a trash button rather than an ✕, which reads too much
+  like the ✕ that only clears a field.
+
 ## 0.6.0 - 2026-08-12
 
 ### Added
