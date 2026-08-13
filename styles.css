@@ -1166,3 +1166,61 @@ a.internal-link.foliate-link,
   justify-content: flex-end;
   padding-top: 10px;
 }
+
+/* Mention-frequency distribution. The shape matters more than any one cutoff:
+   the curve is smooth, so the threshold below it is a dial, not a fact. */
+.foliate-index-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 0 10px;
+}
+
+.foliate-index-band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-smaller);
+}
+
+.foliate-index-band-label {
+  width: 72px;
+  color: var(--text-muted);
+  text-align: right;
+  flex: 0 0 72px;
+}
+
+.foliate-index-band-track {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 10px;
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.foliate-index-band-fill {
+  height: 100%;
+  background: var(--text-accent);
+  border-radius: 3px;
+}
+
+.foliate-index-band-count {
+  width: 46px;
+  flex: 0 0 46px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.foliate-index-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+/* A term almost never linked despite many mentions: the word keeps appearing
+   without meaning the file it names. */
+.foliate-index-count.is-uncurated {
+  color: var(--text-error);
+}

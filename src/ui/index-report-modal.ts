@@ -41,18 +41,86 @@ export class IndexReportModal extends Modal {
     row("Taxa mentioned", stats.df.size.toLocaleString());
     row("Pairs observed", stats.cooc.size.toLocaleString());
 
-    // The terms common enough to need gating. On the measured vault this is a
-    // couple of dozen out of thousands, which is the finding that makes the
-    // whole gate cheap.
-    const ambiguous = this.index.ambiguousTerms(0.05);
-    contentEl.createEl("h3", { text: `Common terms (${ambiguous.length})` });
-    contentEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Mentioned in more than 5% of notes, so common enough that context decides whether they mean anything. Everything else is specific enough to surface freely.",
-    });
+    // How mention frequency is distributed. A single threshold hides the shape
+    // of this, and the shape is the point: nothing special happens at any one
+    // percentage, so the cutoff is a dial rather than a fact about the vault.
+    const bands: [number, number, string][] = [
+      [0.2, 1.01, "20%+"],
+      [0.1, 0.2, "10-20%"],
+      [0.05, 0.1, "5-10%"],
+      [0.02, 0.05, "2-5%"],
+      [0.01, 0.02, "1-2%"],
+      [0.005, 0.01, "0.5-1%"],
+      [0.001, 0.005, "0.1-0.5%"],
+      [0, 0.001, "under 0.1%"],
+    ];
+    const all = this.index.ambiguousTerms(0);
+    contentEl.createEl("h3", { text: "How often taxa are mentioned" });
+    const dist = contentEl.createDiv("foliate-index-dist");
+    const widest = Math.max(
+      ...bands.map(([lo, hi]) => all.filter((t) => t.ratio >= lo && t.ratio < hi).length)
+    );
+    for (const [lo, hi, label] of bands) {
+      const count = all.filter((t) => t.ratio >= lo && t.ratio < hi).length;
+      const bar = dist.createDiv("foliate-index-band");
+      bar.createSpan({ text: label, cls: "foliate-index-band-label" });
+      const track = bar.createDiv("foliate-index-band-track");
+      const fill = track.createDiv("foliate-index-band-fill");
+      fill.style.width = `${widest ? (count / widest) * 100 : 0}%`;
+      bar.createSpan({ text: String(count), cls: "foliate-index-band-count" });
+    }
 
+    contentEl.createEl("h3", { text: "Common terms" });
+    const controls = contentEl.createDiv("foliate-index-controls");
+    controls.createSpan({
+      text: "Show terms mentioned in more than",
+      cls: "setting-item-description",
+    });
+    const pick = controls.createEl("select");
+    for (const v of [10, 5, 2, 1, 0.5]) {
+      pick.createEl("option", { text: `${v}%`, value: String(v / 100) });
+    }
+    pick.value = "0.05";
+
+    controls.createSpan({ text: "and at least", cls: "setting-item-description" });
+    const minPick = controls.createEl("select");
+    for (const v of [0, 25, 50, 100, 250, 500]) {
+      minPick.createEl("option", { text: v === 0 ? "any" : `${v} notes`, value: String(v) });
+    }
+    minPick.value = "0";
+    const caption = contentEl.createEl("p", { cls: "setting-item-description" });
     const list = contentEl.createDiv("foliate-index-list");
-    for (const t of ambiguous.slice(0, 30)) {
+
+    const render = (minRatio: number, minMentions: number) => {
+      const terms = this.index.ambiguousTerms(minRatio, minMentions);
+      caption.setText(
+        `${terms.length} of ${all.length} mentioned taxa. These are the ones common enough that context has to decide what they mean; the rest are specific enough to surface freely.`
+      );
+      list.empty();
+      this.renderTerms(list, terms);
+    };
+    const rerender = () => render(Number(pick.value), Number(minPick.value));
+    pick.addEventListener("change", rerender);
+    minPick.addEventListener("change", rerender);
+    rerender();
+
+    const footer = contentEl.createDiv("foliate-index-footer");
+    const copy = footer.createEl("button", { text: "Copy report" });
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(
+        this.buildTextReport(
+          this.index.ambiguousTerms(Number(pick.value), Number(minPick.value))
+        )
+      );
+      new Notice("Index report copied");
+    });
+  }
+
+  private renderTerms(
+    list: HTMLElement,
+    terms: { path: string; ratio: number; df: number }[]
+  ): void {
+    for (const t of terms.slice(0, 60)) {
       const item = list.createDiv("foliate-index-item");
       const head = item.createDiv("foliate-index-item-head");
       head.createSpan({
@@ -61,7 +129,19 @@ export class IndexReportModal extends Modal {
       });
       const nameEl = head.createSpan({ text: basename(t.path), cls: "foliate-index-name" });
       nameEl.style.minWidth = "0";
-      head.createSpan({ text: `${t.df} notes`, cls: "foliate-index-count" });
+      const linked = this.index.linkedNoteCount(t.path);
+      const curation = this.index.curationOf(t.path);
+      const count = head.createSpan({
+        text: `${t.df} unlinked, ${linked} linked`,
+        cls: "foliate-index-count",
+      });
+      // Under 1% linked means the word keeps appearing without ever meaning
+      // this file, which is the shape of a common word that owns a file.
+      if (curation < 0.01) count.addClass("is-uncurated");
+      count.setAttribute(
+        "aria-label",
+        `${(curation * 100).toFixed(1)}% of mentions are links`
+      );
 
       // The neighbours are the readable evidence: a term whose top neighbours
       // are its own domain is gateable, one whose neighbours are unrelated is
@@ -73,18 +153,14 @@ export class IndexReportModal extends Modal {
       } else {
         line.setText(
           neighbors
-            .map((n) => `${basename(n.path)} (${n.score.toFixed(2)})`)
+            .map(
+              (n) =>
+                `${basename(n.path)} (${n.score.toFixed(2)}${n.linkedTogether ? `, ${n.linkedTogether} co-linked` : ""})`
+            )
             .join(", ")
         );
       }
     }
-
-    const footer = contentEl.createDiv("foliate-index-footer");
-    const copy = footer.createEl("button", { text: "Copy report" });
-    copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(this.buildTextReport(ambiguous));
-      new Notice("Index report copied");
-    });
   }
 
   private buildTextReport(

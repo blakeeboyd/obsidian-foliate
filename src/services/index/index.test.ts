@@ -11,7 +11,10 @@
  */
 import * as assert from "assert";
 import { buildDictionary, scanNote, tokenize } from "./scan";
-import { computeStats, npmi, idf, topNeighbors, pairKey } from "./stats";
+import {
+  computeStats, npmi, idf, topNeighbors, pairKey, findUsageOverlaps, curationRatio,
+  weightedTogether, LINK_WEIGHT,
+} from "./stats";
 
 const DICT = buildDictionary([
   { path: "c/+phase.md", terms: ["phase"] },
@@ -137,4 +140,128 @@ const A = "c/a.md", B = "c/b.md", C = "c/c.md";
   assert.strictEqual(stats.cooc.size, 0, "an 80-mention note contributes no pairs");
 }
 
-console.log("index: all assertions passed");
+// --- usage overlap: the duplicate-by-behaviour check ---
+{
+  const X = "c/+Noise.md", Y = "c/+noise (audio).md", Z = "c/+unrelated.md";
+  // X and Y appear in the same 10 notes; Z shares only 2 of them.
+  const sets: Set<string>[] = [];
+  for (let i = 0; i < 10; i++) sets.push(new Set([X, Y]));
+  for (let i = 0; i < 8; i++) sets.push(new Set([Z]));
+  sets.push(new Set([X, Y, Z]));
+  sets.push(new Set([X, Y, Z]));
+
+  const overlaps = findUsageOverlaps(computeStats(sets), { minJaccard: 0.4, minDf: 5, minTogether: 3 });
+  const names = overlaps.map((o: { a: string; b: string }) => [o.a, o.b]);
+  assert.deepStrictEqual(names, [[X, Y]], "only the interchangeable pair should surface");
+  assert.ok(overlaps[0].jaccard > 0.9);
+}
+
+// --- a pair with high co-occurrence but low overlap is NOT flagged ---
+{
+  // B always appears with A, but A appears in many notes without B. They are
+  // related, not interchangeable, which is the founder/company case.
+  const A = "c/a.md", B = "c/b.md";
+  const sets: Set<string>[] = [];
+  for (let i = 0; i < 6; i++) sets.push(new Set([A, B]));
+  for (let i = 0; i < 30; i++) sets.push(new Set([A]));
+  const overlaps = findUsageOverlaps(computeStats(sets), { minJaccard: 0.4, minDf: 5, minTogether: 3 });
+  assert.strictEqual(overlaps.length, 0, "one-sided dependence is not duplication");
+}
+
+// --- thin evidence never counts, however perfect the ratio ---
+{
+  const A = "c/a.md", B = "c/b.md";
+  // Perfect 1.0 overlap from 3 notes: the ratio looks certain, the data is not.
+  const sets = [new Set([A, B]), new Set([A, B]), new Set([A, B])];
+  const overlaps = findUsageOverlaps(computeStats(sets), { minJaccard: 0.4, minDf: 8, minTogether: 4 });
+  assert.strictEqual(overlaps.length, 0);
+}
+
+console.log("index: overlap assertions passed");
+
+// --- the taxon filter: a duplicate is a thing written twice, and a thing has
+//     one type. Every cross-taxon pair this vault produced was a false positive
+//     (an organization and its founder, a philosopher and their concept). ---
+{
+  const PREFIXES = ["@", "+", "º"];
+  const prefixOf = (path: string) => {
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    return PREFIXES.find((p) => name.startsWith(p)) ?? "";
+  };
+  const org = "o/ºBellroy.md", person = "p/@JJ (Bellroy).md";
+  const a = "c/+Noise.md", b = "c/+noise (audio).md";
+
+  const sets: Set<string>[] = [];
+  for (let i = 0; i < 12; i++) sets.push(new Set([org, person]));
+  for (let i = 0; i < 12; i++) sets.push(new Set([a, b]));
+  const stats = computeStats(sets);
+
+  const unfiltered = findUsageOverlaps(stats, { minJaccard: 0.4, minDf: 5, minTogether: 3 });
+  assert.strictEqual(unfiltered.length, 2, "both pairs overlap perfectly");
+
+  const filtered = findUsageOverlaps(stats, {
+    minJaccard: 0.4, minDf: 5, minTogether: 3, prefixOf,
+  });
+  assert.strictEqual(filtered.length, 1, "the cross-taxon pair is dropped");
+  assert.deepStrictEqual([filtered[0].a, filtered[0].b], [a, b]);
+}
+
+// --- curation ratio: same mention count, opposite meaning ---
+{
+  const concept = "c/+phase.md", common = "c/+Time.md";
+  // Both are WRITTEN in 100 notes. The concept is also linked in 40 of them;
+  // the common word is linked in 1. Same frequency, opposite meaning.
+  const mentions: Set<string>[] = [];
+  for (let i = 0; i < 100; i++) mentions.push(new Set([concept]));
+  for (let i = 0; i < 100; i++) mentions.push(new Set([common]));
+  const links: Set<string>[] = [];
+  for (let i = 0; i < 40; i++) links.push(new Set([concept]));
+  links.push(new Set([common]));
+
+  const stats = computeStats(mentions, links);
+  assert.ok(curationRatio(concept, stats) > 0.25, "a linked concept reads as curated");
+  assert.ok(curationRatio(common, stats) < 0.02, "a word never linked reads as uncurated");
+  // A term nobody has ever written or linked has no ratio rather than a NaN.
+  assert.strictEqual(curationRatio("c/absent.md", stats), 0);
+}
+
+// --- a co-link outranks bare co-occurrence ---
+{
+  const target = "c/+phase.md";
+  const linkedPeer = "c/+phase cancellation.md";
+  const mentionedPeer = "c/+Time.md";
+
+  const mentions: Set<string>[] = [];
+  // The merely-mentioned peer shares MORE pages than the linked one.
+  for (let i = 0; i < 12; i++) mentions.push(new Set([target, mentionedPeer]));
+  for (let i = 0; i < 8; i++) mentions.push(new Set([target, linkedPeer]));
+  for (let i = 0; i < 40; i++) mentions.push(new Set([mentionedPeer]));
+  for (let i = 0; i < 40; i++) mentions.push(new Set([linkedPeer]));
+  // But the user linked both of the second pair together, repeatedly.
+  const links: Set<string>[] = [];
+  for (let i = 0; i < 8; i++) links.push(new Set([target, linkedPeer]));
+
+  const stats = computeStats(mentions, links);
+  assert.strictEqual(stats.coLink.get(pairKey(target, linkedPeer)), 8);
+  assert.strictEqual(stats.coLink.get(pairKey(target, mentionedPeer)), undefined);
+
+  const ranked = topNeighbors(target, stats, 5);
+  assert.strictEqual(
+    ranked[0].path,
+    linkedPeer,
+    "the pair the user linked should outrank the pair that only co-occurred"
+  );
+  assert.strictEqual(ranked[0].linkedTogether, 8);
+}
+
+// --- weightedTogether counts a co-link as several mentions ---
+{
+  const a = "c/a.md", b = "c/b.md";
+  const stats = computeStats(
+    [new Set([a, b]), new Set([a, b])],
+    [new Set([a, b])]
+  );
+  assert.strictEqual(weightedTogether(a, b, stats), 2 + LINK_WEIGHT);
+}
+
+console.log("index: taxon-filter and curation assertions passed");

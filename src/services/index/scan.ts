@@ -56,7 +56,33 @@ export function buildDictionary(
 }
 
 /**
- * Every taxa file mentioned in `text`, as a set of vault paths.
+ * Blank out spans that are not prose, replacing each with spaces so the
+ * remaining text keeps its shape.
+ *
+ * Wikilinks are the reason this exists. Without it `[[+phase]]` tokenizes to
+ * "phase" and counts exactly like the word in a sentence, so "how often is this
+ * term written but not linked" cannot be asked: the two are one number.
+ * Measured on this vault, `+phase` occurred 363 times inside link syntax and
+ * 10,706 times in prose, silently pooled.
+ *
+ * Code goes too, for the reason the sidebar matcher already excludes it: a term
+ * inside `code` is a literal, not a reference.
+ */
+function stripNonProse(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, (m) => " ".repeat(m.length))
+    .replace(/`[^`\n]*`/g, (m) => " ".repeat(m.length))
+    .replace(/\[\[[^\]\n]*\]\]/g, (m) => " ".repeat(m.length))
+    .replace(/\]\([^)\n]*\)/g, (m) => " ".repeat(m.length));
+}
+
+/**
+ * Every taxa file mentioned in `text` but NOT already linked there.
+ *
+ * Excluding linked occurrences is what makes the mention count comparable to
+ * the link count. A concept the user links whenever they mean it and a common
+ * word that keeps appearing and never gets linked have similar raw frequencies
+ * and opposite meanings; only the unlinked count separates them.
  *
  * A set, not counts: the co-occurrence and document-frequency math downstream
  * is over set membership per note (the plan's section 2), so how many times a
@@ -64,7 +90,7 @@ export function buildDictionary(
  * update a pure set diff, which is what keeps it exactly reversible.
  */
 export function scanNote(text: string, dict: TermDictionary): Set<string> {
-  const words = tokenize(text);
+  const words = tokenize(stripNonProse(text));
   const found = new Set<string>();
   for (let i = 0; i < words.length; i++) {
     const bucket = dict.get(words[i]);

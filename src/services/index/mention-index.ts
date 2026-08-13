@@ -3,7 +3,17 @@ import { IDBPDatabase } from "idb";
 import { TaxaMapping } from "../../types";
 import { fileTerms, taxonForFile } from "../context-mining";
 import { buildDictionary, scanNote, TermDictionary } from "./scan";
-import { computeStats, CorpusStats, topNeighbors, Neighbor, idf, documentRatio } from "./stats";
+import {
+  computeStats,
+  CorpusStats,
+  topNeighbors,
+  Neighbor,
+  idf,
+  documentRatio,
+  findUsageOverlaps,
+  UsageOverlap,
+  curationRatio,
+} from "./stats";
 import {
   openIndexDb,
   putMentionRecords,
@@ -49,8 +59,18 @@ export class MentionIndex {
   private db: IDBPDatabase | null = null;
   private dict: TermDictionary = new Map();
   private stats: CorpusStats | null = null;
-  /** Note path to its mention set, the in-memory mirror of the store. */
+  /** Note path to its unlinked-mention set, the in-memory mirror of the store. */
   private sets = new Map<string, Set<string>>();
+  /**
+   * Note path to the taxa it LINKS, from Obsidian's own graph.
+   *
+   * Kept apart from mentions because it is stronger evidence in kind, not
+   * degree. A mention says two terms share a page; a link says the user
+   * asserted this page is about that file. Two taxa both linked from one note
+   * is the user connecting them, which is the closest thing to a ground truth
+   * this index has.
+   */
+  private links = new Map<string, Set<string>>();
   private building = false;
 
   constructor(app: App) {
@@ -172,7 +192,27 @@ export class MentionIndex {
    * is the upgrade.
    */
   private rebuildStats(): void {
-    this.stats = computeStats([...this.sets.values()]);
+    // Link sets first: the statistics take them as a second input, so the graph
+    // has to be read before the counts are derived from it.
+    this.rebuildLinkSets();
+    this.stats = computeStats([...this.sets.values()], [...this.links.values()]);
+    this.linkCounts = null;
+  }
+
+  /**
+   * Read the per-note link sets out of Obsidian's resolved graph, keeping only
+   * links to taxa files the index knows about.
+   */
+  private rebuildLinkSets(): void {
+    const resolved = this.app.metadataCache.resolvedLinks;
+    const known = this.stats?.df;
+    this.links = new Map();
+    for (const source of Object.keys(resolved)) {
+      const targets = Object.keys(resolved[source]).filter(
+        (t) => !known || known.has(t) || this.sets.has(t)
+      );
+      if (targets.length) this.links.set(source, new Set(targets));
+    }
   }
 
   /**
@@ -251,15 +291,87 @@ export class MentionIndex {
   }
 
   /**
+   * How many notes link to a taxa file, from Obsidian's own resolved link
+   * graph. Counted on demand rather than stored: the link graph is already an
+   * index Obsidian maintains, and duplicating it here would be a second copy to
+   * keep in sync for no gain.
+   */
+  inboundLinks(taxaPath: string): number {
+    return this.inboundLinkCounts().get(taxaPath) ?? 0;
+  }
+
+  /**
+   * Inbound link counts for every file, built in one pass and cached.
+   *
+   * Walking the link graph per term meant one full pass per row rendered, which
+   * is the same quadratic shape the scan was rewritten to avoid. Invalidated
+   * whenever the statistics are rebuilt, so it never outlives its data.
+   */
+  private linkCounts: Map<string, number> | null = null;
+  private inboundLinkCounts(): Map<string, number> {
+    if (this.linkCounts) return this.linkCounts;
+    const counts = new Map<string, number>();
+    const resolved = this.app.metadataCache.resolvedLinks;
+    for (const source of Object.keys(resolved)) {
+      for (const target of Object.keys(resolved[source])) {
+        counts.set(target, (counts.get(target) ?? 0) + 1);
+      }
+    }
+    this.linkCounts = counts;
+    return counts;
+  }
+
+  /**
+   * The share of a term's mentions that the user actually linked. Near zero
+   * means the word keeps appearing without ever meaning the file, which is the
+   * signature of a common word that owns a file.
+   */
+  curationOf(taxaPath: string): number {
+    return this.stats ? curationRatio(taxaPath, this.stats) : 0;
+  }
+
+  /** Notes that link this taxa file, per the index's own link sets. */
+  linkedNoteCount(taxaPath: string): number {
+    return this.stats?.linkDf.get(taxaPath) ?? 0;
+  }
+
+  /**
+   * Taxa pairs used so similarly across the vault that they may be one concept
+   * written two ways. Restricted to pairs within one taxon: a duplicate is a
+   * thing written twice, and a thing has one type.
+   */
+  usageOverlaps(minJaccard = 0.4, taxaMappings?: TaxaMapping[]): UsageOverlap[] {
+    if (!this.stats) return [];
+    const prefixes = (taxaMappings ?? [])
+      .map((t) => t.prefix)
+      .filter((p): p is string => Boolean(p));
+    const prefixOf = prefixes.length
+      ? (path: string) => {
+          const name = path.slice(path.lastIndexOf("/") + 1);
+          return prefixes.find((p) => name.startsWith(p)) ?? "";
+        }
+      : undefined;
+    return findUsageOverlaps(this.stats, { minJaccard, prefixOf });
+  }
+
+  /**
    * The terms common enough to need gating at all, most common first. On the
    * measured vault this is 21 terms above a 5% ratio, out of 4,522 mentioned.
    */
-  ambiguousTerms(minRatio = 0.05): { path: string; ratio: number; df: number }[] {
+  ambiguousTerms(
+    minRatio = 0.05,
+    minMentions = 0
+  ): { path: string; ratio: number; df: number }[] {
     if (!this.stats) return [];
     const out: { path: string; ratio: number; df: number }[] = [];
     for (const [path, d] of this.stats.df) {
       const ratio = d / this.stats.noteCount;
-      if (ratio >= minRatio) out.push({ path, ratio, df: d });
+      // Both bars, because each catches what the other misses. A percentage
+      // follows the vault as it grows, but 5% of a 200-note vault is 10 notes,
+      // which is noise. An absolute count is stable but goes stale: 5% means
+      // 600 notes today and 1,200 if the vault doubles, for a term that has not
+      // changed at all.
+      if (ratio >= minRatio && d >= minMentions) out.push({ path, ratio, df: d });
     }
     out.sort((a, b) => b.ratio - a.ratio);
     return out;

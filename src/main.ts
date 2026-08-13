@@ -263,12 +263,18 @@ export default class FoliatePlugin extends Plugin {
           new Notice("Every taxa and domain file is in its taxon's folder, and no two share a name.");
           return;
         }
+        const all = [...this.settings.taxaMappings, this.settings.domain];
         new MisplacedFilesModal(
           this.app,
           misplaced,
           duplicates,
           async (file, item) => this.moveFileToTaxaFolder(file, item.taxon, true),
-          scan
+          scan,
+          // Index-found pairs, when an index exists. Without one this is empty
+          // and the command behaves exactly as before.
+          this.mentionIndex.usageOverlaps(0.4, all),
+          (file) =>
+            all.find((t) => t.prefix && file.basename.startsWith(t.prefix)) ?? all[0]
         ).open();
       },
     });
