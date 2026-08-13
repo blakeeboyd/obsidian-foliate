@@ -25,6 +25,10 @@ import {
   SuggestionsView,
   SUGGESTIONS_VIEW_TYPE,
 } from "./ui/suggestions-view";
+import {
+  buildLinkColorPostProcessor,
+  buildLinkColorExtension,
+} from "./services/link-colors";
 
 const DEFAULT_SETTINGS: FoliateSettings = {
   taxaMappings: DEFAULT_TAXA_MAPPINGS,
@@ -57,6 +61,7 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   showSearchBar: true,
   collapsedCategories: [],
   highlightColor: "",
+  colorTaxaLinks: false,
 };
 
 export default class FoliatePlugin extends Plugin {
@@ -67,6 +72,7 @@ export default class FoliatePlugin extends Plugin {
     setFilenameAcronymMatching(this.settings.matchFilenameAcronyms);
     addIcon(FOLIATE_ICON_ID, FOLIATE_ICON_SVG);
     this.addSettingTab(new FoliateSettingTab(this.app, this));
+    this.registerLinkColors();
     this.registerCommands();
     this.registerAutoMover();
     if (this.settings.sidebarEnabled) {
@@ -94,6 +100,21 @@ export default class FoliatePlugin extends Plugin {
     const prefix = this.settings.surnameMatchPrefix?.trim();
     if (!prefix) return undefined;
     return this.settings.taxaMappings.find((t) => t.prefix === prefix);
+  }
+
+  /**
+   * Both link colorers read the live settings through a getter rather than a
+   * snapshot, so toggling a color in settings takes effect on the next render
+   * without re-registering anything. The toggle is read here too: off means
+   * the taxa list is empty, and an empty list makes both paths no-ops.
+   */
+  private registerLinkColors() {
+    const getTaxa = () =>
+      this.settings.colorTaxaLinks
+        ? [...this.settings.taxaMappings, this.settings.domain]
+        : [];
+    this.registerMarkdownPostProcessor(buildLinkColorPostProcessor(getTaxa));
+    this.registerEditorExtension(buildLinkColorExtension(getTaxa));
   }
 
   private registerCommands() {
@@ -717,6 +738,20 @@ export default class FoliatePlugin extends Plugin {
         this.app.workspace.revealLeaf(leaf);
       }
     }
+  }
+
+  /**
+   * Repaint open markdown views after a link-color change. Reading view is
+   * rerendered and the editor extension is re-registered; without this a color
+   * change only shows on the next file switch, which reads as "the picker did
+   * nothing".
+   */
+  rerenderMarkdownViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view as MarkdownView;
+      view.previewMode?.rerender(true);
+    }
+    this.app.workspace.updateOptions();
   }
 
   refreshSuggestionsView() {

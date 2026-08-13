@@ -934,3 +934,29 @@
   padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
 }
+
+/* Per-taxon link color. The custom property is set per element by the reading
+   -view processor and the editor decoration; only elements that carry it are
+   recolored, so an uncolored taxon keeps the theme's --link-color. Themes and
+   snippets can override by redefining --foliate-link-color. */
+.foliate-link {
+  color: var(--foliate-link-color, var(--link-color));
+}
+
+.foliate-taxa-row .foliate-color-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Reset-to-theme button, shown only once a color is set. */
+.foliate-color-clear {
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.foliate-color-clear:hover {
+  color: var(--text-normal);
+}

@@ -3,6 +3,12 @@ export interface TaxaMapping {
   label: string;
   folder: string;
   template?: string;
+  /**
+   * Color for links to this taxon's files. Unset means the theme decides:
+   * no style is emitted at all, so the link keeps whatever --link-color
+   * resolves to. Only set when the user deliberately picks a color.
+   */
+  linkColor?: string;
 }
 
 /**
@@ -105,6 +111,12 @@ export interface FoliateSettings {
   showSearchBar: boolean;
   collapsedCategories: string[];
   highlightColor: string;
+  /**
+   * Color resolved wikilinks by taxon, in reading view and the editor. Off by
+   * default: link color is a strong visual change and not every user wants
+   * their links to stop looking like links.
+   */
+  colorTaxaLinks: boolean;
 }
 
 /**

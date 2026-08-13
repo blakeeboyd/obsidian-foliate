@@ -7,6 +7,28 @@ import { DetectedTaxaModal } from "./ui/detected-taxa-modal";
 import { detectTaxaPrefixes } from "./services/detect-taxa";
 import { mineContextTerms, fileTerms, taxonForFile } from "./services/context-mining";
 
+/**
+ * The theme's current link color, as the hex the OS color input needs. Used to
+ * seed an unset picker so it opens on the color the link actually is, rather
+ * than on black. Resolving the computed value is the only way to read it: the
+ * variable holds whatever the active theme set, which may be hsl() or a name.
+ */
+function themeLinkColor(): string {
+  const raw = getComputedStyle(document.body)
+    .getPropertyValue("--link-color")
+    .trim();
+  if (!raw) return "#000000";
+  // A color input accepts "#rrggbb" only, so round-trip anything else through
+  // canvas, which normalizes every CSS color form to rgb().
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw;
+  const ctx = document.createElement("canvas").getContext("2d");
+  if (!ctx) return "#000000";
+  ctx.fillStyle = "#000000";
+  ctx.fillStyle = raw;
+  const out = ctx.fillStyle;
+  return /^#[0-9a-f]{6}$/i.test(out) ? out : "#000000";
+}
+
 class ConfirmModal extends Modal {
   private message: string;
   private confirmText: string;
@@ -540,7 +562,7 @@ export class FoliateSettingTab extends PluginSettingTab {
   /** Column headers for a mappings table, widths matched to the row inputs. */
   private renderMappingHeader(el: HTMLElement): void {
     const head = el.createDiv("foliate-taxa-head");
-    ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180]] as const).forEach(
+    ([["Prefix", 50], ["Label", 100], ["Folder", 200], ["Template", 180], ["Color", 60]] as const).forEach(
       ([text, w]) => {
         const c = head.createSpan({ text });
         c.style.width = `${w}px`;
@@ -556,6 +578,19 @@ export class FoliateSettingTab extends PluginSettingTab {
 
   private renderMappingsSection(containerEl: HTMLElement): void {
     const el = this.section(containerEl, "Mappings");
+
+    new Setting(el)
+      .setName("Color taxa links")
+      .setDesc(
+        "Color links to taxa files by type, in reading view and the editor. Each taxon's color is set in its row below; a taxon with no color set keeps your theme's link color."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.colorTaxaLinks).onChange(async (v) => {
+          this.plugin.settings.colorTaxaLinks = v;
+          await this.plugin.saveSettings();
+          this.plugin.rerenderMarkdownViews();
+        })
+      );
 
     // Domain: the single higher-order taxon that groups other taxa.
     this.subGroup(
@@ -1174,6 +1209,44 @@ export class FoliateSettingTab extends PluginSettingTab {
       templateInput.value = file.path;
       templateInput.dispatchEvent(new Event("input"));
       await saveTemplate(file.path);
+    });
+
+    // Link color. Unset is the normal state and means "let the theme decide",
+    // so the swatch only shows a color once the user picks one, and the clear
+    // button (which removes the override) only exists while one is set.
+    const colorCell = row.createDiv("foliate-color-cell");
+
+    // Built swatch-first so DOM order is the visual order, no reordering.
+    const picker = new ColorComponent(colorCell)
+      .setValue(mapping.linkColor || themeLinkColor())
+      .onChange(async (value) => {
+        if (value === mapping.linkColor) return;
+        this.pushTaxaUndo();
+        mapping.linkColor = value;
+        await this.plugin.saveSettings();
+        syncClear();
+        this.plugin.rerenderMarkdownViews();
+      });
+    colorCell
+      .querySelector("input")
+      ?.setAttribute("aria-label", `Link color for ${mapping.label || "this taxon"}`);
+
+    const clearBtn = colorCell.createSpan({ cls: "foliate-color-clear", text: "\u2715" });
+    clearBtn.setAttribute("aria-label", "Use the theme's link color");
+
+    const syncClear = () => {
+      clearBtn.style.display = mapping.linkColor ? "" : "none";
+    };
+    syncClear();
+
+    clearBtn.addEventListener("click", async () => {
+      if (!mapping.linkColor) return;
+      this.pushTaxaUndo();
+      delete mapping.linkColor;
+      picker.setValue(themeLinkColor());
+      await this.plugin.saveSettings();
+      syncClear();
+      this.plugin.rerenderMarkdownViews();
     });
 
     if (onDelete) {
