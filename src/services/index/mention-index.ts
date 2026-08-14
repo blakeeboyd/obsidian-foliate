@@ -407,20 +407,17 @@ export class MentionIndex {
    * The terms common enough to need gating at all, most common first. On the
    * measured vault this is 21 terms above a 5% ratio, out of 4,522 mentioned.
    */
-  ambiguousTerms(
-    minRatio = 0.05,
-    minMentions = 0
-  ): { path: string; ratio: number; df: number }[] {
+  ambiguousTerms(minRatio = 0.05): { path: string; ratio: number; df: number }[] {
     if (!this.stats) return [];
     const out: { path: string; ratio: number; df: number }[] = [];
     for (const [path, d] of this.stats.df) {
       const ratio = d / this.stats.noteCount;
-      // Both bars, because each catches what the other misses. A percentage
-      // follows the vault as it grows, but 5% of a 200-note vault is 10 notes,
-      // which is noise. An absolute count is stable but goes stale: 5% means
-      // 600 notes today and 1,200 if the vault doubles, for a term that has not
-      // changed at all.
-      if (ratio >= minRatio && d >= minMentions) out.push({ path, ratio, df: d });
+      // One bar, expressed as a share. An absolute count was a second parameter
+      // for a while, which forced a choice between AND (the stricter bar wins
+      // and the other does nothing) and OR (two bars to reason about). Over a
+      // fixed corpus the two are the same number, so the caller converts and
+      // shows both instead.
+      if (ratio >= minRatio) out.push({ path, ratio, df: d });
     }
     out.sort((a, b) => b.ratio - a.ratio);
     return out;

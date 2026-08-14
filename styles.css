@@ -1272,3 +1272,19 @@ a.internal-link.foliate-link,
   0%, 40% { background: var(--text-selection); }
   100% { background: transparent; }
 }
+
+/* One control for how common a term has to be, reading out as both a share and
+   a note count so the two never have to be reconciled by hand. */
+.foliate-index-slider {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.foliate-index-readout {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-accent);
+  white-space: nowrap;
+  min-width: 130px;
+  text-align: right;
+}

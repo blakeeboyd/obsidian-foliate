@@ -71,46 +71,61 @@ export class IndexReportModal extends Modal {
     }
 
     contentEl.createEl("h3", { text: "Common terms" });
-    const controls = contentEl.createDiv("foliate-index-controls");
-    controls.createSpan({
-      text: "Show terms mentioned in more than",
-      cls: "setting-item-description",
-    });
-    const pick = controls.createEl("select");
-    for (const v of [10, 5, 2, 1, 0.5]) {
-      pick.createEl("option", { text: `${v}%`, value: String(v / 100) });
-    }
-    pick.value = "0.05";
 
-    controls.createSpan({ text: "and at least", cls: "setting-item-description" });
-    const minPick = controls.createEl("select");
-    for (const v of [0, 25, 50, 100, 250, 500]) {
-      minPick.createEl("option", { text: v === 0 ? "any" : `${v} notes`, value: String(v) });
-    }
-    minPick.value = "0";
+    // One control, not two. A share and a count are the same number read two
+    // ways over a fixed corpus, so offering both as separate thresholds forced
+    // a choice between AND (the stricter bar wins and the other does nothing)
+    // and OR (two bars to reason about). A slider showing both at once removes
+    // the question: move it, and read the share, the note count, and how many
+    // terms clear it.
+    //
+    // Logarithmic, because the useful range is 0.1% to 20% and half of a linear
+    // slider's travel would sit above 5%, where almost nothing lives.
+    const MIN_RATIO = 0.001;
+    const MAX_RATIO = 0.2;
+    const toRatio = (pos: number) =>
+      MIN_RATIO * Math.pow(MAX_RATIO / MIN_RATIO, pos / 1000);
+    const toPos = (ratio: number) =>
+      Math.round((1000 * Math.log(ratio / MIN_RATIO)) / Math.log(MAX_RATIO / MIN_RATIO));
+
+    const controls = contentEl.createDiv("foliate-index-controls");
+    const slider = controls.createEl("input", { type: "range" });
+    slider.min = "0";
+    slider.max = "1000";
+    slider.value = String(toPos(0.05));
+    slider.addClass("foliate-index-slider");
+    slider.setAttribute("aria-label", "How common a term has to be to be listed");
+
+    const readout = controls.createSpan({ cls: "foliate-index-readout" });
     const caption = contentEl.createEl("p", { cls: "setting-item-description" });
     const list = contentEl.createDiv("foliate-index-list");
 
-    const render = (minRatio: number, minMentions: number) => {
-      const terms = this.index.ambiguousTerms(minRatio, minMentions);
+    const render = () => {
+      const ratio = toRatio(Number(slider.value));
+      // The count the share works out to in this vault, which is the number
+      // that actually means something when judging whether a bar is sensible.
+      const notes = Math.round(ratio * (stats.noteCount || 0));
+      const terms = this.index.ambiguousTerms(ratio);
+
+      // Below 1% a single decimal collapses distinct positions to "0.1%", so
+      // the precision follows the magnitude.
+      const pct = ratio * 100;
+      const shown = pct < 1 ? pct.toFixed(2) : pct.toFixed(1);
+      readout.setText(`${shown}% \u2248 ${notes.toLocaleString()} notes`);
       caption.setText(
-        `${terms.length} of ${all.length} mentioned taxa. These are the ones common enough that context has to decide what they mean; the rest are specific enough to surface freely.`
+        `${terms.length} of ${all.length} mentioned taxa appear in more than ${notes} of your ${stats.noteCount.toLocaleString()} notes. Those are the ones common enough that context has to decide what they mean; the rest are specific enough to surface freely.`
       );
       list.empty();
       this.renderTerms(list, terms);
     };
-    const rerender = () => render(Number(pick.value), Number(minPick.value));
-    pick.addEventListener("change", rerender);
-    minPick.addEventListener("change", rerender);
-    rerender();
+    slider.addEventListener("input", render);
+    render();
 
     const footer = contentEl.createDiv("foliate-index-footer");
     const copy = footer.createEl("button", { text: "Copy report" });
     copy.addEventListener("click", () => {
       void navigator.clipboard.writeText(
-        this.buildTextReport(
-          this.index.ambiguousTerms(Number(pick.value), Number(minPick.value))
-        )
+        this.buildTextReport(this.index.ambiguousTerms(toRatio(Number(slider.value))))
       );
       new Notice("Index report copied");
     });

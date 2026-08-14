@@ -353,3 +353,4 @@ console.log("index: shared-term assertions passed");
 }
 
 console.log("index: shared-term-qualifies assertions passed");
+
