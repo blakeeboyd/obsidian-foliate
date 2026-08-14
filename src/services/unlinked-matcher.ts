@@ -510,8 +510,15 @@ export function findFileMatchPositions(
     // the whole "@Paul Krugman" rather than leaving a stray "@".
     const forms =
       taxon.prefix && taxon.prefix.length > 0 ? [taxon.prefix + term, term] : [term];
+    // An all-caps term matches only in all caps. "OCT" is a microphone array;
+    // "Oct" is October, and case-insensitively they are the same five letters,
+    // so a meeting note listing "Oct 25th" surfaced a microphone technique.
+    // Capitalisation is the only thing distinguishing them, and an acronym
+    // written in prose keeps its capitals, so requiring them costs nothing and
+    // removes the whole class.
+    const caseSensitive = isAcronymTerm(term);
     for (const form of forms) {
-      for (const offset of findUnlinkedPositions(noteContent, form, excluded)) {
+      for (const offset of findUnlinkedPositions(noteContent, form, excluded, caseSensitive)) {
         if (offset < bodyStart) continue;
         candidates.push({
           offset,
@@ -703,6 +710,22 @@ function getSearchTerms(
  * it once via findExcludedRegions and pass it in; when omitted it is derived
  * here so single-shot callers stay correct.
  */
+/**
+ * A term whose letters are all uppercase, i.e. written as an acronym.
+ *
+ * Two letters is the floor because single letters are already excluded, and the
+ * ceiling is deliberately absent: a long all-caps term is still an acronym or a
+ * stylised name, and matching it case-sensitively is right either way.
+ *
+ * Digits and separators are allowed through (AES3, MS/TRS) since they do not
+ * carry case; what matters is that no letter is lowercase.
+ */
+export function isAcronymTerm(term: string): boolean {
+  const letters = term.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 2) return false;
+  return letters === letters.toUpperCase();
+}
+
 export function findUnlinkedPositions(
   text: string,
   term: string,

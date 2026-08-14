@@ -903,7 +903,9 @@ export class SuggestionsView extends ItemView {
             present,
             stats,
             this.plugin.mentionIndex.clusters,
-            this.plugin.gateConfig()
+            this.plugin.gateConfig(),
+            // The matcher already counted these, so prominence costs nothing.
+            match.positions.length
           );
           if (verdict.surface) {
             kept.push(match);

@@ -93,3 +93,34 @@ const clusters = buildClusters(stats);
 }
 
 console.log("gate: all assertions passed");
+
+// --- prominence: the note vouching for the term itself ---
+{
+  // A common term in a note whose other mentions are unrelated. Said once it is
+  // withheld; said repeatedly the note is plainly about it.
+  const unrelated = new Set(["c/+filler1.md"]);
+
+  const once = gateDecision(COMMON, unrelated, stats, clusters, DEFAULT_GATE, 1);
+  assert.strictEqual(once.surface, false, "one passing mention is not evidence");
+
+  const many = gateDecision(COMMON, unrelated, stats, clusters, DEFAULT_GATE, 5);
+  assert.strictEqual(many.surface, true, "repetition means the note is about it");
+  assert.strictEqual(many.reason, "prominent");
+
+  // Exactly at the threshold counts, since the bar is "this many or more".
+  const atBar = gateDecision(COMMON, unrelated, stats, clusters, DEFAULT_GATE,
+    DEFAULT_GATE.prominentOccurrences);
+  assert.strictEqual(atBar.surface, true);
+
+  // Prominence never rescues a term with too little vault evidence to judge:
+  // that path already surfaces, and for a different reason.
+  const thin = gateDecision("c/+filler0.md", unrelated, stats, clusters, DEFAULT_GATE, 9);
+  assert.strictEqual(thin.reason, "cold");
+
+  // Omitting the count keeps the old behaviour, so callers that cannot supply
+  // it are unaffected.
+  const noCount = gateDecision(COMMON, unrelated, stats, clusters);
+  assert.strictEqual(noCount.surface, false);
+}
+
+console.log("gate: prominence assertions passed");

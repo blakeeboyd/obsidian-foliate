@@ -19,6 +19,8 @@ import { ClusterResult } from "./clusters";
 export type GateReason =
   /** Specific enough that context cannot change what it means. */
   | "unambiguous"
+  /** Repeated enough here that the note is plainly about it. */
+  | "prominent"
   /** Not enough evidence yet to judge; the ramp has not started. */
   | "cold"
   /** Its cluster is settled and this note is about that cluster. */
@@ -51,12 +53,28 @@ export interface GateConfig {
   neighbourFloor: number;
   /** Notes a term must appear in before it is judged at all. */
   minEvidence: number;
+  /**
+   * Occurrences in one note above which the note is taken to be about the term,
+   * whatever its neighbours are doing.
+   *
+   * The gate asks "do this term's associates appear here", which a note can
+   * fail while being squarely about the term. Measured on the reference vault,
+   * that produced exactly the wrong hides: "artificial intelligence" withheld
+   * from a decision record about AI grading, "writing" from a zettel arguing
+   * that writing detaches ideas from the speaker. In both the term was the
+   * subject and its cluster-mates simply were not present.
+   *
+   * Repetition is the note vouching for the term itself, which is the evidence
+   * co-occurrence cannot supply.
+   */
+  prominentOccurrences: number;
 }
 
 export const DEFAULT_GATE: GateConfig = {
   ambiguousRatio: 0.05,
   neighbourFloor: 0.3,
   minEvidence: 5,
+  prominentOccurrences: 3,
 };
 
 /**
@@ -71,7 +89,9 @@ export function gateDecision(
   present: Set<string>,
   stats: CorpusStats,
   clusters: ClusterResult,
-  config: GateConfig = DEFAULT_GATE
+  config: GateConfig = DEFAULT_GATE,
+  /** How many times the candidate occurs in this note, when known. */
+  occurrences = 0
 ): GateVerdict {
   // A term nobody has written enough to judge. Surfacing it costs a little
   // clutter; hiding it on this much data would be acting on noise, and a
@@ -88,6 +108,14 @@ export function gateDecision(
   const ratio = df / (stats.noteCount || 1);
   if (ratio < config.ambiguousRatio) {
     return { surface: true, reason: "unambiguous", evidence: [] };
+  }
+
+  // Said repeatedly here, so the note is about it whatever its neighbours are
+  // doing. Checked before the association branches because it is the stronger
+  // claim: co-occurrence is an inference about what a term usually means, and
+  // this is the note in front of us saying what it is about.
+  if (occurrences >= config.prominentOccurrences) {
+    return { surface: true, reason: "prominent", evidence: [] };
   }
 
   // Confident: the term sits in a settled cluster, so ask whether this note is
@@ -139,6 +167,8 @@ export function explainVerdict(verdict: GateVerdict, name: (path: string) => str
       return "Specific enough to surface anywhere.";
     case "cold":
       return "Not enough of this term in the vault yet to judge it.";
+    case "prominent":
+      return "Repeated enough here that this note is about it.";
     case "cluster-match":
       return `This note also mentions ${verdict.evidence.slice(0, 3).map(name).join(", ")}, which sits in the same group.`;
     case "cluster-miss":

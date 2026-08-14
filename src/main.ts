@@ -355,6 +355,33 @@ export default class FoliatePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "foliate-rebuild-index",
+      name: "Rebuild mention index from scratch",
+      callback: () => {
+        const notice = new Notice("Rebuilding mention index...", 0);
+        const taxa = [...this.settings.taxaMappings, this.settings.domain];
+        this.mentionIndex
+          .build(
+            taxa,
+            (p) => notice.setMessage(`Rebuilding: ${p.scanned}/${p.total} notes`),
+            { force: true }
+          )
+          .then((r) => {
+            notice.hide();
+            new Notice(
+              `Rescanned ${r.scanned.toLocaleString()} notes in ${(r.ms / 1000).toFixed(1)}s`,
+              8000
+            );
+            new IndexReportModal(this.app, this.mentionIndex).open();
+          })
+          .catch((e: unknown) => {
+            notice.hide();
+            new Notice(`Rebuild failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+          });
+      },
+    });
+
+    this.addCommand({
       id: "foliate-index-report",
       name: "Show mention index report",
       callback: () => {
