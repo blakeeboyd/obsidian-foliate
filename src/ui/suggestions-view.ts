@@ -8,6 +8,7 @@ import { createTaxaFile, addAliasToFile, findTermCollisions, foldName } from "..
 import { mineContextTerms, fileTerms } from "../services/context-mining";
 import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
+import { gateDecision, explainVerdict } from "../services/index/gate";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
 const clearHighlight = StateEffect.define<null>();
@@ -876,6 +877,59 @@ export class SuggestionsView extends ItemView {
         matchDeclaredAcronyms: this.plugin.settings.matchDeclaredAcronyms,
       }
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
+
+    // Automatic context gating: drop mentions the index says this note has not
+    // established any context for.
+    //
+    // A post-pass rather than a check inside the scan, because the decision
+    // needs to know what ELSE the note mentions, and that is only known once
+    // the scan is finished. The note's established context is its linked taxa
+    // plus the matches that survived, so a note full of audio concepts vouches
+    // for another audio term while a scheduling note does not.
+    if (this.plugin.settings.autoGateEnabled && this.plugin.mentionIndex.ready) {
+      const stats = this.plugin.mentionIndex.corpus;
+      if (stats) {
+        const present = new Set<string>(this.plugin.mentionIndex.mentionsOf(file.path));
+        for (const linked of Object.keys(
+          this.app.metadataCache.resolvedLinks[file.path] ?? {}
+        )) {
+          present.add(linked);
+        }
+
+        const kept: UnlinkedMatch[] = [];
+        for (const match of unlinkedMatches) {
+          const verdict = gateDecision(
+            match.filePath,
+            present,
+            stats,
+            this.plugin.mentionIndex.clusters,
+            this.plugin.gateConfig()
+          );
+          if (verdict.surface) {
+            kept.push(match);
+            continue;
+          }
+          // Withheld, never silently: the discard pile is what Hidden
+          // connections shows, and it is free because the gate already
+          // computed the reason.
+          if (this.plugin.settings.showHiddenConnections) {
+            hiddenMatches.push({
+              filePath: match.filePath,
+              fileName: match.fileName,
+              alias: match.alias,
+              taxon: match.taxon,
+              hiddenTerms: [match.alias],
+              occurrences: match.positions.length,
+              reason: "context-gate",
+              detail: explainVerdict(verdict, (p2) =>
+                p2.slice(p2.lastIndexOf("/") + 1).replace(/\.md$/, "")
+              ),
+            });
+          }
+        }
+        unlinkedMatches = kept;
+      }
+    }
 
     // Scope to the viewport: keep only occurrences on screen, drop empty matches.
     if (viewRange) {

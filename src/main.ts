@@ -30,6 +30,7 @@ import {
   buildLinkColorExtension,
 } from "./services/link-colors";
 import { MentionIndex } from "./services/index/mention-index";
+import { GateConfig, DEFAULT_GATE } from "./services/index/gate";
 import { IndexReportModal } from "./ui/index-report-modal";
 
 const DEFAULT_SETTINGS: FoliateSettings = {
@@ -65,6 +66,8 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   highlightColor: "",
   mergedConcepts: {},
   markContestedTerms: true,
+  autoGateEnabled: false,
+  autoGateRatio: 0.05,
 };
 
 export default class FoliatePlugin extends Plugin {
@@ -101,6 +104,11 @@ export default class FoliatePlugin extends Plugin {
 
   async onunload() {
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
+  }
+
+  /** The gate's tuning, from settings. */
+  gateConfig(): GateConfig {
+    return { ...DEFAULT_GATE, ambiguousRatio: this.settings.autoGateRatio };
   }
 
   /**

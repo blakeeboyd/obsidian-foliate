@@ -139,6 +139,17 @@ export interface FoliateSettings {
    * knowingly keeps colliding names.
    */
   markContestedTerms: boolean;
+  /**
+   * Hide mentions the index says this note establishes no context for.
+   *
+   * Off by default, and deliberately so: this is the only setting in the plugin
+   * that REMOVES information from the sidebar. A wrongly hidden mention is
+   * invisible in a way a wrongly shown one is not, so it stays opt-in until the
+   * user has looked at what it would hide.
+   */
+  autoGateEnabled: boolean;
+  /** Share of notes above which a term is treated as ambiguous enough to gate. */
+  autoGateRatio: number;
 }
 
 /**

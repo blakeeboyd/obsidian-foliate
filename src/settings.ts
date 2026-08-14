@@ -5,6 +5,7 @@ import { DEFAULT_TAXA_MAPPINGS } from "./taxa";
 import { SymbolPickerModal } from "./ui/symbol-picker";
 import { DetectedTaxaModal } from "./ui/detected-taxa-modal";
 import { detectTaxaPrefixes } from "./services/detect-taxa";
+import { ambiguousCount } from "./services/index/gate";
 import { mineContextTerms, fileTerms, taxonForFile } from "./services/context-mining";
 
 /**
@@ -1007,6 +1008,60 @@ export class FoliateSettingTab extends PluginSettingTab {
       "Experimental",
       "Features still in development. Off by default; enable at your own discretion."
     );
+
+    // Automatic gating: the index deciding what is relevant, rather than a
+    // hand-entered list per file.
+    const gateDetail = createDiv();
+    const renderGateDetail = () => {
+      gateDetail.empty();
+      gateDetail.toggle(this.plugin.settings.autoGateEnabled);
+      if (!this.plugin.settings.autoGateEnabled) return;
+
+      const stats = this.plugin.mentionIndex.corpus;
+      const count = stats ? ambiguousCount(stats, this.plugin.gateConfig()) : 0;
+      const total = stats ? stats.df.size : 0;
+
+      new Setting(gateDetail)
+        .setName("Gate terms in more than this share of notes")
+        .setDesc(
+          stats
+            ? `${count} of ${total.toLocaleString()} mentioned taxa are common enough to be gated. Everything else surfaces wherever it appears.`
+            : "Build the mention index to see how many terms this affects."
+        )
+        .addSlider((sl) =>
+          sl
+            .setLimits(1, 20, 1)
+            .setValue(Math.round(this.plugin.settings.autoGateRatio * 100))
+            .setDynamicTooltip()
+            .onChange(async (v) => {
+              this.plugin.settings.autoGateRatio = v / 100;
+              await this.plugin.saveSettings();
+              this.plugin.refreshSuggestionsView();
+              renderGateDetail();
+            })
+        );
+    };
+
+    new Setting(el)
+      .setName("Hide mentions this note has no context for")
+      .setDesc(
+        "Uses the mention index to decide whether a common word means the file it names here. A note about audio surfaces \u201cdelay\u201d; a note about a late train does not. Needs an index, and only affects terms common enough to be ambiguous. Turn on Hidden connections to see what it withheld."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.autoGateEnabled).onChange(async (v) => {
+          if (v && !this.plugin.mentionIndex.ready) {
+            new Notice("Build the mention index first, then enable this.");
+            t.setValue(false);
+            return;
+          }
+          this.plugin.settings.autoGateEnabled = v;
+          await this.plugin.saveSettings();
+          renderGateDetail();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+    el.appendChild(gateDetail);
+    renderGateDetail();
 
     // The "Context-aware files" row lives in its own container so the toggle can
     // show/hide it in place, without rebuilding the whole tab (which would reset
