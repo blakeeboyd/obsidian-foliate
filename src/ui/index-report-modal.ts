@@ -70,6 +70,36 @@ export class IndexReportModal extends Modal {
       bar.createSpan({ text: String(count), cls: "foliate-index-band-count" });
     }
 
+    // The latent clusters. Invisible by design and therefore listed here: a
+    // derived structure nobody can read is one nobody can correct.
+    const clusters = this.index.clusters;
+    if (clusters.settled.size > 0) {
+      contentEl.createEl("h3", { text: `Latent clusters (${clusters.settled.size})` });
+      contentEl.createEl("p", {
+        cls: "setting-item-description",
+        text: "Groups the plugin found by watching which taxa appear together. They live in the index only: no file is created, no domain is proposed, and nothing is written to your vault.",
+      });
+      const clusterList = contentEl.createDiv("foliate-index-list");
+      const sorted = [...clusters.members.entries()]
+        .filter(([id]) => clusters.settled.has(id))
+        .sort((a, b) => b[1].length - a[1].length);
+      for (const [, group] of sorted.slice(0, 12)) {
+        const item = clusterList.createDiv("foliate-index-item");
+        const head = item.createDiv("foliate-index-item-head");
+        head.createSpan({ text: String(group.length), cls: "foliate-index-ratio" });
+        head.createSpan({
+          text: group.slice(0, 6).map(basename).join(", "),
+          cls: "foliate-index-name",
+        });
+        if (group.length > 6) {
+          item.createDiv("foliate-index-neighbors").setText(
+            group.slice(6, 18).map(basename).join(", ") +
+              (group.length > 18 ? `, and ${group.length - 18} more` : "")
+          );
+        }
+      }
+    }
+
     contentEl.createEl("h3", { text: "Common terms" });
 
     // One control, not two. A share and a count are the same number read two
