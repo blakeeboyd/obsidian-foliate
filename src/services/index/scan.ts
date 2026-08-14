@@ -112,3 +112,50 @@ export function scanNote(text: string, dict: TermDictionary): Set<string> {
   }
   return found;
 }
+
+/**
+ * A short signature of the terms a dictionary was built from.
+ *
+ * A note's mention set depends on the note and on every taxa file's terms, so a
+ * stored scan is only reusable while the dictionary still matches. Renaming a
+ * taxa file, adding an alias, or creating one changes what an untouched note
+ * mentions; without this, an incremental rebuild would keep stale sets forever
+ * and the change would never appear.
+ *
+ * Order-independent and cheap: a running sum over each term's characters, so
+ * the same terms in a different file order give the same value. Not a
+ * cryptographic hash, and does not need to be, since it guards against ordinary
+ * edits rather than deliberate collisions.
+ */
+export function fingerprintEntries(
+  files: { path: string; terms: string[] }[]
+): string {
+  let count = 0;
+  let sum = 0;
+
+  // Two requirements pull in opposite directions, so each is handled at its own
+  // level. ACROSS files the value must not depend on order, or a vault listing
+  // its files differently would invalidate every stored scan. WITHIN a file it
+  // must: term order decides matching order, so a reordering is a real change.
+  //
+  // So each file hashes to one value that includes its terms' positions, and
+  // those per-file values are summed, which is order-independent.
+  for (const file of files) {
+    let fileHash = 2166136261;
+    let position = 0;
+    for (const term of file.terms) {
+      if (typeof term !== "string" || term.length < 2) continue;
+      count++;
+      position++;
+      fileHash ^= position;
+      fileHash = Math.imul(fileHash, 16777619);
+      for (let i = 0; i < term.length; i++) {
+        fileHash ^= term.charCodeAt(i);
+        fileHash = Math.imul(fileHash, 16777619);
+      }
+    }
+    if (position > 0) sum = (sum + (fileHash >>> 0)) % 0xffffffff;
+  }
+
+  return `${count}:${sum}`;
+}

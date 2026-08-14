@@ -10,7 +10,7 @@
  * Run: npx tsx src/services/index/index.test.ts
  */
 import * as assert from "assert";
-import { buildDictionary, scanNote, tokenize } from "./scan";
+import { buildDictionary, scanNote, tokenize, fingerprintEntries } from "./scan";
 import {
   computeStats, npmi, idf, topNeighbors, pairKey, findUsageOverlaps, curationRatio,
   weightedTogether, LINK_WEIGHT,
@@ -354,3 +354,60 @@ console.log("index: shared-term assertions passed");
 
 console.log("index: shared-term-qualifies assertions passed");
 
+
+// --- the dictionary fingerprint: what makes skipping unchanged notes safe ---
+{
+  const base = [
+    { path: "c/+phase.md", terms: ["phase", "phasing"] },
+    { path: "p/@Ada.md", terms: ["Ada Lovelace"] },
+  ];
+
+  // Same terms, same fingerprint, however the files are ordered.
+  assert.strictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([base[1], base[0]]),
+    "file order must not change the fingerprint, or every rebuild rescans"
+  );
+
+  // An added alias changes it: untouched notes may now mention that file.
+  assert.notStrictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([
+      { path: "c/+phase.md", terms: ["phase", "phasing", "phase shift"] },
+      base[1],
+    ]),
+    "a new alias must invalidate stored scans"
+  );
+
+  // A rename changes it too.
+  assert.notStrictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([{ path: "c/+phase.md", terms: ["phase", "phasing"] },
+                        { path: "p/@Ada.md", terms: ["Ada Byron"] }]),
+    "a renamed taxa file must invalidate stored scans"
+  );
+
+  // A new taxa file changes it.
+  assert.notStrictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([...base, { path: "c/+delay.md", terms: ["delay"] }]),
+    "a new taxa file must invalidate stored scans"
+  );
+
+  // Reordering the terms WITHIN a file is a real change to matching order and
+  // is treated as one; the weighting is positional so this is not a collision.
+  assert.notStrictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([{ path: "c/+phase.md", terms: ["phasing", "phase"] }, base[1]])
+  );
+
+  // Terms below the length floor never enter the dictionary, so they must not
+  // move the fingerprint either.
+  assert.strictEqual(
+    fingerprintEntries(base),
+    fingerprintEntries([...base, { path: "c/+x.md", terms: ["x"] }]),
+    "a term the dictionary ignores must not invalidate anything"
+  );
+}
+
+console.log("index: fingerprint assertions passed");

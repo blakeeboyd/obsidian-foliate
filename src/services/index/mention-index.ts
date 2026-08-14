@@ -2,7 +2,7 @@ import { App, TFile } from "obsidian";
 import { IDBPDatabase } from "idb";
 import { TaxaMapping } from "../../types";
 import { fileTerms, taxonForFile } from "../context-mining";
-import { buildDictionary, scanNote, TermDictionary } from "./scan";
+import { buildDictionary, scanNote, TermDictionary, fingerprintEntries } from "./scan";
 import {
   computeStats,
   CorpusStats,
@@ -122,7 +122,19 @@ export class MentionIndex {
       entries.push({ path: file.path, terms: fileTerms(this.app, file, taxon) });
     }
     this.dict = buildDictionary(entries);
+    this.dictFingerprint = fingerprintEntries(entries);
   }
+
+  /**
+   * Identifies the dictionary a stored scan was produced with.
+   *
+   * A note's mention set depends on the note AND on every taxa file's terms.
+   * Renaming a taxon, adding an alias, or creating a taxa file changes what an
+   * untouched note mentions, so skipping unmodified notes is only safe while
+   * the dictionary is the one they were scanned against. When it differs, every
+   * note has to be rescanned however recently it was touched.
+   */
+  private dictFingerprint = "";
 
   /**
    * Full rebuild: scan every note, persist, derive.
@@ -135,8 +147,9 @@ export class MentionIndex {
    */
   async build(
     taxaMappings: TaxaMapping[],
-    onProgress?: (p: BuildProgress) => void
-  ): Promise<{ notes: number; taxa: number; pairs: number; ms: number }> {
+    onProgress?: (p: BuildProgress) => void,
+    options: { force?: boolean } = {}
+  ): Promise<{ notes: number; taxa: number; pairs: number; ms: number; scanned: number }> {
     if (this.building) throw new Error("An index build is already running");
     this.building = true;
     const started = Date.now();
@@ -145,13 +158,34 @@ export class MentionIndex {
       await this.open();
       this.buildTermDictionary(taxaMappings);
 
+      // Reuse stored scans when the note has not changed since it was scanned
+      // AND the dictionary that produced it still matches. A rebuild after
+      // editing a handful of notes then costs a handful of scans instead of
+      // twelve thousand.
+      const storedFingerprint = this.db
+        ? await getMeta<string>(this.db, "dictFingerprint")
+        : undefined;
+      const dictUnchanged = storedFingerprint === this.dictFingerprint;
+      const previous = new Map<string, MentionRecord>();
+      if (!options.force && dictUnchanged && this.db) {
+        for (const rec of await getAllMentionRecords(this.db)) previous.set(rec.path, rec);
+      }
+
       const files = this.app.vault.getMarkdownFiles().filter((f) => isIndexableNote(f, []));
       this.sets = new Map();
       const pending: MentionRecord[] = [];
       const BATCH = 200;
+      let scanned = 0;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+
+        const cached = previous.get(file.path);
+        if (cached && cached.mtime === file.stat.mtime) {
+          this.sets.set(file.path, new Set(cached.mentions));
+          continue;
+        }
+
         let text: string;
         try {
           text = await this.app.vault.cachedRead(file);
@@ -163,6 +197,7 @@ export class MentionIndex {
         mentions.delete(file.path);
         this.sets.set(file.path, mentions);
         pending.push({ path: file.path, mentions: [...mentions], mtime: file.stat.mtime });
+        scanned++;
 
         if (pending.length >= BATCH) {
           if (this.db) await putMentionRecords(this.db, pending.splice(0));
@@ -173,14 +208,26 @@ export class MentionIndex {
       }
       if (pending.length && this.db) await putMentionRecords(this.db, pending);
 
+      // Notes deleted while the index was not watching leave stale records.
+      if (this.db) {
+        const live = new Set(files.map((f) => f.path));
+        for (const path of previous.keys()) {
+          if (!live.has(path)) await deleteMentionRecord(this.db, path);
+        }
+      }
+
       this.rebuildStats();
-      if (this.db) await setMeta(this.db, "builtAt", Date.now());
+      if (this.db) {
+        await setMeta(this.db, "builtAt", Date.now());
+        await setMeta(this.db, "dictFingerprint", this.dictFingerprint);
+      }
 
       return {
         notes: this.stats?.noteCount ?? 0,
         taxa: this.stats?.df.size ?? 0,
         pairs: this.stats?.cooc.size ?? 0,
         ms: Date.now() - started,
+        scanned,
       };
     } finally {
       this.building = false;

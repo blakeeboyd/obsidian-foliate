@@ -327,8 +327,13 @@ export default class FoliatePlugin extends Plugin {
           })
           .then((r) => {
             notice.hide();
+            // Say how many notes were actually read, not just how many are
+            // indexed: after the first build most runs scan almost nothing, and
+            // a number that never changes hides whether it worked.
+            const reused = r.notes - r.scanned;
             new Notice(
-              `Indexed ${r.notes.toLocaleString()} notes, ${r.taxa.toLocaleString()} taxa, ` +
+              `Indexed ${r.notes.toLocaleString()} notes (${r.scanned.toLocaleString()} scanned, ` +
+                `${reused.toLocaleString()} unchanged), ${r.taxa.toLocaleString()} taxa, ` +
                 `${r.pairs.toLocaleString()} pairs in ${(r.ms / 1000).toFixed(1)}s`,
               8000
             );
