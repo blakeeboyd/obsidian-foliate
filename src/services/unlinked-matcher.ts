@@ -150,6 +150,20 @@ export function findUnlinkedMatches(
 }
 
 /**
+ * Words that are never a person's name part, however capitalised.
+ *
+ * Articles and particles appear both in titles filed under People ("@The
+ * Interview") and inside real names ("Vincent van Gogh"). Whitespace splitting
+ * turns them into matchable parts, and "The" then matches nearly every note in
+ * the vault.
+ */
+const NON_NAME_PARTS = new Set([
+  "the", "and", "for", "von", "van", "der", "den", "del", "della",
+  "los", "las", "dos", "das", "abu", "ibn", "bin", "ben", "mac",
+  "saint", "sir",
+]);
+
+/**
  * Second reference by name part: once a person's full name appears in a note,
  * later bare parts of that name refer to them.
  *
@@ -210,6 +224,13 @@ function addSurnameMatches(
     if (parts.length < 2) continue; // a mononym has no part to separate out
     for (const part of parts) {
       if (part.length < 3) continue; // initials and particles are too noisy
+      // An article or particle is not a name part, however long. "@The
+      // Interview" is filed as a person, so splitting it offered "The" as a
+      // matchable name, and every note containing the commonest word in
+      // English surfaced it. A name part also has to be capitalised: lowercase
+      // words inside a title are not what a later bare mention refers to.
+      if (NON_NAME_PARTS.has(part.toLowerCase())) continue;
+      if (part[0] !== part[0].toUpperCase()) continue;
       const key = part.toLowerCase();
       const list = byPart.get(key);
       // One file can claim a part only once, so "John Johnson" doesn't look
