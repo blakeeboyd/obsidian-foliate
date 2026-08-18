@@ -4,6 +4,7 @@ import { TaxaMapping } from "../../types";
 import { fileTerms, taxonForFile } from "../context-mining";
 import { buildDictionary, scanNote, TermDictionary, fingerprintEntries } from "./scan";
 import { buildClusters, ClusterResult, EMPTY_CLUSTERS, clusterPeers } from "./clusters";
+import { findOverbroadAliases, OverbroadAlias } from "./overbroad";
 import {
   computeStats,
   CorpusStats,
@@ -287,6 +288,22 @@ export class MentionIndex {
     // Measured at 8ms on a 1,760-node graph, so this rides along with every
     // rebuild rather than being scheduled separately.
     this.clusterResult = this.stats ? buildClusters(this.stats) : EMPTY_CLUSTERS;
+  }
+
+  /**
+   * Aliases that claim an ordinary word, with the file's better terms beside
+   * them. The problem no amount of scoring fixes, since the claim is in the
+   * data rather than in how it is read.
+   */
+  overbroadAliases(taxaMappings: TaxaMapping[]): OverbroadAlias[] {
+    if (!this.stats) return [];
+    const files: { path: string; terms: string[] }[] = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const taxon = taxonForFile(file, taxaMappings);
+      if (!taxon) continue;
+      files.push({ path: file.path, terms: fileTerms(this.app, file, taxon) });
+    }
+    return findOverbroadAliases(files, this.stats);
   }
 
   /** Taxa sharing a settled cluster with this one. Empty when unsettled. */

@@ -1,5 +1,6 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import { MentionIndex } from "../services/index/mention-index";
+import { OverbroadAlias } from "../services/index/overbroad";
 
 /**
  * What the index actually learned, in a form that can be judged.
@@ -12,9 +13,12 @@ import { MentionIndex } from "../services/index/mention-index";
 export class IndexReportModal extends Modal {
   private index: MentionIndex;
 
-  constructor(app: App, index: MentionIndex) {
+  private overbroad: OverbroadAlias[];
+
+  constructor(app: App, index: MentionIndex, overbroad: OverbroadAlias[] = []) {
     super(app);
     this.index = index;
+    this.overbroad = overbroad;
   }
 
   onOpen(): void {
@@ -97,6 +101,40 @@ export class IndexReportModal extends Modal {
               (group.length > 18 ? `, and ${group.length - 18} more` : "")
           );
         }
+      }
+    }
+
+    // Aliases claiming an ordinary word. Listed above the statistics because
+    // this is the one thing on the page the user can act on, and acting on it
+    // removes noise no threshold can.
+    const overbroad = this.overbroad;
+    if (overbroad.length > 0) {
+      contentEl.createEl("h3", { text: `Over-broad aliases (${overbroad.length})` });
+      contentEl.createEl("p", {
+        cls: "setting-item-description",
+        text: "These aliases are ordinary words, so every use of them in the vault matches this file, and you almost never link them. Each file has other terms that keep working without it. Removing the bare word is usually the fix.",
+      });
+      const list = contentEl.createDiv("foliate-index-list");
+      for (const item of overbroad.slice(0, 20)) {
+        const row = list.createDiv("foliate-index-item");
+        const head = row.createDiv("foliate-index-item-head");
+        head.createSpan({ text: `"${item.alias}"`, cls: "foliate-index-name" });
+        head.createSpan({
+          text: `${item.unlinked} unlinked, ${item.linked} linked`,
+          cls: "foliate-index-count",
+        });
+        const detail = row.createDiv("foliate-index-neighbors");
+        detail.setText(
+          `${basename(item.path)} keeps: ${item.alternatives.slice(0, 4).join(", ")}`
+        );
+        const remove = head.createEl("button", { text: "Remove alias" });
+        remove.addEventListener("click", async () => {
+          const ok = await this.removeAlias(item.path, item.alias);
+          if (ok) {
+            row.remove();
+            new Notice(`Removed "${item.alias}" from ${basename(item.path)}`);
+          }
+        });
       }
     }
 
@@ -226,6 +264,28 @@ export class IndexReportModal extends Modal {
       }
     }
     return lines.join("\n");
+  }
+
+  /**
+   * Drop one alias from a taxa file's frontmatter, leaving everything else
+   * untouched. The file keeps its other terms, so nothing becomes unreachable.
+   */
+  private async removeAlias(path: string, alias: string): Promise<boolean> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return false;
+    let changed = false;
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      const current = fm.aliases;
+      if (!Array.isArray(current)) return;
+      const kept = current.filter(
+        (a: unknown) => typeof a !== "string" || a.trim().toLowerCase() !== alias.trim().toLowerCase()
+      );
+      if (kept.length !== current.length) {
+        fm.aliases = kept;
+        changed = true;
+      }
+    });
+    return changed;
   }
 
   onClose(): void {

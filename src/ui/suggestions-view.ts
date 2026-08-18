@@ -889,11 +889,28 @@ export class SuggestionsView extends ItemView {
     if (this.plugin.settings.autoGateEnabled && this.plugin.mentionIndex.ready) {
       const stats = this.plugin.mentionIndex.corpus;
       if (stats) {
-        const present = new Set<string>(this.plugin.mentionIndex.mentionsOf(file.path));
+        // What the note has ESTABLISHED, which is not the same as what it
+        // mentions. Every taxa it mentions includes the ambiguous words being
+        // judged, so a note containing "time", "place", "sense" and "care" had
+        // those four vouch for each other: a self-supporting clique of common
+        // words, each one proof that the others belong. On a long note that
+        // produced 52 "present" terms and almost nothing was ever hidden.
+        //
+        // Context therefore comes from two sources that cannot do that. A link
+        // is a deliberate act. A specific term (below the ambiguity bar) is
+        // reliable by the same reasoning that exempts it from gating at all.
+        // Common words are what is being judged and never vote.
+        const stats2 = stats;
+        const present = new Set<string>();
         for (const linked of Object.keys(
           this.app.metadataCache.resolvedLinks[file.path] ?? {}
         )) {
           present.add(linked);
+        }
+        const ambiguousBar = this.plugin.gateConfig().ambiguousRatio;
+        for (const path of this.plugin.mentionIndex.mentionsOf(file.path)) {
+          const df = stats2.df.get(path) ?? 0;
+          if (df / (stats2.noteCount || 1) < ambiguousBar) present.add(path);
         }
 
         const kept: UnlinkedMatch[] = [];

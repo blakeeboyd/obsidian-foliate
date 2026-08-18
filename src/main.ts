@@ -345,7 +345,7 @@ export default class FoliatePlugin extends Plugin {
                 `${r.pairs.toLocaleString()} pairs in ${(r.ms / 1000).toFixed(1)}s`,
               8000
             );
-            new IndexReportModal(this.app, this.mentionIndex).open();
+            this.showIndexReport();
           })
           .catch((e: unknown) => {
             notice.hide();
@@ -372,7 +372,7 @@ export default class FoliatePlugin extends Plugin {
               `Rescanned ${r.scanned.toLocaleString()} notes in ${(r.ms / 1000).toFixed(1)}s`,
               8000
             );
-            new IndexReportModal(this.app, this.mentionIndex).open();
+            this.showIndexReport();
           })
           .catch((e: unknown) => {
             notice.hide();
@@ -385,7 +385,7 @@ export default class FoliatePlugin extends Plugin {
       id: "foliate-index-report",
       name: "Show mention index report",
       callback: () => {
-        new IndexReportModal(this.app, this.mentionIndex).open();
+        this.showIndexReport();
       },
     });
 
@@ -442,6 +442,12 @@ export default class FoliatePlugin extends Plugin {
    * picker, which offers to CREATE a file. Selecting "Sarah" in a vault with
    * three Sarahs proposed a fourth.
    */
+  /** The index report, opened from the three commands that can produce one. */
+  private showIndexReport() {
+    const taxa = [...this.settings.taxaMappings, this.settings.domain];
+    new IndexReportModal(this.app, this.mentionIndex, this.mentionIndex.overbroadAliases(taxa)).open();
+  }
+
   private linkSelectedText(editor: Editor, text: string) {
     const detectedTaxon = findTaxonByPrefix(text, this.settings.taxaMappings);
     if (detectedTaxon) {
