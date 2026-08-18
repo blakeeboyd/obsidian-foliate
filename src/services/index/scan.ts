@@ -177,9 +177,31 @@ export function fingerprintEntries(
  */
 export function noteWords(text: string): Set<string> {
   const out = new Set<string>();
-  for (const word of tokenize(stripNonProse(text))) {
+  for (const word of tokenize(stripNonProse(stripFrontmatter(text)))) {
     if (word.length < 3) continue;
+    // Apostrophes and hyphens stay inside a word so "wide-band" survives
+    // tokenizing, which also lets punctuation runs through: a horizontal rule
+    // ("---") is a token by that rule, and it appears in most notes.
+    if (!/\p{L}/u.test(word)) continue;
     out.add(word);
   }
   return out;
+}
+
+/**
+ * Drop a leading YAML frontmatter block.
+ *
+ * Field NAMES are the problem, not their values. `zettelkastenID`,
+ * `review_status` and `provenance` appear in every note of a given template, so
+ * they are over-represented in any concept linked mostly from that template and
+ * look exactly like vocabulary. Measured, they were the top signature words for
+ * several concepts and made a zettel match six unrelated people.
+ *
+ * The unlinked matcher already excludes this region (see `bodyStartOffset`);
+ * this applies the same rule to signatures, which had been reading the whole
+ * file.
+ */
+function stripFrontmatter(text: string): string {
+  const match = text.match(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/);
+  return match ? text.slice(match[0].length) : text;
 }

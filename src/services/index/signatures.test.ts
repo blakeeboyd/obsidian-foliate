@@ -88,4 +88,28 @@ const empty = buildSignatures([], new Map([["c/+a.md", ["x.md"]]]));
 assert.strictEqual(empty.byPath.size, 0, "an empty corpus produces no signatures and does not throw");
 assert.strictEqual(scoreNote(new Set(["anything"]), empty).length, 0, "and nothing scores");
 
+// Function words have real lift in a vault whose subject matter is narrow:
+// measured, "she" is in 3.9% of notes but 44% of one writer's, which is
+// arithmetically over-represented and says nothing. Specificity is the second
+// requirement, and IDF is what measures it.
+const pronouny: NoteWords[] = [];
+for (let i = 0; i < 20; i++) {
+  pronouny.push({ path: `w/n${i}.md`, words: new Set(["she", "her", "nurturance", `body${i}`]) });
+}
+// "she"/"her" are moderately common vault-wide; "nurturance" is not.
+for (let i = 0; i < 120; i++) {
+  pronouny.push({ path: `w/f${i}.md`, words: new Set(["she", "her", `topic${i % 30}`]) });
+}
+for (let i = 0; i < 400; i++) {
+  pronouny.push({ path: `w/x${i}.md`, words: new Set([`other${i % 80}`]) });
+}
+const pronounSig = buildSignatures(
+  pronouny,
+  new Map([["c/+writer.md", pronouny.slice(0, 20).map((n) => n.path)]])
+);
+const writer = pronounSig.byPath.get("c/+writer.md");
+assert.ok(writer, "the concept still gets a signature");
+assert.ok(writer!.has("nurturance"), "a specific word survives");
+assert.ok(!writer!.has("she"), "a word too common to be informative is dropped despite its lift");
+
 console.log("signatures.test.ts: all assertions passed");

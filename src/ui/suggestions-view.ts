@@ -5,7 +5,7 @@ import type FoliatePlugin from "../main";
 import { UnlinkedMatch, TaxaMapping, MatchPosition, HiddenMatch } from "../types";
 import { findUnlinkedMatches, findFileMatchPositions, findUnlinkedPositions, findExcludedRegions, bodyStartOffset, isInsideWikilink } from "../services/unlinked-matcher";
 import { createTaxaFile, addAliasToFile, findTermCollisions, foldName } from "../services/file-operations";
-import { mineContextTerms, fileTerms } from "../services/context-mining";
+import { mineContextTerms, fileTerms, taxonForFile } from "../services/context-mining";
 import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
 import { gateDecision, explainVerdict } from "../services/index/gate";
@@ -983,6 +983,10 @@ export class SuggestionsView extends ItemView {
     // default, so the gating stays out of the way while remaining inspectable.
     this.renderHiddenConnections(container, hiddenMatches);
 
+    // Related concepts: recognised by their vocabulary rather than their name,
+    // so this can surface a concept the note never mentions. Display only.
+    this.renderRelatedConcepts(container, file, content);
+
     // Backlinks: on a taxa/domain file, the other taxa/domain files that link to
     // it, grouped by type. Filters out source-note backlinks (the native pane
     // has those); shows the taxa relationships without the noise.
@@ -1049,6 +1053,126 @@ export class SuggestionsView extends ItemView {
     }
 
     new Notice(lines.join("\n"), 10000);
+  }
+
+  /**
+   * Render "Related concepts": concepts whose vocabulary appears in this note,
+   * whether or not the note names them.
+   *
+   * Every other section in this sidebar answers "which taxa does this note
+   * mention", which is a question about words. This one answers "which concepts
+   * is this note about", which is not. A note can be squarely about a concept
+   * and never contain its name, and word matching cannot see that however it is
+   * scored.
+   *
+   * The evidence is learned from the notes where the user links each concept,
+   * so it costs them nothing and improves every time they link. See
+   * signatures.ts.
+   *
+   * Deliberately display-only. A signature built from notes that happen to
+   * share a register can learn the REGISTER rather than the concept, which on
+   * the reference vault surfaced an interviewee on "let's, incredibly,
+   * anybody". Every row shows the words that fired, so a wrong hit explains
+   * itself at a glance rather than being a mystery, and nothing is withheld on
+   * this evidence until it is understood.
+   */
+  private renderRelatedConcepts(container: HTMLElement, file: TFile, content: string) {
+    if (!this.plugin.settings.showRelatedConcepts) return;
+    if (!this.plugin.mentionIndex.ready) return;
+
+    const hits = this.plugin.mentionIndex.signatureHits(content).filter((h) => h.path !== file.path);
+    if (hits.length === 0) return;
+
+    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related concepts");
+
+    // Grouped by taxon like every other section, so a person and a concept do
+    // not sit in one undifferentiated list.
+    const grouped = new Map<TaxaMapping, typeof hits>();
+    for (const hit of hits.slice(0, 20)) {
+      const target = this.app.vault.getAbstractFileByPath(hit.path);
+      if (!(target instanceof TFile)) continue;
+      const taxon = taxonForFile(target, mappings);
+      if (!taxon) continue;
+      const list = grouped.get(taxon);
+      if (list) list.push(hit);
+      else grouped.set(taxon, [hit]);
+    }
+
+    for (const [taxon, items] of grouped) {
+      const key = `related:${taxon.prefix} ${taxon.label}`;
+      keys.push(key);
+      const groupContent = this.makeTaxaGroup(section, key, `${taxon.prefix} ${taxon.label}`);
+
+      for (const hit of items) {
+        const name = hit.path.slice(hit.path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+        const row = groupContent.createDiv("foliate-row foliate-hidden-row");
+        row.dataset.search = `${name} ${hit.path} ${hit.matched.join(" ")}`.toLowerCase();
+
+        const title = row.createDiv("foliate-hidden-title");
+        title.createSpan({ text: name });
+        title.createSpan({
+          cls: "foliate-hidden-count",
+          text: hit.matched.length === 1 ? "1 word" : `${hit.matched.length} words`,
+        });
+
+        // The matching words ARE the reason, and they are shown rather than
+        // hidden behind a right-click: this evidence is new and unproven, so a
+        // wrong row has to be recognisable as wrong without asking.
+        const why = hit.matched.slice(0, 6).join(", ");
+        row.createDiv({ cls: "foliate-related-why", text: why });
+        row.setAttribute("aria-label", `Matched on: ${hit.matched.join(", ")}`);
+
+        row.addEventListener("click", () => {
+          const f = this.app.vault.getAbstractFileByPath(hit.path);
+          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+        });
+
+        row.addEventListener("contextmenu", (evt) => {
+          evt.preventDefault();
+          const menu = new Menu();
+          menu.addItem((mi) =>
+            mi
+              .setTitle("Why is this related?")
+              .setIcon("help-circle")
+              .onClick(() =>
+                new Notice(
+                  `${name}\n\nThis note uses words that usually appear where you link it:\n\n${hit.matched.join(", ")}`,
+                  10000
+                )
+              )
+          );
+          menu.addItem((mi) =>
+            mi
+              .setTitle("Open file")
+              .setIcon("file-text")
+              .onClick(() => {
+                const f = this.app.vault.getAbstractFileByPath(hit.path);
+                if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+              })
+          );
+          menu.showAtMouseEvent(evt);
+        });
+      }
+    }
+
+    // Collapsed on first sight, like Hidden connections: available when looked
+    // for, silent otherwise.
+    const stored = new Set(this.plugin.settings.collapsedCategories);
+    let changed = false;
+    for (const k of keys) {
+      if (!stored.has(k) && !this.seenHiddenKeys.has(k)) {
+        stored.add(k);
+        this.seenHiddenKeys.add(k);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.plugin.settings.collapsedCategories = [...stored];
+      void this.plugin.saveSettings();
+    }
+
+    this.wireCollapseAll(collapseAllBtn, keys);
   }
 
   /**

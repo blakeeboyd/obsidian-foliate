@@ -54,6 +54,7 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   contextAwareEnabled: false,
   contextAware: {},
   showHiddenConnections: false,
+  showRelatedConcepts: false,
   surnameMatchPrefix: "@",
   matchDeclaredAcronyms: true,
   matchFilenameAcronyms: false,

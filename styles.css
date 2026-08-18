@@ -582,6 +582,18 @@
   white-space: nowrap;
 }
 
+/* The words that made a related concept fire. Shown on every row rather than
+   behind a right-click: this evidence is derived and unproven, so a wrong row
+   has to be recognisable as wrong without being asked about. Muted and
+   truncated so it reads as a footnote to the name above it. */
+.foliate-related-why {
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Misplaced taxa files modal */
 .foliate-misplaced-modal .modal-content {
   max-height: 70vh;

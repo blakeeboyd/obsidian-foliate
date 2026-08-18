@@ -1116,6 +1116,19 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Show related concepts")
+      .setDesc(
+        "Add a \"Related concepts\" section to the sidebar listing concepts whose vocabulary appears in this note, even where the note never names them. Learned from the notes where you link each concept, so it improves as you link. Display only: nothing is hidden on this evidence."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showRelatedConcepts).onChange(async (value) => {
+          this.plugin.settings.showRelatedConcepts = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
       .setName("Show hidden connections")
       .setDesc(
         "Add a collapsed \"Hidden connections\" section to the sidebar listing mentions that context gating withheld from the current note, and why. Use it to check the gating is making the calls you expect."

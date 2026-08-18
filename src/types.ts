@@ -79,6 +79,13 @@ export interface FoliateSettings {
   /** Show a "Hidden connections" section listing mentions the gate withheld. */
   showHiddenConnections: boolean;
   /**
+   * Show concepts recognised by their vocabulary rather than by their name.
+   *
+   * Display only: nothing is hidden on this evidence yet, because a signature
+   * learned from notes that all share a register can learn the register.
+   */
+  showRelatedConcepts: boolean;
+  /**
    * Prefix of the taxon whose files match on surname after their full name
    * appears in a note ("Dostoevsky" once "Vladimir Dostoevsky" is present).
    * Empty disables it. Scoped to one taxon because splitting a name on

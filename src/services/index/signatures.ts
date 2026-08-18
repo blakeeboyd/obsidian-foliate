@@ -69,6 +69,25 @@ export interface SignatureConfig {
    * "the" cancels without a word list. This cap only saves the arithmetic.
    */
   maxGlobalRatio: number;
+  /**
+   * Minimum IDF for a word to enter a signature.
+   *
+   * Lift alone is not enough, and the reason is structural rather than a
+   * threshold to nudge. In a mostly technical vault, pronouns are rare enough
+   * vault-wide to look over-represented in any humanities note: "she" is in
+   * 3.9% of notes but 44% of one writer's, a lift of 2.43 that is arithmetically
+   * correct and says nothing. A signature word has to be both over-represented
+   * AND specific, and IDF is what measures the second.
+   *
+   * Measured: "this" 0.63, "what" 0.91, "you" 1.18, "who" 1.52 against
+   * "wavelength" 4.20, "parenting" 4.52, "poetry" 5.12. A floor of 2.5 keeps
+   * the topic words and drops the function words.
+   *
+   * It does not solve everything: "anybody" scores 5.10 and is still filler,
+   * because register words can be genuinely rare. That is the open problem, and
+   * this is the part of it the data does justify fixing.
+   */
+  minIdf: number;
 }
 
 export const DEFAULT_SIGNATURES: SignatureConfig = {
@@ -77,6 +96,7 @@ export const DEFAULT_SIGNATURES: SignatureConfig = {
   minLocalShare: 0.3,
   minGlobalNotes: 3,
   maxGlobalRatio: 0.25,
+  minIdf: 2.5,
 };
 
 /** A note's contribution to the signatures of the concepts it links. */
@@ -136,6 +156,9 @@ export function buildSignatures(
       const global = df.get(word) ?? 0;
       if (global < config.minGlobalNotes) continue;
       if (global / noteCount > config.maxGlobalRatio) continue;
+      // Specific enough that knowing it is present tells you something. A word
+      // in half the vault has lift wherever it is dense, and means nothing.
+      if (Math.log(noteCount / global) < config.minIdf) continue;
       const lift = Math.log(count / n / (global / noteCount));
       if (lift <= 0) continue;
       // Weighted by how many notes back it up, so a word in 20 of 25 notes
