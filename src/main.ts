@@ -400,7 +400,17 @@ export default class FoliatePlugin extends Plugin {
           new Notice("Build the mention index first.");
           return;
         }
-        const notice = new Notice("Relearning concept vocabulary...", 0);
+        // The last run is the only honest estimate: the cost tracks how many
+        // concepts have enough links to learn from, which no count of notes
+        // predicts. Before the first run there is nothing to promise, so it
+        // says nothing rather than guessing.
+        const previous = this.mentionIndex.signatureBuildMs;
+        const estimate =
+          previous > 0 ? ` About ${Math.max(1, Math.round(previous / 1000))}s.` : "";
+        const notice = new Notice(
+          `Relearning concept vocabulary...${estimate}\nObsidian will be unresponsive while it runs.`,
+          0
+        );
         // Next tick so the notice paints before the work blocks the thread.
         window.setTimeout(() => {
           const started = Date.now();

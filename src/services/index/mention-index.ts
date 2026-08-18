@@ -410,6 +410,7 @@ export class MentionIndex {
    * on a full index build and on demand, not continuously.
    */
   rebuildSignatures(): void {
+    const started = Date.now();
     // Which notes are allowed to teach. Measured on the reference vault,
     // restricting this to the knowledge folders more than doubled retrieval
     // quality (held-out MRR 0.18 to 0.41): session logs, daily reports and
@@ -438,6 +439,20 @@ export class MentionIndex {
       if (inScope(path)) notes.push({ path, words });
     }
     this.signatureResult = buildSignatures(notes, linkedBy);
+    this.lastSignatureMs = Date.now() - started;
+  }
+
+  /**
+   * How long the last vocabulary rebuild took, so the next one can say.
+   *
+   * Measured rather than estimated from vault size: the cost tracks how many
+   * concepts have enough links to learn from, which no count of notes predicts.
+   */
+  private lastSignatureMs = 0;
+
+  /** Milliseconds the last vocabulary rebuild took, or 0 if none has run. */
+  get signatureBuildMs(): number {
+    return this.lastSignatureMs;
   }
 
   /**
