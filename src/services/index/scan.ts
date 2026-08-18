@@ -159,3 +159,27 @@ export function fingerprintEntries(
 
   return `${count}:${sum}`;
 }
+
+/**
+ * The note's distinct words, for concept signatures.
+ *
+ * Shares `stripNonProse` and `tokenize` with the mention scan so a word counts
+ * here exactly when it would count there: link syntax and code are not prose,
+ * and a term inside them is a literal rather than a reference.
+ *
+ * A set, not counts. A signature asks which notes a word appears in, never how
+ * often within one, so saying a word twenty times in one note carries the same
+ * weight as saying it once. That is what stops a single long note from
+ * dominating the concept it links.
+ *
+ * Words of one or two characters are dropped: they are almost entirely
+ * initials, units and articles, and they trade storage for no signal.
+ */
+export function noteWords(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const word of tokenize(stripNonProse(text))) {
+    if (word.length < 3) continue;
+    out.add(word);
+  }
+  return out;
+}

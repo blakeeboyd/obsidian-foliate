@@ -28,6 +28,22 @@ export interface MentionRecord {
   mentions: string[];
   /** mtime of the note when scanned, so an unchanged note can be skipped. */
   mtime: number;
+  /**
+   * The note's distinct words, for concept signatures.
+   *
+   * Stored per note rather than derived on demand because the build reuses
+   * cached scans for unchanged notes, so their text is never read again. A
+   * signature needs every linked note's words, including the ones that were
+   * skipped, and re-reading the whole vault to get them would give back the
+   * saving incremental updates exist to make.
+   *
+   * An empty array means the note links no taxa file and therefore trains
+   * nothing, which is a real answer. `undefined` means the record predates
+   * signatures and the note has to be rescanned once to find out. The two must
+   * stay distinguishable, or every note that simply has no links would be
+   * rescanned on every build forever.
+   */
+  words?: string[];
 }
 
 export interface IndexMeta {

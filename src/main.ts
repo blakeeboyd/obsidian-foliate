@@ -390,6 +390,38 @@ export default class FoliatePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "foliate-show-signature",
+      name: "Show this concept's word signature",
+      callback: () => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) {
+          new Notice("Open a taxa file first.");
+          return;
+        }
+        if (!this.mentionIndex.ready) {
+          new Notice("Build the mention index first.");
+          return;
+        }
+        const signature = this.mentionIndex.signatureFor(file.path);
+        if (!signature) {
+          const { built, thin } = this.mentionIndex.signatureCoverage;
+          new Notice(
+            `No signature for ${file.basename}. It needs at least three notes ` +
+              `linking to it. ${built.toLocaleString()} concepts have one; ` +
+              `${thin.toLocaleString()} have links but too few.`,
+            10000
+          );
+          return;
+        }
+        const words = [...signature.entries()]
+          .map(([word, weight]) => `${word} (${weight.toFixed(1)})`)
+          .join(", ");
+        new Notice(`${file.basename} — ${signature.size} words\n\n${words}`, 0);
+        console.log(`[foliate] signature for ${file.path}:`, words);
+      },
+    });
+
+    this.addCommand({
       id: "foliate-detect-taxa",
       name: "Find taxa prefixes used in this vault",
       callback: () => {
