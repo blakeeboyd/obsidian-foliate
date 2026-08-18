@@ -393,6 +393,32 @@ export default class FoliatePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "foliate-refresh-signatures",
+      name: "Relearn concept vocabulary",
+      callback: () => {
+        if (!this.mentionIndex.ready) {
+          new Notice("Build the mention index first.");
+          return;
+        }
+        const notice = new Notice("Relearning concept vocabulary...", 0);
+        // Next tick so the notice paints before the work blocks the thread.
+        window.setTimeout(() => {
+          const started = Date.now();
+          this.mentionIndex.rebuildSignatures();
+          const { built, thin } = this.mentionIndex.signatureCoverage;
+          notice.hide();
+          new Notice(
+            `Learned vocabulary for ${built.toLocaleString()} concepts in ` +
+              `${((Date.now() - started) / 1000).toFixed(1)}s. ` +
+              `${thin.toLocaleString()} have links but too few to judge.`,
+            8000
+          );
+          this.refreshSuggestionsView();
+        }, 50);
+      },
+    });
+
+    this.addCommand({
       id: "foliate-show-signature",
       name: "Show this concept's word signature",
       callback: () => {

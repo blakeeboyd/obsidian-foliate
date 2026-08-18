@@ -140,6 +140,10 @@ export class MentionIndex {
         .map((r) => [r.path, new Set(r.words)])
     );
     this.rebuildStats();
+    // Signatures are seconds of work and nothing on screen needs them at
+    // startup, so they are built once the app is responsive rather than before
+    // it is. Everything that reads them handles their absence.
+    window.setTimeout(() => this.rebuildSignatures(), 0);
     return true;
   }
 
@@ -263,6 +267,8 @@ export class MentionIndex {
       }
 
       this.rebuildStats();
+      // Once per build, never per edit: see rebuildSignatures.
+      this.rebuildSignatures();
       if (this.db) {
         await setMeta(this.db, "builtAt", Date.now());
         await setMeta(this.db, "dictFingerprint", this.dictFingerprint);
@@ -357,7 +363,6 @@ export class MentionIndex {
     // Measured at 8ms on a 1,760-node graph, so this rides along with every
     // rebuild rather than being scheduled separately.
     this.clusterResult = this.stats ? buildClusters(this.stats) : EMPTY_CLUSTERS;
-    this.rebuildSignatures();
   }
 
   /**
@@ -396,8 +401,15 @@ export class MentionIndex {
    * word; a link says the user asserted this note is about that file. Only the
    * second is a label worth learning from, and the user produced it by working
    * normally rather than by configuring anything.
+   *
+   * NOT called from `rebuildStats`, which runs on every note save. Each concept
+   * is judged against its own peer population, so this is seconds of work over
+   * a large vault (13s here) and running it per keystroke would freeze the
+   * editor. It is also unnecessary: a signature is learned from every note
+   * linking a concept, so one edited note moves it by almost nothing. Rebuilt
+   * on a full index build and on demand, not continuously.
    */
-  private rebuildSignatures(): void {
+  rebuildSignatures(): void {
     // Which notes are allowed to teach. Measured on the reference vault,
     // restricting this to the knowledge folders more than doubled retrieval
     // quality (held-out MRR 0.18 to 0.41): session logs, daily reports and
