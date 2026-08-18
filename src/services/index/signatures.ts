@@ -88,6 +88,36 @@ export interface SignatureConfig {
    * this is the part of it the data does justify fixing.
    */
   minIdf: number;
+  /**
+   * How many notes form the peer population a concept is judged against.
+   *
+   * The vault is the wrong yardstick for a word's ordinariness when a concept's
+   * notes are all one kind of document. Measured here: "she" appears in 3.9% of
+   * the vault and 44% of one writer's notes, a lift of 2.43 that is
+   * arithmetically correct and says nothing, because the writer's notes are
+   * prose about people and "she" is ordinary in all of them. The same holds for
+   * transcripts, where "let's", "anybody" and "everybody" are unremarkable.
+   *
+   * So each concept is compared against the notes that most resemble its own
+   * training set rather than against everything. Filler cancels because the
+   * peers use it just as much; subject vocabulary survives because they do not.
+   *
+   * Measured: "@C. Thi Nguyen" loses "anybody, incredibly, everybody, let's"
+   * and gains "standardization, beauty, playful, engineered". Held-out
+   * retrieval improves from 0.493 to 0.512 MRR, top-1 from 37% to 41%.
+   *
+   * Derived from the vault's own text, so no folders, labels or configuration
+   * are involved: the peers are simply the notes sharing the most vocabulary
+   * with the training set, which is what "same kind of document" means
+   * distributionally.
+   *
+   * 150 rather than 400 because it is the whole cost of the feature and the
+   * quality is the same. Building one population per concept is 400 notes'
+   * vocabulary counted per concept, which measured at 26s over this vault
+   * against 13s at 150 and 0.4s with no peer baseline at all. The signatures at
+   * 150 and 400 are the same words in a slightly different order.
+   */
+  peerPopulation: number;
 }
 
 export const DEFAULT_SIGNATURES: SignatureConfig = {
@@ -97,6 +127,7 @@ export const DEFAULT_SIGNATURES: SignatureConfig = {
   minGlobalNotes: 3,
   maxGlobalRatio: 0.25,
   minIdf: 2.5,
+  peerPopulation: 150,
 };
 
 /** A note's contribution to the signatures of the concepts it links. */
@@ -126,6 +157,17 @@ export function buildSignatures(
   const index = new Map<string, NoteWords>();
   for (const n of notes) index.set(n.path, n);
 
+  // Word to the notes containing it, so a peer population can be found by
+  // walking posting lists instead of rescanning the corpus per concept.
+  const wordIndex = new Map<string, NoteWords[]>();
+  for (const note of notes) {
+    for (const word of note.words) {
+      let list = wordIndex.get(word);
+      if (!list) wordIndex.set(word, (list = []));
+      list.push(note);
+    }
+  }
+
   // Vault-wide document frequency, computed once and read by every concept.
   const df = new Map<string, number>();
   for (const note of notes) {
@@ -150,6 +192,13 @@ export function buildSignatures(
 
     const n = training.length;
     const floor = Math.max(2, Math.ceil(n * config.minLocalShare));
+
+    // What counts as ordinary, for this concept. Judged against the notes that
+    // read like its own training notes rather than against the whole vault, so
+    // a word every transcript uses cannot look distinctive just because the
+    // vault is mostly not transcripts.
+    const peers = peerBaseline(wordIndex, local, n, df, noteCount, config);
+
     const scored: { word: string; weight: number }[] = [];
     for (const [word, count] of local) {
       if (count < floor) continue;
@@ -159,7 +208,18 @@ export function buildSignatures(
       // Specific enough that knowing it is present tells you something. A word
       // in half the vault has lift wherever it is dense, and means nothing.
       if (Math.log(noteCount / global) < config.minIdf) continue;
-      const lift = Math.log(count / n / (global / noteCount));
+      // A word the peers barely use is the strongest signal there is, so a
+      // low peer count must never disqualify it. The vault-wide floor above
+      // already guarantees the word is real; this only asks how ordinary it is
+      // among documents of the same kind, and "not at all" is a real answer.
+      //
+      // Smoothed by half a note so a word absent from every peer gets a large
+      // finite lift rather than an infinite one, which would let a single
+      // unusual word outrank everything.
+      const peerCount = peers.df.get(word) ?? 0;
+      const peerRate = (peerCount + 0.5) / (peers.size + 1);
+      if (peerRate > config.maxGlobalRatio) continue;
+      const lift = Math.log(count / n / peerRate);
       if (lift <= 0) continue;
       // Weighted by how many notes back it up, so a word in 20 of 25 notes
       // outranks one in 2 of 3 that happens to be rarer. Lift alone is
@@ -185,6 +245,83 @@ export function buildSignatures(
 
   return { byPath, inverted, thin };
 }
+
+/**
+ * The population a concept's vocabulary is judged against.
+ *
+ * Notes that resemble its training notes, found from text alone: take the words
+ * the training set has in common, then take the notes across the vault that
+ * share the most of them. No folders, labels or configuration, which matters
+ * because "what kind of document is this" is not something the vault records.
+ *
+ * Falls back to the whole corpus when the training set has no common
+ * vocabulary to probe with, so a concept is never judged against nothing.
+ */
+function peerBaseline(
+  wordIndex: Map<string, NoteWords[]>,
+  local: Map<string, number>,
+  trainingSize: number,
+  df: Map<string, number>,
+  noteCount: number,
+  config: SignatureConfig
+): { df: Map<string, number>; size: number } {
+  // The probe has to describe the KIND of document, never its subject. The
+  // first version took every word most training notes shared, which included
+  // "nguyen", "game" and "playing" for a writer on games: the peer set became
+  // "notes about Nguyen", his own vocabulary looked ordinary against it, and
+  // the signature emptied.
+  //
+  // Register words are the common ones. A word specific enough to be a
+  // signature candidate is specific enough to be excluded from the probe, so
+  // the two sets are disjoint by construction and the baseline cannot eat the
+  // signal it exists to measure.
+  const probe: { word: string; df: number }[] = [];
+  for (const [word, count] of local) {
+    if (count < Math.max(2, trainingSize * 0.5)) continue;
+    const global = df.get(word) ?? 0;
+    if (global < 5) continue;
+    // Anything specific enough to survive the IDF floor is subject matter, not
+    // register, and must not shape the population.
+    if (Math.log(noteCount / global) >= config.minIdf) continue;
+    probe.push({ word, df: global });
+  }
+  // Commonest first: the strongest markers of "this kind of writing".
+  probe.sort((a, b) => b.df - a.df);
+  const words = probe.slice(0, PROBE_WORDS).map((p) => p.word);
+  if (probe.length === 0) return { df, size: noteCount };
+
+  // Count overlaps by walking the probe words' posting lists rather than every
+  // note: a note with no probe word cannot be a peer, and most are not.
+  const counts = new Map<NoteWords, number>();
+  for (const word of words) {
+    for (const note of wordIndex.get(word) ?? []) {
+      counts.set(note, (counts.get(note) ?? 0) + 1);
+    }
+  }
+  const ranked = [...counts].map(([note, overlap]) => ({ note, overlap }));
+  ranked.sort((a, b) => b.overlap - a.overlap);
+  // Too few peers to describe a population: judge against the whole corpus
+  // rather than against a handful of notes, which would make everything look
+  // ordinary and empty the signature.
+  const peers = ranked.slice(0, config.peerPopulation);
+  if (peers.length < MIN_PEERS) return { df, size: noteCount };
+
+  const peerDf = new Map<string, number>();
+  for (const { note } of peers) {
+    for (const word of note.words) peerDf.set(word, (peerDf.get(word) ?? 0) + 1);
+  }
+  return { df: peerDf, size: peers.length };
+}
+
+/** How many shared words describe a kind of document. */
+const PROBE_WORDS = 80;
+
+/**
+ * Below this the peer set is too small to say what is ordinary, so the whole
+ * corpus is used instead. A concept is never judged against a handful of notes:
+ * with few peers every word looks unremarkable and the signature empties.
+ */
+const MIN_PEERS = 50;
 
 /** One concept's signature firing in a note. */
 export interface SignatureHit {

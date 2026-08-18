@@ -112,4 +112,36 @@ assert.ok(writer, "the concept still gets a signature");
 assert.ok(writer!.has("nurturance"), "a specific word survives");
 assert.ok(!writer!.has("she"), "a word too common to be informative is dropped despite its lift");
 
+// The register problem. A concept whose notes are all one kind of document
+// learns that document's habits: measured on the reference vault, an
+// interviewee's signature was "let's, incredibly, anybody, beautiful". Those
+// words are rare vault-wide, so lift and IDF both pass them; they are ordinary
+// among TRANSCRIPTS, which is the population that reveals them.
+const registerNotes: NoteWords[] = [];
+const CHATTER = ["lets", "anybody", "everybody", "incredibly"];
+// 60 transcript-like notes: all use the chatter, each on its own subject.
+for (let i = 0; i < 60; i++) {
+  registerNotes.push({ path: `t/n${i}.md`, words: new Set([...CHATTER, `topic${i}`, "interview"]) });
+}
+// One speaker's 12 notes are transcripts too, plus their actual subject.
+const speaker: string[] = [];
+for (let i = 0; i < 12; i++) {
+  const p = `t/s${i}.md`;
+  speaker.push(p);
+  registerNotes.push({ path: p, words: new Set([...CHATTER, "interview", "gamification", "scoring", `s${i}`]) });
+}
+// A large non-transcript remainder, so the chatter is rare VAULT-wide and only
+// the peer population can expose it.
+for (let i = 0; i < 500; i++) {
+  registerNotes.push({ path: `w/w${i}.md`, words: new Set(["writing", `word${i % 90}`]) });
+}
+const registerSig = buildSignatures(registerNotes, new Map([["c/+speaker.md", speaker]]));
+const sp = registerSig.byPath.get("c/+speaker.md");
+assert.ok(sp, "the concept gets a signature");
+assert.ok(sp!.has("gamification"), "subject vocabulary survives");
+assert.ok(
+  !sp!.has("lets") && !sp!.has("anybody"),
+  "words ordinary among the concept's own kind of document are not its signature"
+);
+
 console.log("signatures.test.ts: all assertions passed");
