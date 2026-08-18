@@ -1080,7 +1080,18 @@ export class SuggestionsView extends ItemView {
     if (!this.plugin.settings.showRelatedConcepts) return;
     if (!this.plugin.mentionIndex.ready) return;
 
-    const hits = this.plugin.mentionIndex.signatureHits(content).filter((h) => h.path !== file.path);
+    // A concept already linked here belongs to Linked Mentions, and repeating it
+    // would be the one hit that cannot mean anything: a linked note is part of
+    // that concept's own training set, so its signature was built partly FROM
+    // this note's vocabulary and is guaranteed to fire. Unlinked mentions are
+    // excluded for the ordinary reason that they are already listed above.
+    const linkedHere = new Set(Object.keys(this.app.metadataCache.resolvedLinks[file.path] ?? {}));
+    const mentionedHere = this.plugin.mentionIndex.mentionsOf(file.path);
+    const hits = this.plugin.mentionIndex
+      .signatureHits(content)
+      .filter(
+        (h) => h.path !== file.path && !linkedHere.has(h.path) && !mentionedHere.has(h.path)
+      );
     if (hits.length === 0) return;
 
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
