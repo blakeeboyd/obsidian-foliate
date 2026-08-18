@@ -124,3 +124,109 @@ console.log("gate: all assertions passed");
 }
 
 console.log("gate: prominence assertions passed");
+
+// --- prominence does not rescue a word that is simply everywhere ---
+{
+  // A term in a very large share of notes is common English, not a subject.
+  // Repeating it says nothing, and the first version let exactly this through.
+  const veryCommon = "c/+Time.md";
+  const unrelated = new Set(["c/+filler1.md"]);
+  const ratio = (stats.df.get(veryCommon) ?? 0) / stats.noteCount;
+
+  const tight = { ...DEFAULT_GATE, ambiguousRatio: ratio / 3 };
+  const v = gateDecision(veryCommon, unrelated, stats, clusters, tight, 20);
+  assert.strictEqual(
+    v.surface,
+    false,
+    "a term far above the ambiguity bar cannot be rescued by repetition"
+  );
+  assert.notStrictEqual(v.reason, "prominent");
+
+  // Just above the bar, prominence still applies: that is the AI case.
+  const loose = { ...DEFAULT_GATE, ambiguousRatio: ratio * 0.9 };
+  const w = gateDecision(veryCommon, unrelated, stats, clusters, loose, 20);
+  assert.strictEqual(w.surface, true);
+  assert.strictEqual(w.reason, "prominent");
+}
+
+console.log("gate: bounded-prominence assertions passed");
+
+// --- common words must not vouch for each other ---
+{
+  // The failure this pins, observed on a real 13,666-word note: 52 taxa were
+  // "present", so every candidate found something related among them and only
+  // 3 of 33 mentions were withheld. The cause was that the present-set included
+  // the ambiguous words being judged, so "time", "place", "sense" and "care"
+  // each stood as proof that the others belonged.
+  //
+  // Four common words that co-occur constantly, in a corpus where they are
+  // everywhere and genuinely unrelated to each other's meaning.
+  const commons = ["c/+time.md", "c/+place.md", "c/+sense.md", "c/+care.md"];
+  const sets2: Set<string>[] = [];
+  for (let i = 0; i < 300; i++) sets2.push(new Set(commons));
+  for (let i = 0; i < 700; i++) sets2.push(new Set([`c/+specific${i % 200}.md`]));
+  const st2 = computeStats(sets2);
+  const cl2 = buildClusters(st2);
+
+  // The old behaviour: judge a common word against the other common words.
+  const naive = gateDecision(commons[0], new Set(commons.slice(1)), st2, cl2);
+  assert.strictEqual(
+    naive.surface,
+    true,
+    "with common words in the present-set they vouch for each other (the bug)"
+  );
+
+  // The fix: only terms below the ambiguity bar establish context. Filtering
+  // the present-set the way the sidebar now does leaves nothing to vouch.
+  const bar = DEFAULT_GATE.ambiguousRatio;
+  const established = new Set(
+    [...commons.slice(1)].filter(
+      (p) => (st2.df.get(p) ?? 0) / st2.noteCount < bar
+    )
+  );
+  assert.strictEqual(established.size, 0, "none of these are specific enough to vote");
+  const fixed = gateDecision(commons[0], established, st2, cl2);
+  assert.strictEqual(fixed.surface, false, "a common word alone in a note is withheld");
+}
+
+console.log("gate: established-context assertions passed");
+
+// --- curation: the vault's own linking decides how much weak evidence is worth ---
+{
+  // Two terms mentioned equally often. One the user links regularly, the other
+  // almost never. Measured on the real vault, that is the difference between
+  // "phase" (1,565 unlinked / 53 linked) and "lei" (1,459 / 4): frequency
+  // cannot tell them apart and this can.
+  const curated = "c/+phase.md";
+  const uncurated = "c/+lei.md";
+  const peer = "c/+reverb.md";
+
+  const mentions: Set<string>[] = [];
+  for (let i = 0; i < 60; i++) mentions.push(new Set([curated, peer]));
+  for (let i = 0; i < 60; i++) mentions.push(new Set([uncurated, peer]));
+  for (let i = 0; i < 400; i++) mentions.push(new Set([`c/+f${i % 100}.md`]));
+  // The curated term is linked in many of its notes; the other in almost none.
+  const links: Set<string>[] = [];
+  for (let i = 0; i < 20; i++) links.push(new Set([curated]));
+  links.push(new Set([uncurated]));
+
+  const st3 = computeStats(mentions, links);
+  const cl3 = buildClusters(st3);
+
+  // One cluster-mate present. The curated term is allowed through on it.
+  const one = new Set([peer]);
+  const a = gateDecision(curated, one, st3, cl3);
+  assert.strictEqual(a.surface, true, "a term the user links passes on one association");
+
+  // The uncurated term needs a second, so a single weak tie no longer carries it.
+  const b = gateDecision(uncurated, one, st3, cl3);
+  assert.strictEqual(b.surface, false, "a term the user never links needs more than one");
+
+  // Repetition cannot rescue it either: repeating a word nobody links is what a
+  // common word does.
+  const c = gateDecision(uncurated, one, st3, cl3, DEFAULT_GATE, 20);
+  assert.strictEqual(c.surface, false, "an uncurated term cannot coast on repetition");
+  assert.notStrictEqual(c.reason, "prominent");
+}
+
+console.log("gate: curation assertions passed");

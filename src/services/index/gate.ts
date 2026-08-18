@@ -54,6 +54,30 @@ export interface GateConfig {
   /** Notes a term must appear in before it is judged at all. */
   minEvidence: number;
   /**
+   * Share of a term's appearances that are links, below which the vault's own
+   * history says the word is not usually meant as this file.
+   *
+   * The sharpest signal available, and it comes from years of the user's own
+   * behaviour rather than from any statistic about text. Measured here:
+   *
+   *   digital audio workstation  543 unlinked   78 linked  12.6%
+   *   microphone                 864 unlinked   84 linked   8.9%
+   *   phase                    1,565 unlinked   53 linked   3.3%
+   *   normal (patchbay)          583 unlinked    5 linked   0.9%
+   *   lei (category)           1,459 unlinked    4 linked   0.3%
+   *   Time                     3,121 unlinked    1 linked   0.0%
+   *
+   * Terms the user links deliberately sit above 2.5%; the ones that clutter the
+   * sidebar sit under 1%. Frequency alone cannot separate them, since phase and
+   * lei are both mentioned over a thousand times.
+   *
+   * Never a hard cutoff, because a real concept can be under-linked: artificial
+   * intelligence sits at 0.6% and is plainly a subject the vault writes about.
+   * A low ratio removes a term's ability to pass on weak evidence rather than
+   * hiding it outright.
+   */
+  curationFloor: number;
+  /**
    * Occurrences in one note above which the note is taken to be about the term,
    * whatever its neighbours are doing.
    *
@@ -75,6 +99,7 @@ export const DEFAULT_GATE: GateConfig = {
   neighbourFloor: 0.3,
   minEvidence: 5,
   prominentOccurrences: 3,
+  curationFloor: 0.02,
 };
 
 /**
@@ -93,6 +118,19 @@ export function gateDecision(
   /** How many times the candidate occurs in this note, when known. */
   occurrences = 0
 ): GateVerdict {
+  // How often the vault links this term when it appears. Read first, because it
+  // decides how much the weaker evidence further down is worth.
+  const linkedNotes = stats.linkDf.get(candidate) ?? 0;
+  const unlinkedNotes = stats.df.get(candidate) ?? 0;
+  const curation =
+    linkedNotes + unlinkedNotes > 0 ? linkedNotes / (linkedNotes + unlinkedNotes) : 0;
+  // Only meaningful once the vault links anything at all. In a vault with no
+  // links, or before the link graph has been read, every term scores zero and
+  // treating that as "the user never links this" would quietly disqualify
+  // everything. Absence of the signal has to read as no information, not as
+  // evidence against.
+  const curationKnown = stats.linkDf.size > 0;
+  const uncurated = curationKnown && curation < config.curationFloor;
   // A term nobody has written enough to judge. Surfacing it costs a little
   // clutter; hiding it on this much data would be acting on noise, and a
   // wrongly hidden mention is invisible in a way a wrongly shown one is not.
@@ -112,9 +150,23 @@ export function gateDecision(
 
   // Said repeatedly here, so the note is about it whatever its neighbours are
   // doing. Checked before the association branches because it is the stronger
-  // claim: co-occurrence is an inference about what a term usually means, and
-  // this is the note in front of us saying what it is about.
-  if (occurrences >= config.prominentOccurrences) {
+  // claim: co-occurrence infers what a term usually means, and this is the note
+  // in front of us saying what it is about.
+  //
+  // Only up to a point, though. Repetition vouches for a term like "artificial
+  // intelligence", where saying it five times means the note is about it. It
+  // vouches for nothing when the term is an ordinary English word: a scheduling
+  // note says "time" repeatedly because "time" is a common word, not because it
+  // is about the audio concept. The first version ignored that and let every
+  // common word through, which is the opposite of the gate's purpose.
+  //
+  // So prominence is available to terms that are merely common, and withheld
+  // from terms that are everywhere. Twice the ambiguity share is the line: a
+  // term above it is so widespread that its repetition carries no information.
+  // Repetition of a word nobody links is what a common word does, so an
+  // uncurated term cannot coast on it either.
+  const prominenceAllowed = ratio < config.ambiguousRatio * 2 && !uncurated;
+  if (prominenceAllowed && occurrences >= config.prominentOccurrences) {
     return { surface: true, reason: "prominent", evidence: [] };
   }
 
@@ -127,7 +179,11 @@ export function gateDecision(
       if (other === candidate) continue;
       if (clusters.membership.get(other) === clusterId) matches.push(other);
     }
-    if (matches.length > 0) {
+    // An uncurated term needs more than one cluster-mate. A word the user has
+    // essentially never linked, sharing a cluster with a single term in a long
+    // note, is the weakest evidence the gate accepts, and it is what let "lei",
+    // "place" and "normal (patchbay)" through on a note about none of them.
+    if (matches.length >= (uncurated ? 2 : 1)) {
       return { surface: true, reason: "cluster-match", evidence: matches };
     }
     // A cluster miss is not the end of the question. Clustering assigns each
@@ -151,7 +207,7 @@ export function gateDecision(
     const score = npmi(candidate, other, stats);
     if (score !== null && score >= config.neighbourFloor) neighbours.push(other);
   }
-  if (neighbours.length > 0) {
+  if (uncurated ? neighbours.length >= 2 : neighbours.length >= 1) {
     return { surface: true, reason: "neighbour-match", evidence: neighbours };
   }
   // Nothing related is here, by either reading.
