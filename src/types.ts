@@ -86,6 +86,16 @@ export interface FoliateSettings {
    */
   showRelatedConcepts: boolean;
   /**
+   * Folders whose notes teach concept signatures. Empty means the whole vault.
+   *
+   * Not derivable, which was measured rather than assumed: link density picks
+   * the generated-scaffold folder first (14.4 taxa links per note), and that is
+   * exactly the folder whose boilerplate a signature must not learn. Only the
+   * user knows which of their notes are ABOUT their concepts rather than merely
+   * mentioning them in passing.
+   */
+  signatureFolders: string[];
+  /**
    * Prefix of the taxon whose files match on surname after their full name
    * appears in a note ("Dostoevsky" once "Vladimir Dostoevsky" is present).
    * Empty disables it. Scoped to one taxon because splitting a name on

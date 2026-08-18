@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   contextAware: {},
   showHiddenConnections: false,
   showRelatedConcepts: false,
+  signatureFolders: [],
   surnameMatchPrefix: "@",
   matchDeclaredAcronyms: true,
   matchFilenameAcronyms: false,
@@ -84,6 +85,7 @@ export default class FoliatePlugin extends Plugin {
   async onload() {
     await this.loadSettings();
     setFilenameAcronymMatching(this.settings.matchFilenameAcronyms);
+    this.mentionIndex.signatureFolders = this.settings.signatureFolders;
     addIcon(FOLIATE_ICON_ID, FOLIATE_ICON_SVG);
     this.addSettingTab(new FoliateSettingTab(this.app, this));
     this.registerLinkColors();
@@ -1018,6 +1020,7 @@ export default class FoliatePlugin extends Plugin {
     // Keep the matcher's copy in step, so toggling the setting takes effect
     // without a reload.
     setFilenameAcronymMatching(this.settings.matchFilenameAcronyms);
+    this.mentionIndex.signatureFolders = this.settings.signatureFolders;
     await this.saveData(this.settings);
   }
 }

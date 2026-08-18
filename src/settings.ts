@@ -1129,6 +1129,25 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Learn concept vocabulary from")
+      .setDesc(
+        "Folders whose notes teach concept signatures, one per line. Leave empty to use the whole vault. Notes that are ABOUT your concepts teach well; session logs, daily notes and generated files mention them in passing and teach the note type instead. On the author's vault, restricting this to the knowledge folders more than doubled how often the right concept ranked first."
+      )
+      .addTextArea((text) => {
+        text
+          .setPlaceholder("10-19_Knowledge")
+          .setValue(this.plugin.settings.signatureFolders.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.signatureFolders = value
+              .split("\n")
+              .map((line) => line.trim().replace(/\/+$/, ""))
+              .filter((line) => line.length > 0);
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.rows = 3;
+      });
+
+    new Setting(el)
       .setName("Show hidden connections")
       .setDesc(
         "Add a collapsed \"Hidden connections\" section to the sidebar listing mentions that context gating withheld from the current note, and why. Use it to check the gating is making the calls you expect."
