@@ -1,19 +1,26 @@
 import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
-import { CorpusStats, npmi, pairKey } from "./stats";
+import { CorpusStats, pairKey } from "./stats";
 
 /**
  * Latent clusters over the association graph: the plugin's shadow domains.
  *
- * Built from co-occurrence, held in the index, never written back to the vault.
+ * Built from CO-LINKING, held in the index, never written back to the vault.
  * The user's own `≈` domains are hand-made and authoritative; these sit beside
  * them, learned from how concepts actually travel together, and exist only to
  * answer "does this term belong to what this note is about".
  *
- * Measured on the reference vault (43.10.105): 19 communities over 1,760 nodes
- * in 8ms, largest holding 10.2%, and the groups read as recording, pedagogy,
- * embodied cognition, psychoacoustics, room acoustics without anything being
- * configured.
+ * Co-linking rather than co-mention, and the difference is not a refinement.
+ * A mention says two terms share a page; a link says the user asserted the page
+ * is about that file. A long source note mentions dozens of concepts from every
+ * subject the vault covers, so mentions manufacture edges between unrelated
+ * domains, and Louvain has no way to tell those from real ones.
+ *
+ * Measured on the reference vault, the same code over the same threshold:
+ * co-mention gives 19 communities and puts Chinese philosophy, pedagogy and
+ * audio in one 178-member blob (`+qing` beside `+Bloom's taxonomy` and
+ * `+gain (audio)`). Co-linking gives 88 communities and `+qing` sits with
+ * `+tian (Heaven)`, `+junzi (gentleman)` and `+pu (uncarved block)`.
  */
 
 /**
@@ -38,6 +45,34 @@ const MIN_EDGE_NPMI = 0.3;
  * pair means gating on almost no evidence.
  */
 const MIN_SETTLED_SIZE = 3;
+
+/** Co-links a pair needs before it can carry an edge. */
+const MIN_CO_LINKS = 2;
+
+/**
+ * NPMI over the LINK graph, which needs its own document frequencies.
+ *
+ * `npmi` in stats.ts reads mention counts throughout; asking it about a link
+ * pair would divide a link co-occurrence by mention marginals and give a number
+ * that means nothing.
+ */
+function linkNpmi(
+  a: string,
+  b: string,
+  together: number,
+  stats: CorpusStats
+): number | null {
+  const dfA = stats.linkDf.get(a) ?? 0;
+  const dfB = stats.linkDf.get(b) ?? 0;
+  if (dfA === 0 || dfB === 0) return null;
+  const n = stats.noteCount;
+  const pXY = together / n;
+  const pX = dfA / n;
+  const pY = dfB / n;
+  if (pXY <= 0) return null;
+  const value = Math.log(pXY / (pX * pY)) / -Math.log(pXY);
+  return Number.isFinite(value) ? value : null;
+}
 
 export interface ClusterResult {
   /** Taxa path to its cluster id. Absent means the node had no strong edges. */
@@ -67,15 +102,17 @@ export const EMPTY_CLUSTERS: ClusterResult = {
 export function buildClusters(stats: CorpusStats): ClusterResult {
   const graph = new Graph({ type: "undirected" });
 
-  for (const [key] of stats.cooc) {
+  for (const [key, together] of stats.coLink) {
+    // Two co-links is thin, but a link is a deliberate act and two of them are
+    // worth more than two accidental co-mentions. The floor is lower here than
+    // the mention floor for that reason, not by oversight.
+    if (together < MIN_CO_LINKS) continue;
     const sep = key.indexOf("\n");
     if (sep < 0) continue;
     const a = key.slice(0, sep);
     const b = key.slice(sep + 1);
 
-    // npmi applies the evidence floor, so a thin pair scores null and is
-    // skipped rather than entering the graph on a confident-looking number.
-    const score = npmi(a, b, stats);
+    const score = linkNpmi(a, b, together, stats);
     if (score === null || score < MIN_EDGE_NPMI) continue;
 
     if (!graph.hasNode(a)) graph.addNode(a);

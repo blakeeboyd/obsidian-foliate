@@ -2,10 +2,10 @@
  * Check the clustering's contract, not Louvain itself.
  *
  * What matters here is that two genuinely separate groups come out separate,
- * that a pair too small to mean anything is never called settled, and that a
- * weak edge cannot join two groups that otherwise have nothing to do with each
- * other. The algorithm is a maintained library; the pruning and the settled
- * rule around it are ours.
+ * that a pair too small to mean anything is never called settled, that a weak
+ * edge cannot join two groups with nothing to do with each other, and that
+ * clusters are built from LINKS rather than mentions. The algorithm is a
+ * maintained library; the graph we hand it is ours.
  *
  * Run: npx tsx src/services/index/clusters.test.ts
  */
@@ -24,7 +24,9 @@ for (let i = 0; i < 30; i++) sets.push(new Set(PEDAGOGY));
 // Filler so the corpus is bigger than the two groups and NPMI stays meaningful.
 for (let i = 0; i < 200; i++) sets.push(new Set([`c/+filler${i % 40}.md`]));
 
-const stats = computeStats(sets);
+// The clustering reads the LINK graph, so the fixture supplies one. Here the
+// user linked the same groups they mentioned.
+const stats = computeStats(sets, sets);
 const clusters = buildClusters(stats);
 
 // Each group holds together.
@@ -65,7 +67,7 @@ const clusters = buildClusters(stats);
   const pairSets: Set<string>[] = [];
   for (let i = 0; i < 20; i++) pairSets.push(new Set(["c/+a.md", "c/+b.md"]));
   for (let i = 0; i < 200; i++) pairSets.push(new Set([`c/+n${i % 40}.md`]));
-  const c = buildClusters(computeStats(pairSets));
+  const c = buildClusters(computeStats(pairSets, pairSets));
   assert.strictEqual(
     sameSettledCluster("c/+a.md", "c/+b.md", c),
     false,
@@ -73,9 +75,35 @@ const clusters = buildClusters(stats);
   );
 }
 
+// The finding that made this link-based. A long note MENTIONS concepts from
+// every subject the vault covers, so co-mention manufactures edges between
+// unrelated domains: measured on the reference vault, clustering the mention
+// graph put Chinese philosophy, pedagogy and audio in one 178-member community,
+// and the link graph separated them into 88.
+{
+  const crossTalk: Set<string>[] = [];
+  // Long notes that mention everything, exactly like a source transcript.
+  for (let i = 0; i < 40; i++) crossTalk.push(new Set([...AUDIO, ...PEDAGOGY]));
+  // But the user only ever links within a group.
+  const linked: Set<string>[] = [];
+  for (let i = 0; i < 30; i++) linked.push(new Set(AUDIO));
+  for (let i = 0; i < 30; i++) linked.push(new Set(PEDAGOGY));
+  for (let i = 0; i < 200; i++) linked.push(new Set([`c/+n${i % 40}.md`]));
+
+  const c = buildClusters(computeStats(crossTalk, linked));
+  assert.ok(
+    sameSettledCluster(AUDIO[0], AUDIO[1], c),
+    "concepts the user links together still cluster"
+  );
+  assert.ok(
+    !sameSettledCluster(AUDIO[0], PEDAGOGY[0], c),
+    "sharing a page is not evidence of a shared domain; only co-linking is"
+  );
+}
+
 // An empty corpus produces empty clusters rather than throwing.
 {
-  const c = buildClusters(computeStats([]));
+  const c = buildClusters(computeStats([], []));
   assert.strictEqual(c.membership.size, 0);
   assert.strictEqual(c.settled.size, 0);
 }
