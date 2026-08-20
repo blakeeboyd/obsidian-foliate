@@ -1116,9 +1116,22 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Show related taxa")
+      .setDesc(
+        "Add a \"Related taxa\" section listing the concepts, people and works related to the current file. On a taxa file that is its neighbours; on any note it is the concepts whose vocabulary appears in the text, including ones the note never names."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showRelatedTaxa).onChange(async (value) => {
+          this.plugin.settings.showRelatedTaxa = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
       .setName("Show related documents")
       .setDesc(
-        "On a taxa file, add a \"Related documents\" section listing the documents most about it. Documents you linked come first, then ones the vault suggests from their vocabulary, which can include documents that never name the concept."
+        "On a taxa file, add a \"Related documents\" section listing the sources most about it. Documents you linked come first, then ones suggested from their vocabulary, which can include documents that never name the concept."
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.showRelatedDocs).onChange(async (value) => {
@@ -1147,19 +1160,6 @@ export class FoliateSettingTab extends PluginSettingTab {
           });
         text.inputEl.rows = 3;
       });
-
-    new Setting(el)
-      .setName("Show related concepts")
-      .setDesc(
-        "Add a \"Related concepts\" section to the sidebar listing concepts whose vocabulary appears in this note, even where the note never names them. Learned from the notes where you link each concept, so it improves as you link. Display only: nothing is hidden on this evidence."
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.showRelatedConcepts).onChange(async (value) => {
-          this.plugin.settings.showRelatedConcepts = value;
-          await this.plugin.saveSettings();
-          this.plugin.refreshSuggestionsView();
-        })
-      );
 
     new Setting(el)
       .setName("Learn concept vocabulary from")

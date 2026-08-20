@@ -79,12 +79,14 @@ export interface FoliateSettings {
   /** Show a "Hidden connections" section listing mentions the gate withheld. */
   showHiddenConnections: boolean;
   /**
-   * Show concepts recognised by their vocabulary rather than by their name.
+   * Show the concepts, people and works related to the current file.
    *
-   * Display only: nothing is hidden on this evidence yet, because a signature
-   * learned from notes that all share a register can learn the register.
+   * One section for concept-valued results whichever way the index found them:
+   * a taxa file's ranked neighbours, and concepts whose learned vocabulary
+   * fires in an ordinary note's text. Display only, since a signature learned
+   * from notes that share a register can learn the register.
    */
-  showRelatedConcepts: boolean;
+  showRelatedTaxa: boolean;
   /**
    * Folders whose notes teach concept signatures. Empty means the whole vault.
    *

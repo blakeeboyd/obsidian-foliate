@@ -1003,7 +1003,7 @@ export class SuggestionsView extends ItemView {
 
     // Related concepts: recognised by their vocabulary rather than their name,
     // so this can surface a concept the note never mentions. Display only.
-    this.renderRelatedConcepts(container, file, content);
+    this.renderRelatedTaxa(container, file, content);
 
     // Related documents: on a taxa file, what the vault says is most about it.
     this.renderRelatedDocs(container, file);
@@ -1094,80 +1094,98 @@ export class SuggestionsView extends ItemView {
    * The first version put both in one list, which read as a concept being
    * offered as a document.
    */
+  /**
+   * One row renderer for both related sections.
+   *
+   * Rows differ in what they point at, not in how they behave: same click
+   * bindings, same search indexing, same "why" line on inferred results.
+   */
+  private renderRelatedRow(
+    parent: HTMLElement,
+    target: { path: string; linked: boolean; mentions: number; matched: string[] },
+    sourceFile: TFile,
+    jump: boolean
+  ) {
+    const name = target.path.slice(target.path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+    const row = parent.createDiv("foliate-row foliate-hidden-row");
+    row.dataset.search = `${name} ${target.path} ${target.matched.join(" ")}`.toLowerCase();
+
+    const title = row.createDiv("foliate-hidden-title");
+    title.createSpan({ text: name });
+    title.createSpan({
+      cls: "foliate-hidden-count",
+      text: target.linked
+        ? "linked"
+        : target.mentions
+          ? "mentioned"
+          : `${target.matched.length} words`,
+    });
+
+    // Inferred rows always show their reasons, even inside a merged group.
+    // Signature evidence is young and has been wrong in a specific way — it
+    // once learned an interview's register instead of a concept — so its
+    // wrongness has to stay visible rather than hide behind a rank.
+    const inferred = !target.linked && !target.mentions;
+    if (inferred && target.matched.length) {
+      row.createDiv({ cls: "foliate-related-why", text: target.matched.slice(0, 6).join(", ") });
+    }
+    row.setAttribute(
+      "aria-label",
+      target.linked
+        ? "You linked these together."
+        : inferred
+          ? `Shares: ${target.matched.join(", ")}`
+          : "Mentioned here."
+    );
+
+    // Reuse the sidebar's click handling rather than a bespoke one, so these
+    // rows honour the same click, Cmd-click, Alt-click and Shift-click bindings
+    // as every other row. The default opens in a new tab: a related file is
+    // somewhere you go to read, so replacing what you are on loses your place.
+    row.addEventListener("click", (evt) => {
+      this.handleItemClick(
+        evt,
+        target.path,
+        sourceFile.path,
+        () => {
+          if (jump) void this.openAndJumpToMention(target.path, sourceFile);
+          else void this.app.workspace.openLinkText(target.path, sourceFile.path, "tab");
+        },
+        () => {}
+      );
+    });
+  }
+
+  /**
+   * Render "Related documents": sources most about this taxa file.
+   *
+   * Only meaningful on a taxa file. "Documents similar to this document" is a
+   * different question and not one this section answers.
+   */
   private renderRelatedDocs(container: HTMLElement, file: TFile) {
     if (!this.plugin.settings.showRelatedDocs) return;
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
     if (!taxonForFile(file, mappings)) return;
-    // The index loads asynchronously at startup. Saying so beats rendering
-    // nothing, which is indistinguishable from "this concept has no relations".
     if (!this.plugin.mentionIndex.ready) {
-      const { section } = this.makeSection(container, "Related");
-      section.createEl("p", {
-        text: "Building the mention index...",
-        cls: "foliate-empty-state",
-      });
+      const { section } = this.makeSection(container, "Related documents");
+      section.createEl("p", { text: "Building the mention index...", cls: "foliate-empty-state" });
       return;
     }
 
-    const results = this.plugin.mentionIndex.relatedDocs(
-      file.path,
-      mappings,
-      this.plugin.settings.relatedDocFolders
-    );
-    if (results.length === 0) return;
+    const docs = this.plugin.mentionIndex
+      .relatedDocs(file.path, mappings, this.plugin.settings.relatedDocFolders)
+      .filter((d) => d.kind === "document");
+    if (docs.length === 0) return;
 
-    const docs = results.filter((d) => d.kind === "document");
-    const taxa = results.filter((d) => d.kind === "taxa");
-    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related");
-    const known = docs.filter((d) => d.linked || d.mentions);
-    const inferred = docs.filter((d) => !d.linked && !d.mentions);
-
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related documents");
     const group = (label: string, rows: typeof docs, key: string) => {
       if (rows.length === 0) return;
       keys.push(key);
       const content = this.makeTaxaGroup(section, key, label);
-      for (const doc of rows) {
-        const name = doc.path.slice(doc.path.lastIndexOf("/") + 1).replace(/\.md$/, "");
-        const row = content.createDiv("foliate-row foliate-hidden-row");
-        row.dataset.search = `${name} ${doc.path} ${doc.matched.join(" ")}`.toLowerCase();
-
-        const title = row.createDiv("foliate-hidden-title");
-        title.createSpan({ text: name });
-        title.createSpan({
-          cls: "foliate-hidden-count",
-          text: doc.linked ? "linked" : doc.mentions ? "mentioned" : `${doc.matched.length} words`,
-        });
-
-        // Only the inferred rows explain themselves. A linked document needs no
-        // justification: the user put the link there.
-        if (!doc.linked && !doc.mentions && doc.matched.length) {
-          row.createDiv({ cls: "foliate-related-why", text: doc.matched.slice(0, 6).join(", ") });
-        }
-        row.setAttribute(
-          "aria-label",
-          doc.linked ? "You linked this concept here." : `Shares: ${doc.matched.join(", ")}`
-        );
-
-        // Reuse the sidebar's click handling rather than a bespoke one, so
-        // these rows honour the same click, Cmd-click, Alt-click and
-        // Shift-click bindings as every other row. The default opens in a new
-        // tab: a related document is somewhere you go to read, not somewhere
-        // you glance, so replacing the concept you are reading loses your place.
-        row.addEventListener("click", (evt) => {
-          this.handleItemClick(
-            evt,
-            doc.path,
-            file.path,
-            () => void this.openAndJumpToMention(doc.path, file),
-            () => {}
-          );
-        });
-      }
+      for (const d of rows) this.renderRelatedRow(content, d, file, !!(d.linked || d.mentions));
     };
-
-    group("Documents", known, "related-docs:known");
-    group("Suggested documents", inferred, "related-docs:inferred");
-    group("Taxa", taxa, "related-docs:taxa");
+    group("Documents", docs.filter((d) => d.linked || d.mentions), "related-docs:known");
+    group("Suggested", docs.filter((d) => !d.linked && !d.mentions), "related-docs:inferred");
     this.wireCollapseAll(collapseAllBtn, keys);
   }
 
@@ -1199,119 +1217,93 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Render "Related concepts": concepts whose vocabulary appears in this note,
-   * whether or not the note names them.
+   * Render "Related taxa": the concepts, people and works related to this file.
    *
-   * Every other section in this sidebar answers "which taxa does this note
-   * mention", which is a question about words. This one answers "which concepts
-   * is this note about", which is not. A note can be squarely about a concept
-   * and never contain its name, and word matching cannot see that however it is
-   * scored.
+   * One home for concept-valued results, whichever direction the index was read
+   * to find them. On a taxa file that means its neighbours, ranked by links
+   * first, then mentions, then shared vocabulary. On an ordinary note it means
+   * the concepts whose learned vocabulary fires in the text, including ones the
+   * note never names.
    *
-   * The evidence is learned from the notes where the user links each concept,
-   * so it costs them nothing and improves every time they link. See
-   * signatures.ts.
+   * These were two sections until they were not. "Related concepts" answered
+   * "what is this note about" and the Taxa group of "Related" answered "what is
+   * near this concept", which on a taxa file are close enough to the same
+   * question that both rendered, with different machinery, a few pixels apart.
+   * The name should describe what the results ARE, not which way the index was
+   * read to get them.
    *
-   * Deliberately display-only. A signature built from notes that happen to
-   * share a register can learn the REGISTER rather than the concept, which on
-   * the reference vault surfaced an interviewee on "let's, incredibly,
-   * anybody". Every row shows the words that fired, so a wrong hit explains
-   * itself at a glance rather than being a mystery, and nothing is withheld on
-   * this evidence until it is understood.
+   * Evidence stays display-only. A signature built from notes that share a
+   * register can learn the register rather than the concept, which on the
+   * reference vault surfaced an interviewee on "let's, incredibly, anybody".
+   * Inferred rows show the words that fired so a wrong one explains itself.
    */
-  private renderRelatedConcepts(container: HTMLElement, file: TFile, content: string) {
-    if (!this.plugin.settings.showRelatedConcepts) return;
-    if (!this.plugin.mentionIndex.ready) return;
+  private renderRelatedTaxa(container: HTMLElement, file: TFile, content: string) {
+    if (!this.plugin.settings.showRelatedTaxa) return;
+    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+    if (!this.plugin.mentionIndex.ready) {
+      const { section } = this.makeSection(container, "Related taxa");
+      section.createEl("p", { text: "Building the mention index...", cls: "foliate-empty-state" });
+      return;
+    }
 
-    // A concept already linked here belongs to Linked Mentions, and repeating it
-    // would be the one hit that cannot mean anything: a linked note is part of
-    // that concept's own training set, so its signature was built partly FROM
-    // this note's vocabulary and is guaranteed to fire. Unlinked mentions are
-    // excluded for the ordinary reason that they are already listed above.
+    // Anything already linked or mentioned here is listed above, and for a
+    // signature hit it is also the one result that cannot mean anything: a
+    // linked note is part of that concept's own training set, so its signature
+    // was built partly FROM this text and is guaranteed to fire.
     const linkedHere = new Set(Object.keys(this.app.metadataCache.resolvedLinks[file.path] ?? {}));
     const mentionedHere = this.plugin.mentionIndex.mentionsOf(file.path);
-    const hits = this.plugin.mentionIndex
-      .signatureHits(content)
-      .filter(
-        (h) => h.path !== file.path && !linkedHere.has(h.path) && !mentionedHere.has(h.path)
-      );
-    if (hits.length === 0) return;
 
-    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
-    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related concepts");
+    type Row = { path: string; linked: boolean; mentions: number; matched: string[] };
+    const rows: Row[] = [];
+    const seen = new Set<string>();
 
-    // Grouped by taxon like every other section, so a person and a concept do
-    // not sit in one undifferentiated list.
-    const grouped = new Map<TaxaMapping, typeof hits>();
-    for (const hit of hits.slice(0, 20)) {
-      const target = this.app.vault.getAbstractFileByPath(hit.path);
+    // On a taxa file: its ranked neighbours, which carry link and mention
+    // evidence the signature score alone does not have.
+    if (taxonForFile(file, mappings)) {
+      for (const r of this.plugin.mentionIndex.relatedDocs(
+        file.path,
+        mappings,
+        this.plugin.settings.relatedDocFolders
+      )) {
+        if (r.kind !== "taxa" || seen.has(r.path)) continue;
+        seen.add(r.path);
+        rows.push({ path: r.path, linked: r.linked, mentions: r.mentions, matched: r.matched });
+      }
+    }
+
+    // On any file: concepts whose vocabulary fires here. Deduped against the
+    // neighbours above, which already carry stronger evidence for the same
+    // relationship.
+    for (const hit of this.plugin.mentionIndex.signatureHits(content)) {
+      if (hit.path === file.path || seen.has(hit.path)) continue;
+      if (linkedHere.has(hit.path) || mentionedHere.has(hit.path)) continue;
+      seen.add(hit.path);
+      rows.push({ path: hit.path, linked: false, mentions: 0, matched: hit.matched });
+    }
+    if (rows.length === 0) return;
+
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related taxa");
+    const grouped = new Map<TaxaMapping, Row[]>();
+    for (const row of rows.slice(0, 25)) {
+      const target = this.app.vault.getAbstractFileByPath(row.path);
       if (!(target instanceof TFile)) continue;
       const taxon = taxonForFile(target, mappings);
       if (!taxon) continue;
       const list = grouped.get(taxon);
-      if (list) list.push(hit);
-      else grouped.set(taxon, [hit]);
+      if (list) list.push(row);
+      else grouped.set(taxon, [row]);
     }
 
     for (const [taxon, items] of grouped) {
-      const key = `related:${taxon.prefix} ${taxon.label}`;
+      const key = `related-taxa:${taxon.prefix} ${taxon.label}`;
       keys.push(key);
       const groupContent = this.makeTaxaGroup(section, key, `${taxon.prefix} ${taxon.label}`);
-
-      for (const hit of items) {
-        const name = hit.path.slice(hit.path.lastIndexOf("/") + 1).replace(/\.md$/, "");
-        const row = groupContent.createDiv("foliate-row foliate-hidden-row");
-        row.dataset.search = `${name} ${hit.path} ${hit.matched.join(" ")}`.toLowerCase();
-
-        const title = row.createDiv("foliate-hidden-title");
-        title.createSpan({ text: name });
-        title.createSpan({
-          cls: "foliate-hidden-count",
-          text: hit.matched.length === 1 ? "1 word" : `${hit.matched.length} words`,
-        });
-
-        // The matching words ARE the reason, and they are shown rather than
-        // hidden behind a right-click: this evidence is new and unproven, so a
-        // wrong row has to be recognisable as wrong without asking.
-        const why = hit.matched.slice(0, 6).join(", ");
-        row.createDiv({ cls: "foliate-related-why", text: why });
-        row.setAttribute("aria-label", `Matched on: ${hit.matched.join(", ")}`);
-
-        row.addEventListener("click", () => {
-          const f = this.app.vault.getAbstractFileByPath(hit.path);
-          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
-        });
-
-        row.addEventListener("contextmenu", (evt) => {
-          evt.preventDefault();
-          const menu = new Menu();
-          menu.addItem((mi) =>
-            mi
-              .setTitle("Why is this related?")
-              .setIcon("help-circle")
-              .onClick(() =>
-                new Notice(
-                  `${name}\n\nThis note uses words that usually appear where you link it:\n\n${hit.matched.join(", ")}`,
-                  10000
-                )
-              )
-          );
-          menu.addItem((mi) =>
-            mi
-              .setTitle("Open file")
-              .setIcon("file-text")
-              .onClick(() => {
-                const f = this.app.vault.getAbstractFileByPath(hit.path);
-                if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
-              })
-          );
-          menu.showAtMouseEvent(evt);
-        });
+      for (const item of items) {
+        this.renderRelatedRow(groupContent, item, file, false);
       }
     }
 
-    // Collapsed on first sight, like Hidden connections: available when looked
-    // for, silent otherwise.
+    // Collapsed on first sight: available when looked for, quiet otherwise.
     const stored = new Set(this.plugin.settings.collapsedCategories);
     let changed = false;
     for (const k of keys) {
@@ -1325,7 +1317,6 @@ export class SuggestionsView extends ItemView {
       this.plugin.settings.collapsedCategories = [...stored];
       void this.plugin.saveSettings();
     }
-
     this.wireCollapseAll(collapseAllBtn, keys);
   }
 

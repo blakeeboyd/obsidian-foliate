@@ -54,7 +54,7 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   contextAwareEnabled: false,
   contextAware: {},
   showHiddenConnections: false,
-  showRelatedConcepts: false,
+  showRelatedTaxa: false,
   signatureFolders: [],
   showRelatedDocs: false,
   relatedDocFolders: [],
