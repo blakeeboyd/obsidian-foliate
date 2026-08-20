@@ -148,7 +148,7 @@ export default class FoliatePlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.mentionIndex.setMergedConcepts(this.settings.mergedConcepts);
       void this.mentionIndex
-        .load()
+        .load([...this.settings.taxaMappings, this.settings.domain])
         .then((loaded) => {
           // The sidebar may have rendered before the index finished loading and
           // shown its "building..." placeholder. Nothing else tells it the wait
