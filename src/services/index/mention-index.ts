@@ -113,6 +113,19 @@ export class MentionIndex {
     return this.stats !== null;
   }
 
+  /**
+   * Has an index ever been built for this vault?
+   *
+   * Distinct from `ready`, which is false during every rebuild. A rebuild
+   * happens on each note save, so a UI that shows "building..." whenever
+   * `ready` is false flashes the message constantly while the user types. This
+   * answers the different question a placeholder actually wants: is there
+   * nothing yet, or is this a momentary gap in something that already exists.
+   */
+  get everBuilt(): boolean {
+    return this.stats !== null || this.sets.size > 0;
+  }
+
   get corpus(): CorpusStats | null {
     return this.stats;
   }

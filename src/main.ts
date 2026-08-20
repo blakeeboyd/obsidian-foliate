@@ -147,10 +147,19 @@ export default class FoliatePlugin extends Plugin {
   private registerIndexUpdates() {
     this.app.workspace.onLayoutReady(() => {
       this.mentionIndex.setMergedConcepts(this.settings.mergedConcepts);
-      void this.mentionIndex.load().catch(() => {
-        // A missing or unreadable index is not an error worth interrupting for;
-        // the build command reports properly when the user asks for one.
-      });
+      void this.mentionIndex
+        .load()
+        .then((loaded) => {
+          // The sidebar may have rendered before the index finished loading and
+          // shown its "building..." placeholder. Nothing else tells it the wait
+          // is over, so without this the message sits there until the user
+          // switches notes.
+          if (loaded) this.refreshSuggestionsView();
+        })
+        .catch(() => {
+          // A missing or unreadable index is not an error worth interrupting
+          // for; the build command reports properly when the user asks for one.
+        });
 
       const taxa = () => [...this.settings.taxaMappings, this.settings.domain];
 

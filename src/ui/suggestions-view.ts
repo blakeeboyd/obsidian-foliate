@@ -1167,8 +1167,16 @@ export class SuggestionsView extends ItemView {
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
     if (!taxonForFile(file, mappings)) return;
     if (!this.plugin.mentionIndex.ready) {
-      const { section } = this.makeSection(container, "Related documents");
-      section.createEl("p", { text: "Building the mention index...", cls: "foliate-empty-state" });
+      // Only on a cold start. `ready` also goes false for the instant of every
+      // rebuild, which happens on each note save, so keying the placeholder off
+      // it alone flashed "building..." constantly while typing.
+      if (!this.plugin.mentionIndex.everBuilt) {
+        const { section } = this.makeSection(container, "Related documents");
+        section.createEl("p", {
+          text: "Building the mention index...",
+          cls: "foliate-empty-state",
+        });
+      }
       return;
     }
 
@@ -1241,8 +1249,16 @@ export class SuggestionsView extends ItemView {
     if (!this.plugin.settings.showRelatedTaxa) return;
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
     if (!this.plugin.mentionIndex.ready) {
-      const { section } = this.makeSection(container, "Related taxa");
-      section.createEl("p", { text: "Building the mention index...", cls: "foliate-empty-state" });
+      // Only on a cold start. `ready` also goes false for the instant of every
+      // rebuild, which happens on each note save, so keying the placeholder off
+      // it alone flashed "building..." constantly while typing.
+      if (!this.plugin.mentionIndex.everBuilt) {
+        const { section } = this.makeSection(container, "Related taxa");
+        section.createEl("p", {
+          text: "Building the mention index...",
+          cls: "foliate-empty-state",
+        });
+      }
       return;
     }
 
