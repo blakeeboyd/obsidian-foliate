@@ -2182,20 +2182,20 @@ export class SuggestionsView extends ItemView {
 
         const jumpKey = `linked:${item.link}`;
         if (item.positions.length > 0) {
-          // Total, then how many are still plain text. Spelling out "unlinked"
-          // on every row made the column read as prose and buried the numbers
-          // it was there to show; a link glyph carries the same meaning at a
-          // glance, and the tooltip says it in words for anyone unsure.
+          // Total mentions, then how many are already links: "5 (1)" is five
+          // mentions of which one is linked.
+          //
+          // Spelling out "unlinked" on every row read as prose and buried the
+          // numbers. An unlink glyph was tried and dropped: the row already has
+          // an unlink BUTTON, so the same icon meant "count" in one place and
+          // "click to unlink" a few pixels away.
+          //
+          // Counting what IS linked rather than what is not also matches how
+          // the row is read: the parenthetical is progress against the total,
+          // and a row reaching "5 (5)" is finished.
           const linkedCount = item.positions.length - item.unlinkedCount;
           const count = info.createSpan({ cls: "foliate-match-count" });
-          count.setText(` ${item.positions.length}`);
-          if (item.unlinkedCount > 0) {
-            // Obsidian's own unlink glyph, so the meaning is one the reader
-            // already knows from the editor rather than a symbol to learn.
-            const unlinked = count.createSpan({ cls: "foliate-unlinked-count" });
-            setIcon(unlinked, "unlink");
-            unlinked.createSpan({ text: String(item.unlinkedCount) });
-          }
+          count.setText(` ${item.positions.length} (${linkedCount})`);
           count.setAttribute(
             "aria-label",
             item.unlinkedCount > 0
