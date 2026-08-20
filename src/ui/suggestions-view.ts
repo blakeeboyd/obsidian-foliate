@@ -800,6 +800,24 @@ export class SuggestionsView extends ItemView {
       return;
     }
 
+    // Say what is happening before doing it. Scanning a long note against
+    // thousands of taxa files takes long enough to see, and the container was
+    // emptied above, so the sidebar showed a blank panel for the duration and
+    // read as broken. Painting a header and a status line first costs one
+    // frame and turns the wait into feedback.
+    const pending = container.createDiv("foliate-sticky-top");
+    this.buildStickyHeader(pending);
+    container.createEl("p", {
+      text: `Scanning ${file.basename} for taxa mentions...`,
+      cls: "foliate-empty-state",
+    });
+    // Yield so the browser paints the message before the scan blocks the thread.
+    await new Promise((r) => window.requestAnimationFrame(() => r(null)));
+    // The scan may have been superseded while we yielded: a second refresh for
+    // a newer file would otherwise be overwritten by this one finishing later.
+    if (this.currentFile !== file) return;
+    container.empty();
+
     const content = await this.app.vault.cachedRead(file);
     // Kept so the "Why is this shown?" report can re-check context terms against
     // the same text the scan used, without another read.
@@ -1078,9 +1096,18 @@ export class SuggestionsView extends ItemView {
    */
   private renderRelatedDocs(container: HTMLElement, file: TFile) {
     if (!this.plugin.settings.showRelatedDocs) return;
-    if (!this.plugin.mentionIndex.ready) return;
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
     if (!taxonForFile(file, mappings)) return;
+    // The index loads asynchronously at startup. Saying so beats rendering
+    // nothing, which is indistinguishable from "this concept has no relations".
+    if (!this.plugin.mentionIndex.ready) {
+      const { section } = this.makeSection(container, "Related");
+      section.createEl("p", {
+        text: "Building the mention index...",
+        cls: "foliate-empty-state",
+      });
+      return;
+    }
 
     const results = this.plugin.mentionIndex.relatedDocs(
       file.path,
@@ -1121,9 +1148,19 @@ export class SuggestionsView extends ItemView {
           doc.linked ? "You linked this concept here." : `Shares: ${doc.matched.join(", ")}`
         );
 
-        row.addEventListener("click", () => {
-          const f = this.app.vault.getAbstractFileByPath(doc.path);
-          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+        // Reuse the sidebar's click handling rather than a bespoke one, so
+        // these rows honour the same click, Cmd-click, Alt-click and
+        // Shift-click bindings as every other row. The default opens in a new
+        // tab: a related document is somewhere you go to read, not somewhere
+        // you glance, so replacing the concept you are reading loses your place.
+        row.addEventListener("click", (evt) => {
+          this.handleItemClick(
+            evt,
+            doc.path,
+            file.path,
+            () => void this.openAndJumpToMention(doc.path, file),
+            () => {}
+          );
         });
       }
     };
@@ -1132,6 +1169,33 @@ export class SuggestionsView extends ItemView {
     group("Suggested documents", inferred, "related-docs:inferred");
     group("Taxa", taxa, "related-docs:taxa");
     this.wireCollapseAll(collapseAllBtn, keys);
+  }
+
+  /**
+   * Open a related document and land on the first place it mentions the concept.
+   *
+   * A document ranks because of a relationship, and the reader wants to see
+   * that relationship rather than the top of a long source. Suggested documents
+   * have no occurrence to find — that is what makes them suggestions — so those
+   * open normally.
+   */
+  private async openAndJumpToMention(docPath: string, taxaFile: TFile) {
+    const target = this.app.vault.getAbstractFileByPath(docPath);
+    if (!(target instanceof TFile)) return;
+    await this.app.workspace.openLinkText(docPath, taxaFile.path, "tab", { active: true });
+
+    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+    const taxon = taxonForFile(taxaFile, mappings);
+    if (!taxon) return;
+    let content: string;
+    try {
+      content = await this.app.vault.cachedRead(target);
+    } catch {
+      return;
+    }
+    const positions = findFileMatchPositions(this.app, content, taxaFile, taxon);
+    if (positions.length === 0) return;
+    await this.jumpToOccurrence(`related:${docPath}`, positions, content, target);
   }
 
   /**
