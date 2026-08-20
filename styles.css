@@ -579,8 +579,19 @@
    so the row reads as one number with a footnote rather than two competing
    figures. */
 .foliate-unlinked-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* Match the count's own size: the default icon is set for buttons and would
+   otherwise be taller than the number beside it. */
+.foliate-unlinked-count .svg-icon {
+  width: 11px;
+  height: 11px;
 }
 
 .foliate-hidden-count {

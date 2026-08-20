@@ -2190,10 +2190,11 @@ export class SuggestionsView extends ItemView {
           const count = info.createSpan({ cls: "foliate-match-count" });
           count.setText(` ${item.positions.length}`);
           if (item.unlinkedCount > 0) {
-            count.createSpan({
-              cls: "foliate-unlinked-count",
-              text: ` ⚯${item.unlinkedCount}`,
-            });
+            // Obsidian's own unlink glyph, so the meaning is one the reader
+            // already knows from the editor rather than a symbol to learn.
+            const unlinked = count.createSpan({ cls: "foliate-unlinked-count" });
+            setIcon(unlinked, "unlink");
+            unlinked.createSpan({ text: String(item.unlinkedCount) });
           }
           count.setAttribute(
             "aria-label",
