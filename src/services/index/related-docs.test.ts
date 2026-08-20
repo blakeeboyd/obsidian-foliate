@@ -122,4 +122,41 @@ assert.strictEqual(capped.length, 3, "the limit caps the list");
   assert.ok(r[0].linked, "and the linked documents still come first");
 }
 
+// A taxa file is not a document. "@Becky Kennedy relates to +personal
+// boundary" is a link between concepts; "@Becky Kennedy is discussed in 19.188"
+// is a source about her. The first version ranked both in one list, so a
+// concept was offered as though it were a document.
+{
+  const links = new Map<string, Set<string>>([
+    ["10-19/concept/+boundary.md", new Set([CONCEPT])],
+    ["19 Sources/19.1 interview.md", new Set([CONCEPT])],
+  ]);
+  const r = rankRelatedDocs(CONCEPT, new Map(), links, signatures, noteWords, {
+    ...DEFAULT_RELATED,
+    taxaFolders: ["10-19/concept"],
+  });
+  const kind = (p: string) => r.find((d) => d.path === p)?.kind;
+  assert.strictEqual(kind("10-19/concept/+boundary.md"), "taxa", "a file in a taxa folder is taxa");
+  assert.strictEqual(kind("19 Sources/19.1 interview.md"), "document", "anything else is a document");
+}
+
+// Documents can be scoped to chosen folders; taxa never are, since the taxa
+// layer is the vault's own vocabulary and needs no scoping.
+{
+  const links = new Map<string, Set<string>>([
+    ["10-19/concept/+boundary.md", new Set([CONCEPT])],
+    ["19 Sources/19.1 interview.md", new Set([CONCEPT])],
+    ["session-logs/2026-01-01.md", new Set([CONCEPT])],
+  ]);
+  const r = rankRelatedDocs(CONCEPT, new Map(), links, signatures, noteWords, {
+    ...DEFAULT_RELATED,
+    taxaFolders: ["10-19/concept"],
+    documentFolders: ["19 Sources"],
+  });
+  const paths = r.map((d) => d.path);
+  assert.ok(paths.includes("19 Sources/19.1 interview.md"), "a document in scope is ranked");
+  assert.ok(!paths.includes("session-logs/2026-01-01.md"), "a document out of scope is not");
+  assert.ok(paths.includes("10-19/concept/+boundary.md"), "taxa are ranked regardless of scope");
+}
+
 console.log("related-docs.test.ts: all assertions passed");

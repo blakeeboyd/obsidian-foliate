@@ -104,6 +104,15 @@ export interface FoliateSettings {
    */
   showRelatedDocs: boolean;
   /**
+   * Folders that hold documents, for the related-documents ranking. Empty means
+   * the whole vault apart from the taxa folders.
+   *
+   * The taxa folders are already known from the mappings, so only the document
+   * side needs configuring: a vault holds session logs, daily notes and
+   * changelogs that are not sources, and whether they count is the user's call.
+   */
+  relatedDocFolders: string[];
+  /**
    * Prefix of the taxon whose files match on surname after their full name
    * appears in a note ("Dostoevsky" once "Vladimir Dostoevsky" is present).
    * Empty disables it. Scoped to one taxon because splitting a name on

@@ -14,6 +14,9 @@
 
 import { SignatureResult, Signature } from "./signatures";
 
+/** Whether a result is a document or another taxa file. */
+export type RelatedKind = "document" | "taxa";
+
 export interface RelatedDoc {
   /** Vault path of the document. */
   path: string;
@@ -24,6 +27,8 @@ export interface RelatedDoc {
   mentions: number;
   /** Signature words present, strongest first, for the "why" readout. */
   matched: string[];
+  /** A source document, or another taxa file. Ranked into separate sections. */
+  kind: RelatedKind;
 }
 
 export interface RelatedConfig {
@@ -47,6 +52,25 @@ export interface RelatedConfig {
   minSignatureWords: number;
   /** How many documents to return. */
   limit: number;
+  /**
+   * Folders the taxa layer lives in, from the taxa mappings.
+   *
+   * A file inside one of these is another taxa file, not a document. The two
+   * are different questions: "@Becky Kennedy relates to +personal boundary" is
+   * a relationship between concepts, and "@Becky Kennedy is discussed in
+   * 19.188" is a document about her. Ranking them in one list conflates a
+   * conceptual neighbour with a source, which is what the first version did.
+   */
+  taxaFolders: string[];
+  /**
+   * Folders documents may come from. Empty means the whole vault, minus the
+   * taxa folders.
+   *
+   * A vault holds a lot that is not a source: session logs, daily notes,
+   * changelogs. Whether those count as documents is the user's call, not
+   * something the plugin can infer.
+   */
+  documentFolders: string[];
 }
 
 export const DEFAULT_RELATED: RelatedConfig = {
@@ -55,6 +79,8 @@ export const DEFAULT_RELATED: RelatedConfig = {
   signatureWeight: 3,
   minSignatureWords: 3,
   limit: 25,
+  taxaFolders: [],
+  documentFolders: [],
 };
 
 /**
@@ -90,16 +116,39 @@ export function rankRelatedDocs(
   const signature = signatures.byPath.get(taxaPath);
   const rows = new Map<string, RelatedDoc>();
 
+  const under = (p: string, folders: string[]) =>
+    folders.some((f) => p === f || p.startsWith(f + "/"));
+
+  const kindOf = (p: string): RelatedKind =>
+    under(p, config.taxaFolders) ? "taxa" : "document";
+
+  /**
+   * Is this file eligible at all?
+   *
+   * A taxa file always is: relating concepts to each other needs no scoping,
+   * since the taxa layer is by definition the vault's own vocabulary. A
+   * document is eligible when the user has not restricted where documents come
+   * from, or when it sits under one of the folders they named.
+   */
+  const eligible = (p: string): boolean => {
+    if (p === taxaPath) return false;
+    if (kindOf(p) === "taxa") return true;
+    return config.documentFolders.length === 0 || under(p, config.documentFolders);
+  };
+
   const row = (path: string): RelatedDoc => {
     let r = rows.get(path);
-    if (!r) rows.set(path, (r = { path, score: 0, linked: false, mentions: 0, matched: [] }));
+    if (!r) {
+      r = { path, score: 0, linked: false, mentions: 0, matched: [], kind: kindOf(path) };
+      rows.set(path, r);
+    }
     return r;
   };
 
   // Links first: the user's own assertion, and the only signal that cannot be
   // wrong about what a document is about.
   for (const [notePath, targets] of linkSets) {
-    if (notePath === taxaPath) continue;
+    if (!eligible(notePath)) continue;
     if (!targets.has(taxaPath)) continue;
     const r = row(notePath);
     r.linked = true;
@@ -107,7 +156,7 @@ export function rankRelatedDocs(
   }
 
   for (const [notePath, mentioned] of mentionSets) {
-    if (notePath === taxaPath) continue;
+    if (!eligible(notePath)) continue;
     if (!mentioned.has(taxaPath)) continue;
     const r = row(notePath);
     r.mentions = 1;
@@ -119,7 +168,7 @@ export function rankRelatedDocs(
   // documents that neither link nor mention it.
   if (signature) {
     for (const [notePath, words] of noteWords) {
-      if (notePath === taxaPath) continue;
+      if (!eligible(notePath)) continue;
       let sum = 0;
       const hit: { word: string; weight: number }[] = [];
       for (const [word, weight] of signature) {
@@ -137,11 +186,9 @@ export function rankRelatedDocs(
     }
   }
 
-  const known: RelatedDoc[] = [];
-  const inferred: RelatedDoc[] = [];
-  for (const r of rows.values()) (r.linked || r.mentions ? known : inferred).push(r);
-  known.sort((a, b) => b.score - a.score);
-  inferred.sort((a, b) => b.score - a.score);
+  const all = [...rows.values()];
+  const known = all.filter((r) => r.linked || r.mentions).sort((a, b) => b.score - a.score);
+  const inferred = all.filter((r) => !r.linked && !r.mentions).sort((a, b) => b.score - a.score);
 
   // Both bands get room. Reserving a share for inferred results is the point of
   // the feature: a list of documents the user already linked tells them nothing

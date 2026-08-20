@@ -1069,6 +1069,12 @@ export class SuggestionsView extends ItemView {
    * first, because a link is their own assertion. Below them sit documents the
    * vault infers from vocabulary alone, which is the only part of the list they
    * could not have assembled themselves.
+   *
+   * Taxa are ranked apart from documents, because they answer different
+   * questions. "@Becky Kennedy relates to +personal boundary" is a link between
+   * concepts; "@Becky Kennedy is discussed in 19.188" is a source about her.
+   * The first version put both in one list, which read as a concept being
+   * offered as a document.
    */
   private renderRelatedDocs(container: HTMLElement, file: TFile) {
     if (!this.plugin.settings.showRelatedDocs) return;
@@ -1076,10 +1082,16 @@ export class SuggestionsView extends ItemView {
     const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
     if (!taxonForFile(file, mappings)) return;
 
-    const docs = this.plugin.mentionIndex.relatedDocs(file.path);
-    if (docs.length === 0) return;
+    const results = this.plugin.mentionIndex.relatedDocs(
+      file.path,
+      mappings,
+      this.plugin.settings.relatedDocFolders
+    );
+    if (results.length === 0) return;
 
-    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related documents");
+    const docs = results.filter((d) => d.kind === "document");
+    const taxa = results.filter((d) => d.kind === "taxa");
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related");
     const known = docs.filter((d) => d.linked || d.mentions);
     const inferred = docs.filter((d) => !d.linked && !d.mentions);
 
@@ -1116,8 +1128,9 @@ export class SuggestionsView extends ItemView {
       }
     };
 
-    group("Linked and mentioned", known, "related-docs:known");
-    group("Suggested", inferred, "related-docs:inferred");
+    group("Documents", known, "related-docs:known");
+    group("Suggested documents", inferred, "related-docs:inferred");
+    group("Taxa", taxa, "related-docs:taxa");
     this.wireCollapseAll(collapseAllBtn, keys);
   }
 

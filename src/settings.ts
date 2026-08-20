@@ -1129,6 +1129,26 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Look for related documents in")
+      .setDesc(
+        "Folders the related-documents list draws from, one per line. Leave empty to use the whole vault. Your taxa folders are always excluded and ranked separately as related taxa, so this only decides which of your remaining notes count as documents."
+      )
+      .addTextArea((text) => {
+        text
+          .setPlaceholder("10-19_Knowledge/19 Sources")
+          .setValue(this.plugin.settings.relatedDocFolders.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.relatedDocFolders = value
+              .split("\n")
+              .map((line) => line.trim().replace(/\/+$/, ""))
+              .filter((line) => line.length > 0);
+            await this.plugin.saveSettings();
+            this.plugin.refreshSuggestionsView();
+          });
+        text.inputEl.rows = 3;
+      });
+
+    new Setting(el)
       .setName("Show related concepts")
       .setDesc(
         "Add a \"Related concepts\" section to the sidebar listing concepts whose vocabulary appears in this note, even where the note never names them. Learned from the notes where you link each concept, so it improves as you link. Display only: nothing is hidden on this evidence."

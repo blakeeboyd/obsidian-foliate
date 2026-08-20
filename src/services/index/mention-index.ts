@@ -347,11 +347,19 @@ export class MentionIndex {
    * mentions, mentions outrank vocabulary overlap, and vocabulary overlap is
    * what lets a document appear without ever naming the concept.
    */
-  relatedDocs(taxaPath: string, limit = DEFAULT_RELATED.limit): RelatedDoc[] {
+  relatedDocs(
+    taxaPath: string,
+    taxaMappings: TaxaMapping[],
+    documentFolders: string[] = [],
+    limit = DEFAULT_RELATED.limit
+  ): RelatedDoc[] {
     if (!this.stats) return [];
+    const taxaFolders = taxaMappings.map((t) => t.folder).filter((f) => f.length > 0);
     return rankRelatedDocs(taxaPath, this.sets, this.links, this.signatureResult, this.words, {
       ...DEFAULT_RELATED,
       limit,
+      taxaFolders,
+      documentFolders,
     });
   }
 

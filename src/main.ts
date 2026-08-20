@@ -57,6 +57,7 @@ const DEFAULT_SETTINGS: FoliateSettings = {
   showRelatedConcepts: false,
   signatureFolders: [],
   showRelatedDocs: false,
+  relatedDocFolders: [],
   surnameMatchPrefix: "@",
   matchDeclaredAcronyms: true,
   matchFilenameAcronyms: false,
