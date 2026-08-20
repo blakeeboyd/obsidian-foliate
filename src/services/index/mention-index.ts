@@ -660,6 +660,26 @@ export class MentionIndex {
     return this.sets.get(notePath) ?? new Set();
   }
 
+  /**
+   * The taxa files whose terms occur in this text, scanned live.
+   *
+   * The candidate filter for the sidebar's position scan. Reads the text it is
+   * given rather than the stored mention set, because the two are not always in
+   * step: `modify` fires both the index's updateNote and the sidebar's refresh,
+   * nothing orders them, and an async IndexedDB write in between means the
+   * stored set can still describe the note as it was a keystroke ago. Trusting
+   * it would hide a term the moment it was typed, which is the one failure a
+   * filter like this must not have.
+   *
+   * Costs one tokenization of one note, the same pass signatureHits makes.
+   * Returns undefined when no dictionary has been built, so the caller falls
+   * back to scanning everything rather than to scanning nothing.
+   */
+  candidatesIn(text: string): Set<string> | undefined {
+    if (this.dict.size === 0) return undefined;
+    return scanNote(text, this.dict);
+  }
+
   /** The taxa most associated with this one, best first. */
   neighbors(taxaPath: string, k = 20): Neighbor[] {
     return this.stats ? topNeighbors(taxaPath, this.stats, k) : [];

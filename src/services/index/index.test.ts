@@ -411,3 +411,38 @@ console.log("index: shared-term-qualifies assertions passed");
 }
 
 console.log("index: fingerprint assertions passed");
+
+// --- candidate filter: the index must be a superset of the sidebar's matches ---
+//
+// The sidebar now scans only the files scanNote returns. That is safe only
+// while the index never OMITS a file the position scan would have matched: an
+// over-inclusive candidate costs one wasted position scan, an omitted one
+// silently loses a row. These pin the axes where the two matchers disagree.
+{
+  // Case. The sidebar rejects a capitalised single word matched in lowercase
+  // (811af7d); the index lowercases, so it still offers the file as a
+  // candidate and lets the position scan do the rejecting. Superset: safe.
+  const dict = buildDictionary([{ path: "p/@Waves Audio.md", terms: ["Waves"] }]);
+  assert.ok(
+    scanNote("a note about sound waves", dict).has("p/@Waves Audio.md"),
+    "index must still offer a file whose capitalised term the sidebar will reject"
+  );
+
+  // Aliases and multi-word terms both reach the candidate set.
+  assert.ok(scanNote("work by Lovelace", DICT).has("p/@Ada Lovelace.md"));
+  assert.ok(scanNote("on phase cancellation", DICT).has("c/+phase cancellation.md"));
+
+  // Linked occurrences are stripped, which is the one direction the index is
+  // NARROWER than the sidebar. Safe only because the unlinked scan skips
+  // already-linked files anyway; it is why includeLinkedFiles must not be
+  // combined with candidates.
+  assert.strictEqual(
+    scanNote("see [[+phase]] here", DICT).has("c/+phase.md"),
+    false,
+    "linked-only occurrences are absent from candidates, so includeLinkedFiles cannot use them"
+  );
+
+  // A note mentioning nothing yields an empty set, not a missing one, so the
+  // caller filters to zero rather than falling back to a full vault scan.
+  assert.strictEqual(scanNote("nothing relevant here", DICT).size, 0);
+}

@@ -883,6 +883,15 @@ export class SuggestionsView extends ItemView {
     // Collected only when the section is on, so the extra position scan for
     // suppressed terms is skipped entirely when nobody will look at it.
     const hiddenMatches: HiddenMatch[] = [];
+    // Ask the index which taxa files this note could possibly contain, so the
+    // position scan below visits a few dozen files instead of every taxa file
+    // in the vault. That per-file loop is the sidebar's per-note lag, and the
+    // note's own length is all it should ever have depended on.
+    //
+    // Scanned from the open note's text, not from the stored mention set, which
+    // can lag a keystroke behind (see candidatesIn). Undefined before the
+    // dictionary exists, and the matcher then scans everything as before.
+    const candidates = this.plugin.mentionIndex.candidatesIn(content);
     let unlinkedMatches = findUnlinkedMatches(
       this.app,
       content,
@@ -893,6 +902,7 @@ export class SuggestionsView extends ItemView {
         hidden: this.plugin.settings.showHiddenConnections ? hiddenMatches : undefined,
         surnameTaxon: this.plugin.surnameTaxon(),
         matchDeclaredAcronyms: this.plugin.settings.matchDeclaredAcronyms,
+        candidates,
       }
     ).filter((m) => !this.dismissed.has(m.filePath) && !this.plugin.settings.blocklist.includes(m.alias));
 

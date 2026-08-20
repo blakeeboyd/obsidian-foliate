@@ -32,6 +32,24 @@ export interface MatchOptions {
   surnameTaxon?: TaxaMapping;
   /** Honor acronyms the note declares as "[[term]] (ACRONYM)". */
   matchDeclaredAcronyms?: boolean;
+  /**
+   * Taxa files that could possibly match, from the mention index. When given,
+   * the per-file position scan visits only these instead of every taxa file in
+   * the vault, which is the whole of the sidebar's per-note cost.
+   *
+   * Safe only because the index is a SUPERSET of this scan's answers on every
+   * axis where the two differ. The index lowercases (scan.ts tokenize), so it
+   * still lists a file whose capitalised term this scan will reject; it applies
+   * no context gate, no blocklist and no dismissal. Every rule that narrows
+   * still runs below, on the candidates. The one direction the index is
+   * narrower is linked occurrences, which stripNonProse blanks, so a caller
+   * passing includeLinkedFiles must NOT pass candidates: those are precisely
+   * the files it under-reports.
+   *
+   * Surname and acronym matches are added after the loop from evidence local to
+   * the note, which the index's dictionary never held, so they are unaffected.
+   */
+  candidates?: Set<string>;
 }
 
 /**
@@ -60,7 +78,10 @@ export function findUnlinkedMatches(
     hidden,
     surnameTaxon,
     matchDeclaredAcronyms = false,
+    candidates,
   } = options;
+  // Passing both would silently drop the linked files this mode exists to find.
+  const candidateSet = includeLinkedFiles ? undefined : candidates;
   const matches: UnlinkedMatch[] = [];
   const alreadyLinked = getLinkedFiles(app, noteFile);
 
@@ -79,6 +100,8 @@ export function findUnlinkedMatches(
     for (const taxaFile of taxaFiles) {
       // Skip self-references
       if (taxaFile.path === noteFile.path) continue;
+      // The index already proved this note does not contain the file's terms.
+      if (candidateSet && !candidateSet.has(taxaFile.path)) continue;
       // Skip already-linked files unless we're surfacing their aliases
       if (!includeLinkedFiles && alreadyLinked.has(taxaFile.path)) continue;
 
