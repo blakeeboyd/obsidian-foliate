@@ -10,6 +10,7 @@ import {
   SignatureHit,
   Signature,
 } from "./signatures";
+import { rankRelatedDocs, RelatedDoc, DEFAULT_RELATED } from "./related-docs";
 import { buildClusters, ClusterResult, EMPTY_CLUSTERS, clusterPeers } from "./clusters";
 import { findOverbroadAliases, OverbroadAlias } from "./overbroad";
 import {
@@ -337,6 +338,21 @@ export class MentionIndex {
   signatureHits(text: string): SignatureHit[] {
     if (this.signatureResult.byPath.size === 0) return [];
     return scoreNote(noteWords(text), this.signatureResult);
+  }
+
+  /**
+   * The documents most related to a taxa file, best first.
+   *
+   * The rank read of the same index the gate thresholds. Links outrank
+   * mentions, mentions outrank vocabulary overlap, and vocabulary overlap is
+   * what lets a document appear without ever naming the concept.
+   */
+  relatedDocs(taxaPath: string, limit = DEFAULT_RELATED.limit): RelatedDoc[] {
+    if (!this.stats) return [];
+    return rankRelatedDocs(taxaPath, this.sets, this.links, this.signatureResult, this.words, {
+      ...DEFAULT_RELATED,
+      limit,
+    });
   }
 
   /** How many concepts have a signature, and how many were too thin for one. */

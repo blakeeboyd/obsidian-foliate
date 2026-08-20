@@ -1,0 +1,125 @@
+/**
+ * Ranking is the safe direction, but only if the order is right: the whole
+ * point is that a document the user linked outranks one that merely shares
+ * vocabulary, and that a document sharing vocabulary can appear at all.
+ *
+ * Run: npx tsx src/services/index/related-docs.test.ts
+ */
+import * as assert from "assert";
+import { rankRelatedDocs, DEFAULT_RELATED } from "./related-docs";
+import { buildSignatures, NoteWords } from "./signatures";
+
+const CONCEPT = "c/+parenting.md";
+const VOCAB = ["approval", "boundaries", "tantrum", "bedtime", "toddler"];
+
+// A corpus where the concept is linked from some notes, mentioned in others,
+// and a third group shares its vocabulary without naming it.
+const notes: NoteWords[] = [];
+const linked: string[] = [];
+for (let i = 0; i < 8; i++) {
+  const p = `linked/n${i}.md`;
+  linked.push(p);
+  notes.push({ path: p, words: new Set([...VOCAB, `body${i}`]) });
+}
+// Shares the vocabulary, never links or mentions the concept.
+notes.push({ path: "unnamed/a.md", words: new Set([...VOCAB, "extra"]) });
+// Shares nothing.
+notes.push({ path: "unrelated/b.md", words: new Set(["wavelength", "hertz", "diaphragm"]) });
+for (let i = 0; i < 200; i++) {
+  notes.push({ path: `filler/f${i}.md`, words: new Set(["the", `topic${i % 40}`]) });
+}
+
+const signatures = buildSignatures(notes, new Map([[CONCEPT, linked]]));
+assert.ok(signatures.byPath.get(CONCEPT), "fixture builds a signature");
+
+const noteWords = new Map(notes.map((n) => [n.path, n.words]));
+const linkSets = new Map<string, Set<string>>(linked.map((p) => [p, new Set([CONCEPT])]));
+// One note mentions the concept without linking it.
+const mentionSets = new Map<string, Set<string>>([["mentions/m.md", new Set([CONCEPT])]]);
+
+const ranked = rankRelatedDocs(CONCEPT, mentionSets, linkSets, signatures, noteWords);
+const at = (p: string) => ranked.findIndex((r) => r.path === p);
+
+// A link is the user asserting what a document is about. Inference must never
+// outrank a statement.
+assert.ok(ranked.length > 0, "something ranks");
+assert.ok(ranked[0].linked, "a linked document ranks first");
+assert.ok(at("unnamed/a.md") > at(linked[0]), "vocabulary alone ranks below a link");
+
+// The capability that does not exist without signatures: a document that never
+// names the concept still appears.
+assert.ok(at("unnamed/a.md") >= 0, "a document sharing only vocabulary is ranked");
+assert.ok(
+  ranked[at("unnamed/a.md")].matched.length >= DEFAULT_RELATED.minSignatureWords,
+  "and it reports the words that put it there"
+);
+
+// A document with nothing in common must not appear at all.
+assert.strictEqual(at("unrelated/b.md"), -1, "an unrelated document is not ranked");
+assert.strictEqual(at("filler/f0.md"), -1, "filler is not ranked");
+
+// A mention counts, and ranks below a link.
+assert.ok(at("mentions/m.md") >= 0, "a mentioning document is ranked");
+assert.ok(at("mentions/m.md") > at(linked[0]), "a mention ranks below a link");
+
+// A concept with no signature still ranks its links and mentions rather than
+// returning nothing: an absent signal contributes zero, never a penalty.
+const noSig = rankRelatedDocs(
+  "c/+unknown.md",
+  new Map([["m.md", new Set(["c/+unknown.md"])]]),
+  new Map([["l.md", new Set(["c/+unknown.md"])]]),
+  { byPath: new Map(), inverted: new Map(), thin: [] },
+  noteWords
+);
+assert.strictEqual(noSig.length, 2, "links and mentions rank without a signature");
+assert.strictEqual(noSig[0].path, "l.md", "the linked one is still first");
+
+// A concept nothing points at ranks nothing, and does not throw.
+const empty = rankRelatedDocs("c/+nothing.md", new Map(), new Map(), signatures, noteWords);
+assert.strictEqual(empty.length, 0, "an unused concept ranks nothing");
+
+// The limit is honoured.
+const capped = rankRelatedDocs(CONCEPT, mentionSets, linkSets, signatures, noteWords, {
+  ...DEFAULT_RELATED,
+  limit: 3,
+});
+assert.strictEqual(capped.length, 3, "the limit caps the list");
+
+// The finding that shaped the ranking. Linked documents also score well on
+// vocabulary, since the signature was learned partly from them, so in one list
+// they take every slot at any weighting. Measured on the reference vault, at a
+// signature weight of 30 exactly one unlinked document reached the top eight
+// for "+phase". Reserving slots for inferred results is the whole feature: a
+// list of documents the user already linked tells them nothing new.
+{
+  // The corpus has to be large enough that the concept's vocabulary is still
+  // unusual against the notes that resemble its training set. With 28 linked
+  // notes and 200 filler ones, "approval" is ordinary among the peers and the
+  // signature correctly empties, which is the peer baseline working rather
+  // than a ranking bug.
+  const many: NoteWords[] = [];
+  const manyLinked: string[] = [];
+  for (let i = 0; i < 28; i++) {
+    const p = `more/linked${i}.md`;
+    manyLinked.push(p);
+    many.push({ path: p, words: new Set([...VOCAB, `x${i}`]) });
+  }
+  many.push({ path: "hidden/gem.md", words: new Set([...VOCAB, "unnoticed"]) });
+  for (let i = 0; i < 900; i++) {
+    many.push({ path: `bulk/b${i}.md`, words: new Set([`w${i % 200}`, `v${i % 130}`]) });
+  }
+  const sig2 = buildSignatures(many, new Map([[CONCEPT, manyLinked]]));
+  const words2 = new Map(many.map((n) => [n.path, n.words]));
+  const links2 = new Map<string, Set<string>>(manyLinked.map((p) => [p, new Set([CONCEPT])]));
+  const r = rankRelatedDocs(CONCEPT, new Map(), links2, sig2, words2, {
+    ...DEFAULT_RELATED,
+    limit: 9,
+  });
+  assert.ok(
+    r.some((d) => d.path === "hidden/gem.md"),
+    "an unlinked document still appears when 28 linked ones compete"
+  );
+  assert.ok(r[0].linked, "and the linked documents still come first");
+}
+
+console.log("related-docs.test.ts: all assertions passed");

@@ -1116,6 +1116,19 @@ export class FoliateSettingTab extends PluginSettingTab {
       );
 
     new Setting(el)
+      .setName("Show related documents")
+      .setDesc(
+        "On a taxa file, add a \"Related documents\" section listing the documents most about it. Documents you linked come first, then ones the vault suggests from their vocabulary, which can include documents that never name the concept."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showRelatedDocs).onChange(async (value) => {
+          this.plugin.settings.showRelatedDocs = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshSuggestionsView();
+        })
+      );
+
+    new Setting(el)
       .setName("Show related concepts")
       .setDesc(
         "Add a \"Related concepts\" section to the sidebar listing concepts whose vocabulary appears in this note, even where the note never names them. Learned from the notes where you link each concept, so it improves as you link. Display only: nothing is hidden on this evidence."

@@ -987,6 +987,9 @@ export class SuggestionsView extends ItemView {
     // so this can surface a concept the note never mentions. Display only.
     this.renderRelatedConcepts(container, file, content);
 
+    // Related documents: on a taxa file, what the vault says is most about it.
+    this.renderRelatedDocs(container, file);
+
     // Backlinks: on a taxa/domain file, the other taxa/domain files that link to
     // it, grouped by type. Filters out source-note backlinks (the native pane
     // has those); shows the taxa relationships without the noise.
@@ -1053,6 +1056,69 @@ export class SuggestionsView extends ItemView {
     }
 
     new Notice(lines.join("\n"), 10000);
+  }
+
+  /**
+   * Render "Related documents": on a taxa file, the documents most about it.
+   *
+   * The rank read of the index the gate thresholds, and the direction that can
+   * be shipped first: a wrong rank puts a document at position eight, where the
+   * reader sees it and moves on, while a wrong threshold makes one invisible.
+   *
+   * Two bands, and the second is the point. Documents the user linked come
+   * first, because a link is their own assertion. Below them sit documents the
+   * vault infers from vocabulary alone, which is the only part of the list they
+   * could not have assembled themselves.
+   */
+  private renderRelatedDocs(container: HTMLElement, file: TFile) {
+    if (!this.plugin.settings.showRelatedDocs) return;
+    if (!this.plugin.mentionIndex.ready) return;
+    const mappings = [...this.plugin.settings.taxaMappings, this.plugin.settings.domain];
+    if (!taxonForFile(file, mappings)) return;
+
+    const docs = this.plugin.mentionIndex.relatedDocs(file.path);
+    if (docs.length === 0) return;
+
+    const { section, keys, collapseAllBtn } = this.makeSection(container, "Related documents");
+    const known = docs.filter((d) => d.linked || d.mentions);
+    const inferred = docs.filter((d) => !d.linked && !d.mentions);
+
+    const group = (label: string, rows: typeof docs, key: string) => {
+      if (rows.length === 0) return;
+      keys.push(key);
+      const content = this.makeTaxaGroup(section, key, label);
+      for (const doc of rows) {
+        const name = doc.path.slice(doc.path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+        const row = content.createDiv("foliate-row foliate-hidden-row");
+        row.dataset.search = `${name} ${doc.path} ${doc.matched.join(" ")}`.toLowerCase();
+
+        const title = row.createDiv("foliate-hidden-title");
+        title.createSpan({ text: name });
+        title.createSpan({
+          cls: "foliate-hidden-count",
+          text: doc.linked ? "linked" : doc.mentions ? "mentioned" : `${doc.matched.length} words`,
+        });
+
+        // Only the inferred rows explain themselves. A linked document needs no
+        // justification: the user put the link there.
+        if (!doc.linked && !doc.mentions && doc.matched.length) {
+          row.createDiv({ cls: "foliate-related-why", text: doc.matched.slice(0, 6).join(", ") });
+        }
+        row.setAttribute(
+          "aria-label",
+          doc.linked ? "You linked this concept here." : `Shares: ${doc.matched.join(", ")}`
+        );
+
+        row.addEventListener("click", () => {
+          const f = this.app.vault.getAbstractFileByPath(doc.path);
+          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
+        });
+      }
+    };
+
+    group("Linked and mentioned", known, "related-docs:known");
+    group("Suggested", inferred, "related-docs:inferred");
+    this.wireCollapseAll(collapseAllBtn, keys);
   }
 
   /**

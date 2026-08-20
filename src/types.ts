@@ -96,6 +96,14 @@ export interface FoliateSettings {
    */
   signatureFolders: string[];
   /**
+   * On a taxa file, show the documents most related to it.
+   *
+   * The rank read of the index the gate thresholds. Safe to ship before
+   * signature evidence reaches the gate: a wrong rank costs a position, where a
+   * wrong threshold costs visibility.
+   */
+  showRelatedDocs: boolean;
+  /**
    * Prefix of the taxon whose files match on surname after their full name
    * appears in a note ("Dostoevsky" once "Vladimir Dostoevsky" is present).
    * Empty disables it. Scoped to one taxon because splitting a name on
