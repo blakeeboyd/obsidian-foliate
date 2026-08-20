@@ -10,7 +10,7 @@
  * Run: npx tsx src/services/acronym-case.test.ts
  */
 import * as assert from "assert";
-import { isAcronymTerm, findUnlinkedPositions } from "./unlinked-matcher";
+import { isAcronymTerm, findUnlinkedPositions, needsCapital } from "./unlinked-matcher";
 
 // --- what counts as an acronym ---
 {
@@ -56,6 +56,26 @@ import { isAcronymTerm, findUnlinkedPositions } from "./unlinked-matcher";
 // --- an acronym inside a longer word is still not a match ---
 {
   assert.deepStrictEqual(findUnlinkedPositions("OCTAGON shapes", "OCT", undefined, true), []);
+}
+
+// A Capitalised ordinary word only means itself when capitalised. "@Waves
+// Audio" carries the alias "Waves", which matched "waves" in a note about
+// sound waves. Measured on the reference vault: capitalised 53 times, lowercase
+// 744.
+{
+  assert.ok(needsCapital("Waves"), "a Capitalised word needs its capital");
+  assert.ok(needsCapital("Something"), "however common the word");
+  assert.ok(!needsCapital("waves"), "a lowercase term does not");
+  assert.ok(!needsCapital("Waves Audio"), "multi-word terms are unambiguous already");
+  assert.ok(!needsCapital("OCT"), "all-caps is the acronym rule's job");
+  assert.ok(!needsCapital("McCartney"), "an internal capital is not this shape");
+
+  const text = "Sound waves travel. Waves Audio makes plugins. More waves here.";
+  const strict = findUnlinkedPositions(text, "Waves", undefined, true);
+  assert.strictEqual(strict.length, 1, "only the capitalised occurrence matches");
+  assert.strictEqual(text.slice(strict[0], strict[0] + 5), "Waves");
+  const loose = findUnlinkedPositions(text, "Waves", undefined, false);
+  assert.strictEqual(loose.length, 3, "and case-insensitively it would take all three");
 }
 
 console.log("acronym-case: all assertions passed");

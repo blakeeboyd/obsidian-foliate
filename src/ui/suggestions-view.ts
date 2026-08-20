@@ -2182,13 +2182,25 @@ export class SuggestionsView extends ItemView {
 
         const jumpKey = `linked:${item.link}`;
         if (item.positions.length > 0) {
-          info.createSpan({
-            text:
-              item.unlinkedCount > 0
-                ? ` (${item.positions.length}, ${item.unlinkedCount} unlinked)`
-                : ` (${item.positions.length})`,
-            cls: "foliate-match-count",
-          });
+          // Total, then how many are still plain text. Spelling out "unlinked"
+          // on every row made the column read as prose and buried the numbers
+          // it was there to show; a link glyph carries the same meaning at a
+          // glance, and the tooltip says it in words for anyone unsure.
+          const linkedCount = item.positions.length - item.unlinkedCount;
+          const count = info.createSpan({ cls: "foliate-match-count" });
+          count.setText(` ${item.positions.length}`);
+          if (item.unlinkedCount > 0) {
+            count.createSpan({
+              cls: "foliate-unlinked-count",
+              text: ` ⚯${item.unlinkedCount}`,
+            });
+          }
+          count.setAttribute(
+            "aria-label",
+            item.unlinkedCount > 0
+              ? `${item.positions.length} mentions, ${linkedCount} linked, ${item.unlinkedCount} not yet linked`
+              : `${item.positions.length} mentions, all linked`
+          );
         }
 
         const linkedActions = row.createDiv("foliate-linked-actions");

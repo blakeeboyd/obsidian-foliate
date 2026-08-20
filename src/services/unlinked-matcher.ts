@@ -537,7 +537,9 @@ export function findFileMatchPositions(
     // Capitalisation is the only thing distinguishing them, and an acronym
     // written in prose keeps its capitals, so requiring them costs nothing and
     // removes the whole class.
-    const caseSensitive = isAcronymTerm(term);
+    // All-caps terms must match in all caps (OCT is not October); a
+    // Capitalised ordinary word must match capitalised (Waves is not waves).
+    const caseSensitive = isAcronymTerm(term) || needsCapital(term);
     for (const form of forms) {
       for (const offset of findUnlinkedPositions(noteContent, form, excluded, caseSensitive)) {
         if (offset < bodyStart) continue;
@@ -745,6 +747,32 @@ export function isAcronymTerm(term: string): boolean {
   const letters = term.replace(/[^A-Za-z]/g, "");
   if (letters.length < 2) return false;
   return letters === letters.toUpperCase();
+}
+
+/**
+ * Does this term only mean itself when capitalised?
+ *
+ * A single Capitalised word whose lowercase form is ordinary English: "Waves"
+ * for the company, "Phase" for the concept, "Something" for the record. Matched
+ * case-insensitively they claim every use of the common word, which is how
+ * `@Waves Audio` surfaced on a note that said "waves" four times.
+ *
+ * Measured on the reference vault: "Waves" appears capitalised 53 times and
+ * lowercase 744, "Something" 221 against 4,842, "Impedance" 237 against 2,101.
+ * Requiring the capital removes the overwhelming majority of the noise.
+ *
+ * Sentence-start capitals are the known cost and are deliberately accepted. A
+ * capital at the start of a sentence carries no information, so some of what
+ * survives is still a false positive: "Waves" opens a sentence 15 times of 53.
+ * But a wrongly SHOWN mention is noise the reader dismisses, while excluding
+ * sentence starts would wrongly hide real occurrences, and 15 stray matches
+ * cost far less than 744.
+ *
+ * Multi-word terms are exempt: "Waves Audio" is unambiguous whatever its case,
+ * and requiring capitals there would miss ordinary prose that drops them.
+ */
+export function needsCapital(term: string): boolean {
+  return /^\p{Lu}\p{Ll}+$/u.test(term);
 }
 
 export function findUnlinkedPositions(

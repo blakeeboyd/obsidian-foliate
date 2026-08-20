@@ -575,6 +575,14 @@
   color: var(--text-normal);
 }
 
+/* The not-yet-linked share of a linked row's mentions. Dimmer than the total,
+   so the row reads as one number with a footnote rather than two competing
+   figures. */
+.foliate-unlinked-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 .foliate-hidden-count {
   font-size: 11px;
   font-weight: normal;
