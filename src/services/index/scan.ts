@@ -67,13 +67,45 @@ export function buildDictionary(
  *
  * Code goes too, for the reason the sidebar matcher already excludes it: a term
  * inside `code` is a literal, not a reference.
+ *
+ * URLs go for the same reason and were missed for longer, because a bare URL
+ * looks like prose to a tokenizer. `https://youtu.be/xyz` splits into "https",
+ * "youtu" and "be", and those clear every downstream filter: rare enough
+ * vault-wide to pass the IDF floor, and shared by exactly the notes that cite
+ * the same kind of source, so they read as vocabulary a concept keeps company
+ * with. Observed on the reference vault, "+living in the whipped cream" listed
+ * "youtu, https" among its signature words, learned from four YouTube-sourced
+ * notes. The markdown-target rule below only caught `](...)`, so a pasted link
+ * went straight through.
+ *
+ * Autolinks and image/asset paths go with them: same argument, and a filename
+ * is not something the note says.
  */
 function stripNonProse(text: string): string {
   return text
     .replace(/```[\s\S]*?```/g, (m) => " ".repeat(m.length))
+    .replace(/~~~[\s\S]*?~~~/g, (m) => " ".repeat(m.length))
     .replace(/`[^`\n]*`/g, (m) => " ".repeat(m.length))
     .replace(/\[\[[^\]\n]*\]\]/g, (m) => " ".repeat(m.length))
-    .replace(/\]\([^)\n]*\)/g, (m) => " ".repeat(m.length));
+    .replace(/\]\([^)\n]*\)/g, (m) => " ".repeat(m.length))
+    // Bare and angle-bracketed URLs, wherever they sit in the line.
+    .replace(/<[a-z][a-z0-9+.-]*:\/\/[^>\s]*>/gi, (m) => " ".repeat(m.length))
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s)>\]"']+/gi, (m) => " ".repeat(m.length))
+    // www.host.tld/path, which carries no scheme and tokenizes just as badly.
+    .replace(/\bwww\.[^\s)>\]"']+/gi, (m) => " ".repeat(m.length))
+    // Percent-encoded runs. Image CDNs embed an escaped URL inside their own
+    // ("...steep/https%3A%2F%2Fsubstack-post-media..."), so the outer link is
+    // stripped by the rule above and the encoded inner one survives it. A
+    // literal "%3A" never occurs in prose, which makes this unambiguous where a
+    // length cap would not be: the vault's real vocabulary includes
+    // "Alien-Penumbral-Umbral-Penumbral-Alien" and other long compounds.
+    .replace(/\S*%[0-9A-Fa-f]{2}\S*/g, (m) => " ".repeat(m.length))
+    // ponytail: indented code blocks are NOT stripped. Four-space indent is
+    // also how nested list items and continuation lines are written, and those
+    // are prose; on this vault the indented lines are overwhelmingly list
+    // items, so the rule would cost more real text than it saved. Fenced code
+    // is handled above and covers the cases that actually appear.
+    ;
 }
 
 /**
