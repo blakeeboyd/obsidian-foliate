@@ -118,6 +118,29 @@ export interface SignatureConfig {
    * 150 and 400 are the same words in a slightly different order.
    */
   peerPopulation: number;
+  /**
+   * How hard to demote a word many unrelated concepts claim as distinctive.
+   *
+   * peerBaseline judges a word against documents of the same kind, which
+   * removes the filler a register shares. What it cannot see is the word that
+   * is genuinely over-represented for MANY concepts at once: measured on the
+   * reference vault, "operates", "engagement", "capability", "criterion" and
+   * "selection" each sit in the signatures of six to nine unrelated files.
+   * Abstract academic vocabulary is distinctive against every peer population
+   * and discriminating between none of them.
+   *
+   * A word's weight is therefore divided by how many signatures hold it, raised
+   * to this power. Subject vocabulary clusters in a few related concepts and
+   * barely moves; the abstract-register words are spread across many and sink.
+   *
+   * Fractional because the full reciprocal overcorrects: shared vocabulary
+   * between genuinely related concepts is real evidence, and at power 1 the
+   * measurement got worse (0.5111) than doing nothing. Held-out retrieval at
+   * 0.25 reads 0.5337 MRR and 37.1% top-1 against 0.5194 and 33.7%, on 89 folds
+   * where a handful of rank changes moves the number, so this is adopted for
+   * what it does to the READOUT rather than on the strength of that margin.
+   */
+  crossConceptDamping: number;
 }
 
 export const DEFAULT_SIGNATURES: SignatureConfig = {
@@ -128,6 +151,7 @@ export const DEFAULT_SIGNATURES: SignatureConfig = {
   maxGlobalRatio: 0.25,
   minIdf: 2.5,
   peerPopulation: 150,
+  crossConceptDamping: 0.25,
 };
 
 /** A note's contribution to the signatures of the concepts it links. */
@@ -241,6 +265,27 @@ export function buildSignatures(
       holders.push(conceptPath);
     }
     byPath.set(conceptPath, signature);
+  }
+
+  // Demote words that many unrelated concepts claim, now that every signature
+  // exists and the spread is knowable. A second pass rather than part of the
+  // scoring above, because "how many concepts think this word is theirs" is not
+  // answerable until all of them have been built.
+  //
+  // Order within a signature can change; membership never does. The word earned
+  // its place against the vault and its peers, and this only asks how much that
+  // place is worth relative to the others in the same list.
+  if (config.crossConceptDamping > 0) {
+    const holders = new Map<string, number>();
+    for (const sig of byPath.values()) {
+      for (const word of sig.keys()) holders.set(word, (holders.get(word) ?? 0) + 1);
+    }
+    for (const sig of byPath.values()) {
+      for (const [word, weight] of sig) {
+        const n = holders.get(word) ?? 1;
+        if (n > 1) sig.set(word, weight / Math.pow(n, config.crossConceptDamping));
+      }
+    }
   }
 
   return { byPath, inverted, thin };

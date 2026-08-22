@@ -7,7 +7,7 @@
  * Run: npx tsx src/services/index/signatures.test.ts
  */
 import * as assert from "assert";
-import { buildSignatures, scoreNote, NoteWords } from "./signatures";
+import { buildSignatures, scoreNote, NoteWords, DEFAULT_SIGNATURES } from "./signatures";
 
 const notes: NoteWords[] = [];
 function note(path: string, words: string[]): string {
@@ -145,3 +145,57 @@ assert.ok(
 );
 
 console.log("signatures.test.ts: all assertions passed");
+
+// --- cross-concept damping ---
+//
+// A word many unrelated concepts claim is abstract register, not subject
+// vocabulary: measured on the reference vault, "operates" and "engagement" each
+// sit in nine signatures. Damping demotes them without evicting them.
+{
+  // Six concepts share "operates"; each also has one word of its own. The
+  // padding is what makes the case real rather than arithmetic: "operates" has
+  // to be rare enough vault-wide to clear the IDF floor (or the existing
+  // filters remove it and there is nothing left to demote) while still being
+  // claimed by many concepts. That combination is exactly the register problem.
+  const dampNotes: NoteWords[] = [];
+  const linkedBy = new Map<string, string[]>();
+  const subjects = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"];
+  subjects.forEach((subject, i) => {
+    const paths: string[] = [];
+    for (let k = 0; k < 4; k++) {
+      const path = `n/${subject}-${k}.md`;
+      dampNotes.push({ path, words: new Set([subject, "operates", `filler${k}`]) });
+      paths.push(path);
+    }
+    linkedBy.set(`c/+${subject}.md`, paths);
+  });
+  // 600 unrelated notes: "operates" lands at 24/624, an IDF of 3.3 that clears
+  // the floor, and under the 25% global ratio cap.
+  for (let k = 0; k < 600; k++) dampNotes.push({ path: `pad/${k}.md`, words: new Set([`pad${k}`]) });
+
+  const undamped = buildSignatures(dampNotes, linkedBy, { ...DEFAULT_SIGNATURES, crossConceptDamping: 0 });
+  const damped = buildSignatures(dampNotes, linkedBy, { ...DEFAULT_SIGNATURES, crossConceptDamping: 0.25 });
+
+  const before = undamped.byPath.get("c/+alpha.md");
+  const after = damped.byPath.get("c/+alpha.md");
+  assert.ok(before && after, "the concept still gets a signature");
+  // The fixture is only meaningful if the shared word got in at all.
+  assert.ok(before.has("operates"), "fixture: the shared word must reach a signature");
+  // Membership is untouched: the word earned its place against the vault.
+  assert.strictEqual(after.has("operates"), true, "damping reorders, it never evicts");
+  // The shared word is worth strictly less; the private one is not.
+  assert.ok(
+    after.get("operates")! < before.get("operates")!,
+    "a word six concepts claim loses weight"
+  );
+  assert.strictEqual(
+    after.get("alpha"),
+    before.get("alpha"),
+    "a word only this concept claims is untouched"
+  );
+  // The point of the exercise.
+  assert.ok(
+    after.get("alpha")! > after.get("operates")!,
+    "subject vocabulary outranks register once damped"
+  );
+}
