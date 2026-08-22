@@ -67,6 +67,14 @@ export class SuggestionsView extends ItemView {
    * front of you, which is what the sidebar is for.
    */
   private activeTab: "mentions" | "related" = "mentions";
+  /**
+   * The tab bar's panes and count badges, so the filter can refresh them.
+   * Rebuilt on every render; null when no tab bar is showing.
+   */
+  private tabs: {
+    mentions: { pane: HTMLElement; count: HTMLElement | null };
+    related: { pane: HTMLElement; count: HTMLElement | null };
+  } | null = null;
   private stickyObserver: ResizeObserver | null = null;
   private jumpIndex: Map<string, number> = new Map();
   private scrollEl: HTMLElement | null = null;
@@ -788,6 +796,8 @@ export class SuggestionsView extends ItemView {
 
     const container = this.contentEl;
     container.empty();
+    // The old tab bar went with it; nothing to update until buildTabs runs.
+    this.tabs = null;
 
     const file = this.currentFile;
     if (!file) {
@@ -842,7 +852,10 @@ export class SuggestionsView extends ItemView {
       const searchInput = searchWrap.createEl("input", {
         type: "text",
         cls: "foliate-search-input",
-        attr: { placeholder: "Filter taxa..." },
+        // Not "Filter taxa": rows also match on their path, a match's alias and
+        // surface text, and the signature words a related row fired on, so
+        // "bureaucracy" finds a concept whose name does not contain it.
+        attr: { placeholder: "Filter rows..." },
       });
       searchInput.value = this.searchQuery;
 
@@ -1596,6 +1609,10 @@ export class SuggestionsView extends ItemView {
         );
       section.style.display = visible ? "" : "none";
     });
+
+    // The badges are part of the result: they are how the pane you cannot see
+    // reports what the query found there.
+    this.updateTabCounts();
   }
 
   /**
@@ -1631,6 +1648,7 @@ export class SuggestionsView extends ItemView {
 
     const bar = stickyTop.createDiv("foliate-tab-bar");
     const buttons: Partial<Record<"mentions" | "related", HTMLElement>> = {};
+    const counts: Partial<Record<"mentions" | "related", HTMLElement>> = {};
 
     const show = (tab: "mentions" | "related") => {
       this.activeTab = tab;
@@ -1648,17 +1666,54 @@ export class SuggestionsView extends ItemView {
       const { label, n } = panes[key];
       const btn = bar.createEl("button", { cls: "foliate-tab" });
       btn.createSpan({ text: label });
-      if (n > 0) btn.createSpan({ text: String(n), cls: "foliate-tab-count" });
-      if (n === 0) {
-        btn.addClass("is-empty");
-        btn.setAttribute("aria-disabled", "true");
-      } else {
-        btn.addEventListener("click", () => show(key));
-      }
+      // The badge always exists, even at zero, because the filter rewrites it
+      // live and a badge that appears mid-keystroke reads as a layout glitch.
+      counts[key] = btn.createSpan({ text: String(n), cls: "foliate-tab-count" });
+      btn.addEventListener("click", () => show(key));
       buttons[key] = btn;
     }
 
+    this.tabs = {
+      mentions: { pane: mentions, count: counts.mentions ?? null },
+      related: { pane: related, count: counts.related ?? null },
+    };
     show(this.activeTab);
+    this.updateTabCounts();
+  }
+
+  /**
+   * Refresh each tab's badge to say how much is behind it right now.
+   *
+   * With no query that is a section count, which describes the note. With a
+   * query it is a count of MATCHING ROWS, which is the only number worth
+   * showing: the filter walks both panes but only one is visible, so a search
+   * matching nothing on this tab and six things on the other otherwise looks
+   * like a search that found nothing at all. The badge is what makes the hidden
+   * half of the result visible.
+   *
+   * A tab with no matches is dimmed and inert rather than hidden, so the bar
+   * keeps its shape while typing.
+   */
+  private updateTabCounts() {
+    if (!this.tabs) return;
+    const query = this.searchQuery.trim().toLowerCase();
+    for (const key of ["mentions", "related"] as const) {
+      const { pane, count } = this.tabs[key];
+      const n = query
+        ? Array.from(pane.querySelectorAll<HTMLElement>("[data-search]")).filter(
+            (r) => (r.dataset.search || "").includes(query)
+          ).length
+        : pane.querySelectorAll(".foliate-section").length;
+      if (count) count.textContent = String(n);
+      const btn = count?.parentElement;
+      if (btn) {
+        btn.toggleClass("is-empty", n === 0);
+        // Still clickable when empty during a search: seeing "no matches here"
+        // on the tab you asked for is an answer, not a dead end.
+        if (n === 0 && !query) btn.setAttribute("aria-disabled", "true");
+        else btn.removeAttribute("aria-disabled");
+      }
+    }
   }
 
   /**

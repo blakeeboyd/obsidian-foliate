@@ -1338,9 +1338,13 @@ a.internal-link.foliate-link,
 }
 
 /* A tab with nothing behind it still shows, so the sidebar's shape does not
-   shift from note to note, but it does not pretend to be clickable. */
+   shift from note to note. Dimmed, but only inert when there is no search:
+   during a search, "no matches on this tab" is an answer worth clicking to. */
 .foliate-tab.is-empty {
   opacity: 0.4;
+}
+
+.foliate-tab.is-empty[aria-disabled="true"] {
   cursor: default;
 }
 
