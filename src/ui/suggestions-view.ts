@@ -1195,15 +1195,17 @@ export class SuggestionsView extends ItemView {
       .filter((d) => d.kind === "document");
     if (docs.length === 0) return;
 
+    // One flat list. The Documents/Suggested split was two collapsible groups
+    // over what is a single ranked answer to a single question, so it added a
+    // header and a click to reach rows that were already in order. Known
+    // documents sort above suggested ones anyway (relatedDocs ranks linked and
+    // mentioned first), and each row still says which kind it is, so the
+    // grouping was drawing a line the ordering had already drawn.
     const { section, keys, collapseAllBtn } = this.makeSection(container, "Related documents");
-    const group = (label: string, rows: typeof docs, key: string) => {
-      if (rows.length === 0) return;
-      keys.push(key);
-      const content = this.makeTaxaGroup(section, key, label);
-      for (const d of rows) this.renderRelatedRow(content, d, file, !!(d.linked || d.mentions));
-    };
-    group("Documents", docs.filter((d) => d.linked || d.mentions), "related-docs:known");
-    group("Suggested", docs.filter((d) => !d.linked && !d.mentions), "related-docs:inferred");
+    for (const d of docs) {
+      this.renderRelatedRow(section, d, file, !!(d.linked || d.mentions));
+    }
+    // No groups left to collapse; the button hides itself on an empty list.
     this.wireCollapseAll(collapseAllBtn, keys);
   }
 
@@ -1292,6 +1294,19 @@ export class SuggestionsView extends ItemView {
         this.plugin.settings.relatedDocFolders
       )) {
         if (r.kind !== "taxa" || seen.has(r.path)) continue;
+        // A concept already linked here is a connection the user has made, and
+        // it is listed as a backlink in this sidebar and in Obsidian's own pane.
+        // Ranking put those rows first (a link outweighs any vocabulary
+        // overlap), so the top of this section was the backlink list rebuilt,
+        // and the connections it exists to surface were pushed below them.
+        //
+        // Only the DISPLAY drops them. The link still feeds the ranking of
+        // everything else, which is where its evidence belongs: the neighbours
+        // worth seeing are the ones a link points near, not the link itself.
+        //
+        // The signature branch below already excluded them; this makes the two
+        // halves of one section agree.
+        if (linkedHere.has(r.path)) continue;
         seen.add(r.path);
         rows.push({ path: r.path, linked: r.linked, mentions: r.mentions, matched: r.matched });
       }
