@@ -61,6 +61,12 @@ export class SuggestionsView extends ItemView {
   private dismissed: Set<string> = new Set();
   private currentFile: TFile | null = null;
   private searchQuery = "";
+  /**
+   * Which tab is showing. Not persisted to settings: it is a view position
+   * rather than a preference, and it resets to the mentions of the note in
+   * front of you, which is what the sidebar is for.
+   */
+  private activeTab: "mentions" | "related" = "mentions";
   private stickyObserver: ResizeObserver | null = null;
   private jumpIndex: Map<string, number> = new Map();
   private scrollEl: HTMLElement | null = null;
@@ -874,8 +880,15 @@ export class SuggestionsView extends ItemView {
       ? findTermCollisions(this.app, this.plugin.settings)
       : new Map();
 
+    // Two panes, one per tab. Every section still renders exactly as before and
+    // knows nothing about tabs; only which parent it is given changes. Both are
+    // built on every refresh so switching tabs is a style change rather than a
+    // rescan, which matters because a scan of a long note is the expensive part.
+    const mentionsPane = container.createDiv("foliate-tab-pane");
+    const relatedPane = container.createDiv("foliate-tab-pane");
+
     // Linked Mentions (awaited so it renders above Unlinked Mentions)
-    await this.renderLinkedTaxa(container, file, viewRange);
+    await this.renderLinkedTaxa(mentionsPane, file, viewRange);
 
     // Layer 1: Unlinked Matches. Already-linked files are excluded here so a
     // file never appears in both sections; its unlinked alias occurrences
@@ -989,7 +1002,7 @@ export class SuggestionsView extends ItemView {
     }
 
     if (unlinkedMatches.length > 0) {
-      const { section, keys, collapseAllBtn } = this.makeSection(container, "Unlinked Mentions");
+      const { section, keys, collapseAllBtn } = this.makeSection(mentionsPane, "Unlinked Mentions");
 
       // Group by taxon
       const grouped = groupByTaxon(unlinkedMatches, this.plugin.settings.taxaMappings);
@@ -1009,19 +1022,26 @@ export class SuggestionsView extends ItemView {
 
     // Hidden connections: mentions the gate found but withheld. Collapsed by
     // default, so the gating stays out of the way while remaining inspectable.
-    this.renderHiddenConnections(container, hiddenMatches);
+    // Mentions tab: it is the discard pile of the scan above, and belongs with
+    // what it was discarded from.
+    this.renderHiddenConnections(mentionsPane, hiddenMatches);
 
     // Related concepts: recognised by their vocabulary rather than their name,
     // so this can surface a concept the note never mentions. Display only.
-    this.renderRelatedTaxa(container, file, content);
+    this.renderRelatedTaxa(relatedPane, file, content);
 
     // Related documents: on a taxa file, what the vault says is most about it.
-    this.renderRelatedDocs(container, file);
+    this.renderRelatedDocs(relatedPane, file);
 
     // Backlinks: on a taxa/domain file, the other taxa/domain files that link to
     // it, grouped by type. Filters out source-note backlinks (the native pane
     // has those); shows the taxa relationships without the noise.
-    this.renderTaxaBacklinks(container, file);
+    this.renderTaxaBacklinks(relatedPane, file);
+
+    // The tab bar goes in last, because it counts the sections each pane
+    // actually produced. A tab that says what is behind it is worth the one
+    // line it costs; a tab that opens onto nothing is a dead end.
+    this.buildTabs(stickyTop, mentionsPane, relatedPane);
 
     // Apply any active search filter to the freshly rendered rows.
     this.applyFilter();
@@ -1549,18 +1569,96 @@ export class SuggestionsView extends ItemView {
       }
     });
 
-    // Hide a section heading entirely when all its categories are filtered out.
+    // Rows that belong to no group. Related documents is a flat list, so its
+    // rows are children of the section itself and the group walk above never
+    // reaches them: without this the filter silently ignored a whole section.
+    this.contentEl
+      .querySelectorAll<HTMLElement>(".foliate-section > [data-search]")
+      .forEach((row) => {
+        row.style.display =
+          !query || (row.dataset.search || "").includes(query) ? "" : "none";
+      });
+
+    // Hide a section heading entirely when everything inside it is filtered
+    // out, counting grouped and ungrouped rows alike for the same reason.
     const sections = this.contentEl.querySelectorAll<HTMLElement>(".foliate-section");
     sections.forEach((section) => {
       if (!query) {
         section.style.display = "";
         return;
       }
-      const visible = Array.from(
-        section.querySelectorAll<HTMLElement>(".foliate-taxa-group")
-      ).some((g) => g.style.display !== "none");
+      const visible =
+        Array.from(section.querySelectorAll<HTMLElement>(".foliate-taxa-group")).some(
+          (g) => g.style.display !== "none"
+        ) ||
+        Array.from(section.querySelectorAll<HTMLElement>(":scope > [data-search]")).some(
+          (r) => r.style.display !== "none"
+        );
       section.style.display = visible ? "" : "none";
     });
+  }
+
+  /**
+   * The tab bar: Mentions and Related, switching which pane is displayed.
+   *
+   * The sidebar had grown to six stacked sections answering two different
+   * questions. Mentions is about THIS note's text, which is what the plugin
+   * has always been for. Related is about the file as a subject: its
+   * neighbours, the documents about it, and what links to it. Reaching the
+   * second meant scrolling past the first even when the first was long.
+   *
+   * Both panes are already built by the time this runs, so a tab is a style
+   * change, not a rescan. It also means the counts below are real: a tab
+   * announces how many sections are behind it, and one with nothing behind it
+   * is disabled rather than offered.
+   */
+  private buildTabs(stickyTop: HTMLElement, mentions: HTMLElement, related: HTMLElement) {
+    const count = (pane: HTMLElement) => pane.querySelectorAll(".foliate-section").length;
+    const panes: Record<"mentions" | "related", { el: HTMLElement; label: string; n: number }> = {
+      mentions: { el: mentions, label: "Mentions", n: count(mentions) },
+      related: { el: related, label: "Related", n: count(related) },
+    };
+
+    // Nothing anywhere: the empty-state message belongs to the sections
+    // themselves, and a tab bar over two empty panes is furniture.
+    if (panes.mentions.n === 0 && panes.related.n === 0) return;
+
+    // Never strand the reader on an empty tab: a taxa file opened on Mentions
+    // with nothing to mention should land on Related, and the reverse.
+    if (panes[this.activeTab].n === 0) {
+      this.activeTab = this.activeTab === "mentions" ? "related" : "mentions";
+    }
+
+    const bar = stickyTop.createDiv("foliate-tab-bar");
+    const buttons: Partial<Record<"mentions" | "related", HTMLElement>> = {};
+
+    const show = (tab: "mentions" | "related") => {
+      this.activeTab = tab;
+      for (const key of ["mentions", "related"] as const) {
+        const active = key === tab;
+        panes[key].el.style.display = active ? "" : "none";
+        buttons[key]?.toggleClass("is-active", active);
+      }
+      // Section offsets are measured against what is on screen, and half of it
+      // just changed.
+      this.updateStickyOffsets();
+    };
+
+    for (const key of ["mentions", "related"] as const) {
+      const { label, n } = panes[key];
+      const btn = bar.createEl("button", { cls: "foliate-tab" });
+      btn.createSpan({ text: label });
+      if (n > 0) btn.createSpan({ text: String(n), cls: "foliate-tab-count" });
+      if (n === 0) {
+        btn.addClass("is-empty");
+        btn.setAttribute("aria-disabled", "true");
+      } else {
+        btn.addEventListener("click", () => show(key));
+      }
+      buttons[key] = btn;
+    }
+
+    show(this.activeTab);
   }
 
   /**
