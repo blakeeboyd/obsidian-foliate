@@ -141,6 +141,41 @@ export interface SignatureConfig {
    * what it does to the READOUT rather than on the strength of that margin.
    */
   crossConceptDamping: number;
+  /**
+   * How hard to favour words that REPEAT inside the notes that contain them.
+   *
+   * The register problem's remaining half. peerBaseline cancels the filler a
+   * document type shares, and cross-concept damping demotes the abstractions
+   * many concepts claim. Neither can see the word that is genuinely rare,
+   * genuinely clustered in one concept's notes, and still not what the notes
+   * are about: "anybody" scores 5.10 IDF and is filler.
+   *
+   * Church & Gale (1995) named the discriminator and it is not rarity. A word
+   * whose documents are ABOUT it gets repeated as the discussion elaborates; a
+   * word belonging to the register is said once and moved past. Their pair is
+   * "boycott" against "somewhat", each around a thousand occurrences in the
+   * same corpus, one clumped and one evenly spread, with matching IDF. Katz
+   * (1996) adds the property that makes this worth having: the repeat rate
+   * tracks topicality and NOT frequency, so it is orthogonal to the IDF floor
+   * rather than another way of saying it.
+   *
+   * The statistic is the simplest one in that literature, collection frequency
+   * over document frequency: how many times the word occurs in an average note
+   * that has it at all. Measured on this vault, thirteen known register words
+   * average 2.02 and thirteen known signature words 4.09.
+   *
+   * A weight rather than a filter, deliberately. The two populations separate
+   * on average but overlap at the edges ("let's" scores 3.32, "zettelkasten"
+   * 1.80), so a floor would cut real vocabulary to catch filler. Held-out
+   * retrieval is flat from 0.5 to 1.5, which says the exponent is a broad
+   * optimum rather than a tuned point.
+   *
+   * Measured, charged for coverage under true leave-one-out: MRR 0.5947 to
+   * 0.6159 and top-1 43.8% to 47.2%, with no concept losing its signature.
+   * Independent of peerBaseline rather than redundant with it: neither 0.5600,
+   * burstiness alone 0.5746, peers alone 0.5947, both 0.6159.
+   */
+  burstiness: number;
 }
 
 export const DEFAULT_SIGNATURES: SignatureConfig = {
@@ -152,6 +187,7 @@ export const DEFAULT_SIGNATURES: SignatureConfig = {
   minIdf: 2.5,
   peerPopulation: 150,
   crossConceptDamping: 0.25,
+  burstiness: 0.5,
 };
 
 /** A note's contribution to the signatures of the concepts it links. */
@@ -170,7 +206,15 @@ export interface NoteWords {
 export function buildSignatures(
   notes: NoteWords[],
   linkedBy: Map<string, string[]>,
-  config: SignatureConfig = DEFAULT_SIGNATURES
+  config: SignatureConfig = DEFAULT_SIGNATURES,
+  /**
+   * Total occurrences of each word across the corpus, against the per-note
+   * presence in `notes`. Optional: without it every word looks as though it
+   * occurs once per note, the burstiness factor is a constant, and signatures
+   * come out exactly as they did before. Absence of the signal reads as no
+   * information, which is the same rule the gate and the peer baseline follow.
+   */
+  collectionFreq?: Map<string, number>
 ): SignatureResult {
   const noteCount = notes.length;
   const byPath = new Map<string, Signature>();
@@ -248,7 +292,16 @@ export function buildSignatures(
       // Weighted by how many notes back it up, so a word in 20 of 25 notes
       // outranks one in 2 of 3 that happens to be rarer. Lift alone is
       // maximised by the thinnest evidence.
-      scored.push({ word, weight: lift * Math.log(1 + count) });
+      // How often the word repeats where it appears: the topicality signal the
+      // set-membership counts above cannot see. Falls to 1 (no effect) when no
+      // collection frequency was supplied or the word occurs once per note.
+      let burst = 1;
+      if (collectionFreq && config.burstiness > 0) {
+        const occurrences = collectionFreq.get(word) ?? global;
+        const repeatRate = global > 0 ? occurrences / global : 1;
+        if (repeatRate > 1) burst = Math.pow(repeatRate, config.burstiness);
+      }
+      scored.push({ word, weight: lift * Math.log(1 + count) * burst });
     }
 
     if (scored.length === 0) {

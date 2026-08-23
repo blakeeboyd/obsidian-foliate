@@ -221,6 +221,36 @@ export function noteWords(text: string): Set<string> {
 }
 
 /**
+ * How many times each of a note's words occurs in it.
+ *
+ * `noteWords` answers "does this note use the word", which is what the mention
+ * index and the co-occurrence maths need. This answers "how much", which is
+ * what tells a topic word from a register word.
+ *
+ * Church & Gale (1995) put the distinction precisely: a word whose documents
+ * are ABOUT it gets repeated as the discussion elaborates, while a word that
+ * belongs to the style of the writing is said once and moved past. Their
+ * example is "boycott" against "somewhat", both around a thousand occurrences
+ * in the same corpus, one clumped into few documents and one spread evenly
+ * across many. On this vault the same split holds: "let's" and "anybody" occur
+ * about twice per note that has them, "profilicity" and "vuong" seven to ten
+ * times.
+ *
+ * Same tokens as `noteWords` by construction, so the two never disagree about
+ * what a word is.
+ */
+export function noteWordCounts(text: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const word of tokenize(stripNonProse(stripFrontmatter(text)))) {
+    if (word.length < 3) continue;
+    if (!/\p{L}/u.test(word)) continue;
+    out.set(word, (out.get(word) ?? 0) + 1);
+  }
+  return out;
+}
+
+
+/**
  * Drop a leading YAML frontmatter block.
  *
  * Field NAMES are the problem, not their values. `zettelkastenID`,

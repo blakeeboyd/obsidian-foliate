@@ -199,3 +199,60 @@ console.log("signatures.test.ts: all assertions passed");
     "subject vocabulary outranks register once damped"
   );
 }
+
+// --- burstiness: a word the notes keep returning to outranks one they mention ---
+//
+// Church & Gale (1995): a word whose documents are ABOUT it is repeated as the
+// discussion elaborates, while a word belonging to the register of the writing
+// is said once and moved past. Their pair is "boycott" against "somewhat", each
+// around a thousand occurrences in one corpus, one clumped and one spread, with
+// matching IDF. Presence-only counting cannot tell them apart, which is why the
+// interviewee's signature read "let's, incredibly, anybody".
+{
+  const burstNotes: NoteWords[] = [];
+  const linkedBy = new Map<string, string[]>();
+  const paths: string[] = [];
+  for (let k = 0; k < 5; k++) {
+    const path = `n/talk-${k}.md`;
+    // Both words appear in exactly the same notes, so document frequency,
+    // IDF, local share and peer rate are all identical: burstiness is the only
+    // thing that can separate them.
+    burstNotes.push({ path, words: new Set(["profilicity", "anybody", `filler${k}`]) });
+    paths.push(path);
+  }
+  for (let k = 0; k < 600; k++) burstNotes.push({ path: `pad/${k}.md`, words: new Set([`pad${k}`]) });
+  linkedBy.set("c/+profilicity.md", paths);
+
+  // The subject word is returned to; the register word is said once per note.
+  const cf = new Map<string, number>([["profilicity", 40], ["anybody", 5]]);
+
+  const flat = buildSignatures(burstNotes, linkedBy, { ...DEFAULT_SIGNATURES, burstiness: 0 }, cf);
+  const weighted = buildSignatures(burstNotes, linkedBy, DEFAULT_SIGNATURES, cf);
+
+  const before = flat.byPath.get("c/+profilicity.md");
+  const after = weighted.byPath.get("c/+profilicity.md");
+  assert.ok(before && after, "the concept gets a signature either way");
+  // Identical inputs make them indistinguishable without the repeat rate.
+  assert.strictEqual(
+    before.get("profilicity"),
+    before.get("anybody"),
+    "fixture: without burstiness the two words are exactly tied"
+  );
+  assert.ok(
+    after.get("profilicity")! > after.get("anybody")!,
+    "a word the notes keep returning to outranks one they merely mention"
+  );
+  // Membership is untouched: this reorders, it never evicts.
+  assert.strictEqual(after.has("anybody"), true, "burstiness demotes, it does not filter");
+
+  // No collection frequency means no information, not a guess: signatures come
+  // out exactly as they did before counting existed.
+  const none = buildSignatures(burstNotes, linkedBy, DEFAULT_SIGNATURES);
+  assert.strictEqual(
+    none.byPath.get("c/+profilicity.md")!.get("profilicity"),
+    before.get("profilicity"),
+    "without counts the weighting is inert"
+  );
+}
+
+console.log("signatures: burstiness assertions passed");

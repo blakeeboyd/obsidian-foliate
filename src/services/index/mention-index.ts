@@ -2,13 +2,14 @@ import { App, TFile } from "obsidian";
 import { IDBPDatabase } from "idb";
 import { TaxaMapping } from "../../types";
 import { fileTerms, taxonForFile } from "../context-mining";
-import { buildDictionary, scanNote, noteWords, TermDictionary, fingerprintEntries } from "./scan";
+import { buildDictionary, scanNote, noteWords, noteWordCounts, TermDictionary, fingerprintEntries } from "./scan";
 import {
   buildSignatures,
   scoreNote,
   SignatureResult,
   SignatureHit,
   Signature,
+  DEFAULT_SIGNATURES,
 } from "./signatures";
 import { rankRelatedDocs, RelatedDoc, DEFAULT_RELATED } from "./related-docs";
 import { buildClusters, ClusterResult, EMPTY_CLUSTERS, clusterPeers } from "./clusters";
@@ -86,6 +87,15 @@ export class MentionIndex {
    * tokenizes the open note directly, since only one note is ever scored.
    */
   private words = new Map<string, Set<string>>();
+  /**
+   * Note path to how often each of its words occurs there.
+   *
+   * Held beside `words` for the same reason `words` is held beside the mention
+   * sets: it answers a different question. Presence says the note uses the
+   * word; this says whether the note keeps coming back to it, which is what
+   * separates a concept's vocabulary from the register of the writing.
+   */
+  private counts = new Map<string, Map<string, number>>();
   /**
    * Alternate path to the path that stands for its concept, from the user's
    * confirmed merges. Empty until they confirm one.
@@ -234,6 +244,7 @@ export class MentionIndex {
       const files = this.app.vault.getMarkdownFiles().filter((f) => isIndexableNote(f, []));
       this.sets = new Map();
       this.words = new Map();
+      this.counts = new Map();
       const pending: MentionRecord[] = [];
       const BATCH = 200;
       let scanned = 0;
@@ -244,10 +255,19 @@ export class MentionIndex {
         const cached = previous.get(file.path);
         // A record written before signatures existed has no words, so it is
         // rescanned once however recent its mtime is. Without this the field
-        // would stay empty for every note the user has not edited since.
-        if (cached && cached.mtime === file.stat.mtime && cached.words) {
+        // would stay empty for every note the user has not edited since. The
+        // same now applies to counts, which arrived later: an older record has
+        // words but no repeat rates, and one rescan is what upgrades it.
+        //
+        // A note that trains nothing stores an empty array for both, which is a
+        // real answer and must not be mistaken for a missing field, or every
+        // link-free note would be rescanned on every build forever.
+        if (cached && cached.mtime === file.stat.mtime && cached.words && cached.counts) {
           this.sets.set(file.path, new Set(cached.mentions));
           this.words.set(file.path, new Set(cached.words));
+          const counts = new Map<string, number>();
+          cached.words.forEach((w, i) => counts.set(w, cached.counts?.[i] ?? 1));
+          this.counts.set(file.path, counts);
           continue;
         }
 
@@ -265,13 +285,17 @@ export class MentionIndex {
         // a stored vocabulary. Measured, that is 31% of notes and less than
         // half the storage.
         const trains = this.trainsASignature(file, taxaMappings);
-        const words = trains ? noteWords(text) : null;
+        const counts = trains ? noteWordCounts(text) : null;
+        const words = counts ? new Set(counts.keys()) : null;
         if (words) this.words.set(file.path, words);
+        if (counts) this.counts.set(file.path, counts);
+        const wordList = words ? [...words] : [];
         pending.push({
           path: file.path,
           mentions: [...mentions],
           mtime: file.stat.mtime,
-          words: words ? [...words] : [],
+          words: wordList,
+          counts: counts ? wordList.map((w) => counts.get(w) ?? 1) : [],
         });
         scanned++;
 
@@ -487,7 +511,18 @@ export class MentionIndex {
     for (const [path, words] of this.words) {
       if (inScope(path)) notes.push({ path, words });
     }
-    this.signatureResult = buildSignatures(notes, linkedBy);
+    // Total occurrences per word across the same scoped notes. Divided by the
+    // document frequency inside buildSignatures, this is how often a word
+    // repeats where it appears, which is what tells subject vocabulary from the
+    // register of the writing.
+    const collectionFreq = new Map<string, number>();
+    for (const [path, counts] of this.counts) {
+      if (!inScope(path)) continue;
+      for (const [word, n] of counts) {
+        collectionFreq.set(word, (collectionFreq.get(word) ?? 0) + n);
+      }
+    }
+    this.signatureResult = buildSignatures(notes, linkedBy, DEFAULT_SIGNATURES, collectionFreq);
     this.lastSignatureMs = Date.now() - started;
     // Store them: rebuilding costs seconds of synchronous main-thread work, and
     // a vault opens far more often than its signatures meaningfully change.
@@ -610,16 +645,21 @@ export class MentionIndex {
     const mentions = scanNote(text, this.dict);
     mentions.delete(file.path);
     this.sets.set(file.path, mentions);
-    const words = this.trainsASignature(file, taxaMappings) ? noteWords(text) : null;
+    const counts = this.trainsASignature(file, taxaMappings) ? noteWordCounts(text) : null;
+    const words = counts ? new Set(counts.keys()) : null;
     if (words) this.words.set(file.path, words);
     else this.words.delete(file.path);
+    if (counts) this.counts.set(file.path, counts);
+    else this.counts.delete(file.path);
     if (this.db) {
+      const wordList = words ? [...words] : [];
       await putMentionRecords(this.db, [
         {
           path: file.path,
           mentions: [...mentions],
           mtime: file.stat.mtime,
-          words: words ? [...words] : [],
+          words: wordList,
+          counts: counts ? wordList.map((w) => counts.get(w) ?? 1) : [],
         },
       ]);
     }
@@ -630,6 +670,7 @@ export class MentionIndex {
     if (!this.ready) return;
     if (!this.sets.delete(path)) return;
     this.words.delete(path);
+    this.counts.delete(path);
     await this.open();
     if (this.db) await deleteMentionRecord(this.db, path);
     this.rebuildStats();
@@ -645,6 +686,7 @@ export class MentionIndex {
     if (this.db) await clearIndex(this.db);
     this.sets = new Map();
     this.words = new Map();
+    this.counts = new Map();
     this.stats = null;
   }
 

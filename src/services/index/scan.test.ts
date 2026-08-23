@@ -6,7 +6,7 @@
  * Run: npx tsx src/services/index/scan.test.ts
  */
 import * as assert from "assert";
-import { noteWords } from "./scan";
+import { noteWords, noteWordCounts } from "./scan";
 
 // YAML field NAMES are the problem, not their values. They appear in every note
 // built from a given template, so they look exactly like shared vocabulary and
@@ -72,3 +72,27 @@ console.log("scan.test.ts: all assertions passed");
   // Prose that genuinely says a protocol name still says it.
   assert.ok(words("The streamable HTTP transport starts here").includes("http"));
 }
+
+// --- word counts agree with word presence ---
+//
+// The two are read together when a signature is built, so a word appearing in
+// one and not the other would silently mis-weight it. Same tokens by
+// construction, and the count is what presence cannot carry.
+{
+  const text = "The door is open. The door stays open, and the door matters.";
+  const present = noteWords(text);
+  const counts = noteWordCounts(text);
+  assert.deepStrictEqual(
+    [...present].sort(),
+    [...counts.keys()].sort(),
+    "counting and presence must agree on what a word is"
+  );
+  assert.strictEqual(counts.get("door"), 3, "a repeated word is counted every time");
+  assert.strictEqual(counts.get("matters"), 1);
+  // The exclusions presence makes, counting makes too.
+  assert.strictEqual(noteWordCounts("see https://youtu.be/abc twice").has("youtu"), false);
+  assert.strictEqual(noteWordCounts("a `code` span").has("code"), false);
+  assert.strictEqual(noteWordCounts("---\nkey: value\n---\nbody here").has("key"), false);
+}
+
+console.log("scan: word-count assertions passed");

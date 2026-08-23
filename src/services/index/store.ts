@@ -44,6 +44,20 @@ export interface MentionRecord {
    * rescanned on every build forever.
    */
   words?: string[];
+  /**
+   * How many times each of `words` occurs in this note, in the same order.
+   *
+   * Parallel to `words` rather than a map, because IndexedDB stores a plain
+   * array far more compactly than an object with thousands of keys, and the two
+   * are only ever read together.
+   *
+   * The topicality signal `words` alone cannot carry: a word whose note is
+   * ABOUT it repeats, a word belonging to the note's register is said once
+   * (Church & Gale 1995). `undefined` means the record predates counting, and
+   * the note contributes only presence until it is next rescanned, which
+   * degrades the signature's ordering slightly rather than breaking it.
+   */
+  counts?: number[];
 }
 
 export interface IndexMeta {
