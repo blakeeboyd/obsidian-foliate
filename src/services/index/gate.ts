@@ -144,7 +144,19 @@ export function gateDecision(
   // single biggest saving in the pipeline, and it comes first so the expensive
   // branches run on a handful of terms.
   const ratio = df / (stats.noteCount || 1);
-  if (ratio < config.ambiguousRatio) {
+  // "Rare enough to be unmistakable" assumes the term means the file when it
+  // appears. A term the vault has NEVER linked is the case where that
+  // assumption has been tested and failed: "©Phone" occurs in 3.2% of this
+  // vault and has been linked zero times, so every occurrence so far has been
+  // the ordinary English word. Below the ambiguity bar it still took this
+  // branch and surfaced, because the branch returned before the curation ratio
+  // it had already computed was ever read.
+  //
+  // This is not the curation ratio acting as a threshold to tune. It is one
+  // question asked before a shortcut is taken: has the vault ever treated this
+  // string as a reference? An uncurated term goes on to be judged like any
+  // other rather than skipping to the front.
+  if (ratio < config.ambiguousRatio && !uncurated) {
     return { surface: true, reason: "unambiguous", evidence: [] };
   }
 

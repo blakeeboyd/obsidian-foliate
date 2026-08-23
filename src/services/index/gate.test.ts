@@ -230,3 +230,50 @@ console.log("gate: established-context assertions passed");
 }
 
 console.log("gate: curation assertions passed");
+
+// --- a rare term the vault never links is not "unambiguous" ---
+//
+// The shortcut for specific terms assumes that a term rare enough to be
+// unmistakable means its file when it appears. A term the vault has never
+// linked is exactly where that assumption has been tested and failed. On the
+// reference vault "©Phone" occurred in 3.2% of notes with zero links, sat under
+// the 5% ambiguity bar, and surfaced in a personal email alongside "©LOVE",
+// "©Curious", "+mood" and "+telling", because the branch returned before the
+// curation ratio it had already computed was read.
+{
+  const rare = "c/©Phone.md";     // under the bar, never linked
+  const real = "c/+phase.md";     // under the bar, linked often
+  const peer = "c/+reverb.md";
+
+  const mentions: Set<string>[] = [];
+  // Both appear in the same number of notes, so only curation separates them.
+  for (let i = 0; i < 30; i++) mentions.push(new Set([rare, peer]));
+  for (let i = 0; i < 30; i++) mentions.push(new Set([real, peer]));
+  // Padding so both sit below ambiguousRatio.
+  for (let i = 0; i < 900; i++) mentions.push(new Set([`c/+pad${i}.md`]));
+
+  const links: Set<string>[] = [];
+  for (let i = 0; i < 15; i++) links.push(new Set([real]));
+
+  const st = computeStats(mentions, links);
+  const cl = buildClusters(st);
+
+  const shown = gateDecision(real, new Set(), st, cl);
+  assert.strictEqual(shown.surface, true, "a rare term the vault links still shortcuts");
+  assert.strictEqual(shown.reason, "unambiguous");
+
+  const held = gateDecision(rare, new Set(), st, cl);
+  assert.notStrictEqual(
+    held.reason,
+    "unambiguous",
+    "a term the vault has never linked cannot claim to be unambiguous"
+  );
+
+  // It is judged, not banned: enough context still lets it through, and the
+  // cold branch still protects a genuinely new term with too little evidence.
+  const cold = gateDecision("c/+brand new.md", new Set(), st, cl);
+  assert.strictEqual(cold.surface, true, "too little evidence still reads as no information");
+  assert.strictEqual(cold.reason, "cold");
+}
+
+console.log("gate: uncurated-shortcut assertions passed");

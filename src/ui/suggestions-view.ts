@@ -1116,7 +1116,38 @@ export class SuggestionsView extends ItemView {
       );
     }
 
-    new Notice(lines.join("\n"), 10000);
+    // The AUTOMATIC gate, which is a different decision from the manual list
+    // above and the one that actually explains most surprising rows. Without
+    // this the answer to "why is this here" was a sentence about a list the
+    // file is not on, which is true and tells the reader nothing.
+    //
+    // The numbers are the point. A row that looks wrong usually looks wrong
+    // because the vault says something the reader does not expect: a term in 3%
+    // of notes that has never been linked is a word, not a reference, and
+    // seeing "0 links in 321 notes" is what turns a mystery row into a vault
+    // problem with an obvious fix.
+    if (this.plugin.settings.autoGateEnabled && this.plugin.mentionIndex.ready) {
+      const stats = this.plugin.mentionIndex.corpus;
+      if (stats) {
+        const df = stats.df.get(match.filePath) ?? 0;
+        const linked = stats.linkDf.get(match.filePath) ?? 0;
+        const ratio = df / (stats.noteCount || 1);
+        const curation = df + linked > 0 ? linked / (df + linked) : 0;
+        lines.push(
+          `Vault: appears in ${df} notes (${(ratio * 100).toFixed(1)}%), linked in ${linked}` +
+            ` (${(curation * 100).toFixed(1)}% of the time).`
+        );
+        const cfg = this.plugin.gateConfig();
+        if (df >= cfg.minEvidence && curation < cfg.curationFloor) {
+          lines.push(
+            "You have almost never linked this term, so the vault treats it as an" +
+              " ordinary word. Consider removing the alias or renaming the file."
+          );
+        }
+      }
+    }
+
+    new Notice(lines.join("\n"), 12000);
   }
 
   /**
@@ -2018,9 +2049,12 @@ export class SuggestionsView extends ItemView {
       });
     }
 
-    // Experimental: the context-aware action only appears when the feature is
-    // enabled, so the whole feature is dormant (no entry point) when off.
-    if (this.plugin.settings.showHiddenConnections) {
+    // Always offered. This was behind the Hidden connections setting, which
+    // made the one action that explains a surprising row unavailable to anyone
+    // who had not already turned on the section for inspecting withheld ones.
+    // "Why is this here" is the first question a wrong row provokes, and it
+    // should not require having anticipated it.
+    {
       rowActions.push({
         // The counterpart to the Hidden connections section: that explains what
         // was withheld, this explains what was shown. Together they make every
