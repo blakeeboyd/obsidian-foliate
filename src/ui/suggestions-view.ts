@@ -1379,7 +1379,7 @@ export class SuggestionsView extends ItemView {
     // On any file: concepts whose vocabulary fires here. Deduped against the
     // neighbours above, which already carry stronger evidence for the same
     // relationship.
-    for (const hit of this.plugin.mentionIndex.signatureHits(content)) {
+    for (const hit of this.plugin.mentionIndex.signatureHits(content, file.path)) {
       if (hit.path === file.path || seen.has(hit.path)) continue;
       if (linkedHere.has(hit.path) || mentionedHere.has(hit.path)) continue;
       seen.add(hit.path);

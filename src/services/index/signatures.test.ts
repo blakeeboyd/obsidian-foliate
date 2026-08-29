@@ -256,3 +256,68 @@ console.log("signatures.test.ts: all assertions passed");
 }
 
 console.log("signatures: burstiness assertions passed");
+
+// --- neighbour evidence promotes, never admits ---
+//
+// A note that links "@Ocean Vuong" is about that neighbourhood, so concepts
+// beside Vuong deserve to rank even where the note's own words are thin. Tier 3
+// supplementing tier 2, which is a different move from the gate's failure:
+// there tier 3 SUBSTITUTED for absent tier-2 evidence in a decision that hid
+// things. Here tier 2 leads, tier 3 only reorders, nothing is hidden.
+{
+  const nNotes: NoteWords[] = [];
+  const linkedBy = new Map<string, string[]>();
+  // Two concepts with equal, thin lexical presence in the scored note.
+  for (const name of ["near", "far"]) {
+    const paths: string[] = [];
+    for (let k = 0; k < 4; k++) {
+      const path = `n/${name}-${k}.md`;
+      nNotes.push({ path, words: new Set([`${name}word1`, `${name}word2`, `${name}word3`, `sharedtopic`]) });
+      paths.push(path);
+    }
+    linkedBy.set(`c/+${name}.md`, paths);
+  }
+  for (let k = 0; k < 400; k++) nNotes.push({ path: `pad/${k}.md`, words: new Set([`pad${k}`]) });
+
+  const sigs = buildSignatures(nNotes, linkedBy, DEFAULT_SIGNATURES);
+  // A note whose words fire BOTH signatures equally.
+  const scored = new Set(["nearword1", "nearword2", "nearword3", "farword1", "farword2", "farword3"]);
+
+  const flat = scoreNote(scored, sigs);
+  const nearFlat = flat.find((h) => h.path === "c/+near.md");
+  const farFlat = flat.find((h) => h.path === "c/+far.md");
+  assert.ok(nearFlat && farFlat, "both concepts fire");
+  assert.strictEqual(nearFlat.score, farFlat.score, "fixture: lexically tied without neighbours");
+
+  // The note links something associated with "+near" only.
+  const withNeighbours = scoreNote(scored, sigs, 3, {
+    linked: new Set(["c/+anchor.md"]),
+    association: (a) => (a === "c/+near.md" ? 0.5 : 0),
+    weight: DEFAULT_SIGNATURES.neighbourWeight,
+  });
+  assert.strictEqual(withNeighbours[0].path, "c/+near.md", "association breaks the tie");
+  assert.ok(
+    withNeighbours.find((h) => h.path === "c/+far.md")!.score === farFlat.score,
+    "a concept with no association is left exactly as it was"
+  );
+
+  // It reorders candidates; it never admits one. A concept that failed the
+  // lexical floor stays out however strongly associated it is.
+  const absent = withNeighbours.find((h) => h.path === "c/+unrelated.md");
+  assert.strictEqual(absent, undefined, "association cannot admit a concept the words never fired");
+
+  // A concept the note already links is skipped: its signature was trained
+  // partly on this note, so it is guaranteed to fire and means nothing.
+  const selfLinked = scoreNote(scored, sigs, 3, {
+    linked: new Set(["c/+near.md"]),
+    association: () => 0.9,
+    weight: DEFAULT_SIGNATURES.neighbourWeight,
+  });
+  assert.strictEqual(
+    selfLinked.find((h) => h.path === "c/+near.md")!.score,
+    nearFlat.score,
+    "a concept the note already links is not promoted by its own link"
+  );
+}
+
+console.log("signatures: neighbour assertions passed");

@@ -10,6 +10,7 @@ import {
   SignatureHit,
   Signature,
   DEFAULT_SIGNATURES,
+  NeighbourContext,
 } from "./signatures";
 import { rankRelatedDocs, RelatedDoc, DEFAULT_RELATED } from "./related-docs";
 import { buildClusters, ClusterResult, EMPTY_CLUSTERS, clusterPeers } from "./clusters";
@@ -25,6 +26,7 @@ import {
   UsageOverlap,
   curationRatio,
   pairKey,
+  npmi,
 } from "./stats";
 import {
   openIndexDb,
@@ -384,9 +386,33 @@ export class MentionIndex {
    * note at a time, on demand, so tokenizing it costs less than storing every
    * note's vocabulary forever.
    */
-  signatureHits(text: string): SignatureHit[] {
+  signatureHits(text: string, notePath?: string): SignatureHit[] {
     if (this.signatureResult.byPath.size === 0) return [];
-    return scoreNote(noteWords(text), this.signatureResult);
+    return scoreNote(
+      noteWords(text),
+      this.signatureResult,
+      3,
+      notePath ? this.neighbourContext(notePath) : undefined
+    );
+  }
+
+  /**
+   * What a note's own links say about which concepts are near it.
+   *
+   * Undefined when the note links nothing or the statistics are not built, so
+   * absence of the signal reads as no information rather than as evidence
+   * against, which is the rule the gate and the peer baseline both follow.
+   */
+  private neighbourContext(notePath: string): NeighbourContext | undefined {
+    const stats = this.stats;
+    if (!stats || DEFAULT_SIGNATURES.neighbourWeight <= 0) return undefined;
+    const linked = this.links.get(notePath);
+    if (!linked || linked.size === 0) return undefined;
+    return {
+      linked: this.fold(linked),
+      association: (a, b) => npmi(a, b, stats) ?? 0,
+      weight: DEFAULT_SIGNATURES.neighbourWeight,
+    };
   }
 
   /**

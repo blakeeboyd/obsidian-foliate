@@ -176,6 +176,30 @@ export interface SignatureConfig {
    * burstiness alone 0.5746, peers alone 0.5947, both 0.6159.
    */
   burstiness: number;
+  /**
+   * How much the concepts a note LINKS may promote the ones it does not.
+   *
+   * Expressed as a share of the note's own strongest lexical score, so it is
+   * scale-free (see NeighbourContext.weight).
+   *
+   * Measured on the reference vault, split by whether a fold has any neighbour
+   * evidence at all, because a gain concentrated in a few folds must not be
+   * reported as a global one:
+   *
+   *   with evidence (12 of 89): MRR 0.3736 to 0.7083, top-1 8.3% to 50.0%
+   *   without      (77 of 89): MRR 0.6485 to 0.6485, unchanged
+   *
+   * The 12 are the hardest folds in the set: lexical alone scores 0.37 on them
+   * against 0.65 for the rest, so they are notes whose own words do not
+   * identify the concept, which is the case signatures exist for.
+   *
+   * 0.7 rather than the 0.9 that maximises the headline. At 0.9 the hard folds
+   * reach 0.83 and two of the other 77 are demoted a place or two; at 0.7 the
+   * rest are untouched. Association is meant to break ties among candidates
+   * that already earned their place lexically, and the conservative value is
+   * the one that keeps that true.
+   */
+  neighbourWeight: number;
 }
 
 export const DEFAULT_SIGNATURES: SignatureConfig = {
@@ -188,6 +212,7 @@ export const DEFAULT_SIGNATURES: SignatureConfig = {
   peerPopulation: 150,
   crossConceptDamping: 0.25,
   burstiness: 0.5,
+  neighbourWeight: 0.7,
 };
 
 /** A note's contribution to the signatures of the concepts it links. */
@@ -436,10 +461,54 @@ export interface SignatureHit {
  * Reads the inverted index rather than scanning every signature, so the cost is
  * proportional to the note's vocabulary and not to how many concepts exist.
  */
+/**
+ * Evidence from the concepts a note LINKS, for scoring the ones it does not.
+ *
+ * Tier 3 in 43.10.106's table: other taxa that travel with a concept. Supplied
+ * separately from the note's words because it answers a different question, and
+ * because it must never be the only answer.
+ */
+export interface NeighbourContext {
+  /** Taxa files this note links, from Obsidian's own graph. */
+  linked: Set<string>;
+  /** Association between two taxa paths, 0 or less meaning none. */
+  association: (a: string, b: string) => number;
+  /**
+   * The neighbour term's share of the note's own strongest lexical evidence.
+   *
+   * A share rather than an absolute number, because the two quantities live on
+   * different scales: NPMI runs 0 to 0.6 and a lexical score is a sum of
+   * signature weights running 70 to 170 on this vault. An absolute bonus
+   * measured as no effect at all, which read as a null result and was a unit
+   * error.
+   */
+  weight: number;
+}
+
 export function scoreNote(
   words: Set<string>,
   signatures: SignatureResult,
-  minWords = 3
+  minWords = 3,
+  /**
+   * What the note links, used to promote concepts near those.
+   *
+   * A note that links "@Ocean Vuong" is about that neighbourhood, so concepts
+   * beside Vuong deserve to rank even where the note's own words are thin. That
+   * is exactly the case lexical scoring fails: measured on the reference vault,
+   * folds with neighbour evidence score 0.37 MRR on words alone against 0.65
+   * for the rest, and this takes them to 0.71.
+   *
+   * Deliberately subordinate, and that is the whole design. Tier 3 can only see
+   * concepts the user has ALREADY FILED as files, so it can never be what finds
+   * the unfiled, which is the plugin's reason to exist. 43.10.106 diagnosed the
+   * gate's failure as tier-3 data doing tier-2 work: it was asked to SUBSTITUTE
+   * for evidence that did not exist, in a decision that HID things. Here tier 2
+   * exists and leads, tier 3 only reorders, and nothing is hidden on it.
+   *
+   * A concept the note already links is skipped: its signature was trained
+   * partly on this note, so it is guaranteed to fire and means nothing.
+   */
+  neighbours?: NeighbourContext
 ): SignatureHit[] {
   const totals = new Map<string, { score: number; matched: { word: string; weight: number }[] }>();
   for (const word of words) {
@@ -465,5 +534,23 @@ export function scoreNote(
     hits.push({ path, score: entry.score, matched: entry.matched.map((m) => m.word) });
   }
   hits.sort((a, b) => b.score - a.score);
+
+  // Promote what sits near the concepts this note links. After the lexical sort
+  // and the minWords floor, so a concept still has to earn its place on words
+  // before association can move it: association reorders candidates, it never
+  // admits one.
+  if (neighbours && neighbours.weight > 0 && neighbours.linked.size > 0 && hits.length > 0) {
+    const top = hits[0].score;
+    for (const hit of hits) {
+      if (neighbours.linked.has(hit.path)) continue;
+      let association = 0;
+      for (const linked of neighbours.linked) {
+        const strength = neighbours.association(hit.path, linked);
+        if (strength > 0) association += strength;
+      }
+      if (association > 0) hit.score += neighbours.weight * top * association;
+    }
+    hits.sort((a, b) => b.score - a.score);
+  }
   return hits;
 }
