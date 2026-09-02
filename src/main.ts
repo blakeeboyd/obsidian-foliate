@@ -1,4 +1,13 @@
 import { Editor, EditorPosition, Notice, Plugin, TAbstractFile, TFile, MarkdownView, addIcon } from "obsidian";
+
+/**
+ * How long to wait after the last edit to a note before reindexing it.
+ *
+ * Long enough to collapse a burst of autosaves into one rebuild, short enough
+ * that the sidebar is current by the time the reader looks away and back. The
+ * sidebar has its own refresh path and does not wait on this.
+ */
+const INDEX_EDIT_DEBOUNCE_MS = 800;
 import { FoliateSettings, TaxaMapping, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, DEFAULT_DOMAIN, findTaxonByPrefix } from "./taxa";
 import { FoliateSettingTab } from "./settings";
@@ -163,11 +172,34 @@ export default class FoliatePlugin extends Plugin {
 
       const taxa = () => [...this.settings.taxaMappings, this.settings.domain];
 
+      // Coalesce edits per file before touching the index.
+      //
+      // Obsidian fires `modify` on autosave, roughly every couple of seconds
+      // while typing, and each one reindexed the note and rederived the whole
+      // corpus: measured at 259ms of synchronous main-thread work on this vault
+      // to account for a single changed note. During a writing session that is
+      // a stutter every few seconds, and it grows with the vault.
+      //
+      // Per file rather than one timer for the whole handler, because a single
+      // shared debounce would drop an edit to note B when note A is also being
+      // written (a sync client touching files in the background is enough).
+      const pendingEdits = new Map<string, ReturnType<typeof setTimeout>>();
+      this.register(() => {
+        for (const timer of pendingEdits.values()) clearTimeout(timer);
+        pendingEdits.clear();
+      });
       this.registerEvent(
         this.app.vault.on("modify", (file) => {
-          if (file instanceof TFile && file.extension === "md") {
-            void this.mentionIndex.updateNote(file, taxa());
-          }
+          if (!(file instanceof TFile) || file.extension !== "md") return;
+          const existing = pendingEdits.get(file.path);
+          if (existing) clearTimeout(existing);
+          pendingEdits.set(
+            file.path,
+            setTimeout(() => {
+              pendingEdits.delete(file.path);
+              void this.mentionIndex.updateNote(file, taxa());
+            }, INDEX_EDIT_DEBOUNCE_MS)
+          );
         })
       );
       this.registerEvent(

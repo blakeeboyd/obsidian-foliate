@@ -443,10 +443,28 @@ export class MentionIndex {
     return { built: this.signatureResult.byPath.size, thin: this.signatureResult.thin.length };
   }
 
-  /** The latent clusters, rebuilt with the statistics they are derived from. */
+  /** The latent clusters, derived from the statistics on first read after a change. */
   private clusterResult: ClusterResult = EMPTY_CLUSTERS;
+  /**
+   * Whether the statistics have moved since the clusters were last derived.
+   *
+   * Louvain is a global algorithm over the whole co-link graph, so it cannot be
+   * updated for one note: it has to run again or not at all. Measured at 57ms,
+   * which is cheap once and expensive thirty times a minute, and one edited note
+   * changes almost no community assignments.
+   *
+   * So it is computed on demand rather than on write. Only the gate and the
+   * index report read clusters, both far less often than a note is saved, and
+   * the work is identical when it does run. This is the same argument the
+   * signature rebuild already makes, applied one level up.
+   */
+  private clustersStale = true;
 
   get clusters(): ClusterResult {
+    if (this.clustersStale) {
+      this.clusterResult = this.stats ? buildClusters(this.stats) : EMPTY_CLUSTERS;
+      this.clustersStale = false;
+    }
     return this.clusterResult;
   }
 
@@ -459,9 +477,8 @@ export class MentionIndex {
       [...this.links.values()].map((s) => this.fold(s))
     );
     this.linkCounts = null;
-    // Measured at 8ms on a 1,760-node graph, so this rides along with every
-    // rebuild rather than being scheduled separately.
-    this.clusterResult = this.stats ? buildClusters(this.stats) : EMPTY_CLUSTERS;
+    // Marked rather than rebuilt: see `clusters`.
+    this.clustersStale = true;
   }
 
   /**
@@ -632,7 +649,8 @@ export class MentionIndex {
 
   /** Taxa sharing a settled cluster with this one. Empty when unsettled. */
   peersOf(taxaPath: string): string[] {
-    return clusterPeers(taxaPath, this.clusterResult);
+    // Through the getter, not the field: the field is stale until read.
+    return clusterPeers(taxaPath, this.clusters);
   }
 
   /**
@@ -831,12 +849,23 @@ export class MentionIndex {
     for (const [keeper, others] of this.canonical) merged.add(pairKey(keeper, others));
     // Terms come from the same dictionary the scan uses, so "shared term" means
     // exactly what the matcher would collide on.
+    //
+    // Memoised, because this is called twice per pair across every pair in the
+    // corpus: 145,008 pairs on this vault, so 290,000 calls, each doing a vault
+    // lookup, a taxon match and a metadata-cache read for one of a few thousand
+    // distinct files. The answer depends only on the path.
+    const termsCache = new Map<string, string[]>();
     const termsOf = (path: string): string[] => {
+      const cached = termsCache.get(path);
+      if (cached) return cached;
+      let terms: string[] = [];
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (!(file instanceof TFile)) return [];
-      const taxon = taxonForFile(file, taxaMappings ?? []);
-      if (!taxon) return [];
-      return fileTerms(this.app, file, taxon).map((t) => t.toLowerCase());
+      if (file instanceof TFile) {
+        const taxon = taxonForFile(file, taxaMappings ?? []);
+        if (taxon) terms = fileTerms(this.app, file, taxon).map((t) => t.toLowerCase());
+      }
+      termsCache.set(path, terms);
+      return terms;
     };
 
     return findUsageOverlaps(this.stats, { minJaccard, prefixOf, termsOf }).filter(
