@@ -107,6 +107,15 @@ export class SuggestionsView extends ItemView {
         this.onActiveFileChange();
       })
     );
+    // Opening a different note in the SAME leaf does not reliably fire
+    // active-leaf-change: following a link, the back and forward buttons and the
+    // quick switcher all reuse the leaf, so the sidebar kept showing the note
+    // that had been open before. This is the event that names a file directly.
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => {
+        this.onActiveFileChange();
+      })
+    );
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (this.plugin.settings.autoScan && file === this.currentFile) {
@@ -662,9 +671,38 @@ export class SuggestionsView extends ItemView {
     const timer = window.setTimeout(run, 2000);
   }
 
+  /**
+   * The note the sidebar should be describing.
+   *
+   * `getActiveFile()` follows focus, and focus includes this sidebar: clicking a
+   * row, the search box or a tab makes the Foliate leaf active, and the answer
+   * can then be stale or null. Reading the most recent markdown leaf instead
+   * keeps the panel pointed at the note the reader is looking at, which is the
+   * only thing it is ever about.
+   */
+  private resolveActiveFile(): TFile | null {
+    const active = this.app.workspace.getActiveFile();
+    if (active && active.extension === "md") return active;
+    const leaf = this.app.workspace.getMostRecentLeaf();
+    if (leaf?.view instanceof MarkdownView && leaf.view.file) return leaf.view.file;
+    // No markdown leaf at all: a non-note is genuinely open, and `active` says
+    // which so the caller can render the right empty state.
+    return active;
+  }
+
   private onActiveFileChange() {
-    const file = this.app.workspace.getActiveFile();
-    if (!file || file === this.currentFile) return;
+    const file = this.resolveActiveFile();
+    if (file === this.currentFile) return;
+    // Everything closed. Returning early here left the last note's rows on
+    // screen, which is the one thing this panel must never do: every row is a
+    // claim about the note in front of the reader, and there is no note.
+    if (!file) {
+      this.currentFile = null;
+      this.dismissed.clear();
+      this.jumpIndex.clear();
+      this.renderEmptyState("Open a note to see suggestions.");
+      return;
+    }
 
     // Only markdown notes can be scanned. Reading a non-note (PDF, image,
     // canvas, audio) would feed binary/non-markdown content to the scanner and
