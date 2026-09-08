@@ -2071,7 +2071,7 @@ export class SuggestionsView extends ItemView {
     const others = terms.filter((x) => x.trim().toLowerCase() !== lower);
     if (others.length === 0) return;
 
-    const mark = target.createSpan({ cls: "foliate-overbroad-mark", text: "\u00b0" });
+    const mark = target.createSpan({ cls: "foliate-overbroad-mark", text: "!" });
     mark.setAttribute(
       "aria-label",
       `Surfaced by "${t}", an abbreviation. This note never says "${full}". ` +
