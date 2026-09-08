@@ -608,6 +608,20 @@
   white-space: nowrap;
 }
 
+/* Expanded: one word per line, so each can be read and clicked without the
+   others crowding it. The collapsed rules above are all about fitting a
+   summary on one line, so every one of them has to be undone here. */
+.foliate-related-why.is-expanded {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  margin-top: 3px;
+}
+
 /* Misplaced taxa files modal */
 .foliate-misplaced-modal .modal-content {
   max-height: 70vh;

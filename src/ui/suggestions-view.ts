@@ -1282,7 +1282,7 @@ export class SuggestionsView extends ItemView {
     row.dataset.search = `${name} ${target.path} ${target.matched.join(" ")}`.toLowerCase();
 
     const title = row.createDiv("foliate-hidden-title");
-    title.createSpan({ text: name });
+    const nameSpan = title.createSpan({ text: name });
     title.createSpan({
       cls: "foliate-hidden-count",
       text: target.linked
@@ -1309,27 +1309,61 @@ export class SuggestionsView extends ItemView {
       // Only the words, not the row: the row still opens the related file,
       // which is a different and also useful destination.
       const why = row.createDiv({ cls: "foliate-related-why" });
-      target.matched.slice(0, 6).forEach((word, i) => {
-        if (i > 0) why.appendText(", ");
-        const span = why.createSpan({ text: word, cls: "foliate-related-word" });
-        span.setAttribute("aria-label", `Find "${word}" in this note`);
-        span.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          evt.preventDefault();
-          const hits = findUnlinkedPositions(this.lastContent, word);
-          if (hits.length === 0) {
-            new Notice(`"${word}" is in this note's vocabulary but not its prose.`);
-            return;
-          }
-          void this.jumpToOccurrence(
-            `why:${target.path}:${word}`,
-            hits,
-            this.lastContent,
-            sourceFile,
-            word.length
-          );
+
+      /**
+       * Draw the words, either as one comma-separated line or one per row.
+       *
+       * Collapsed is the resting state because six words on a line is a
+       * summary and the reader is usually scanning rows rather than auditing
+       * one. Expanded gives each word its own line so it can be read and
+       * clicked without the others crowding it, and shows every word rather
+       * than the first six: a row that is being audited should not be hiding
+       * part of its own evidence.
+       */
+      const paintWords = (expanded: boolean) => {
+        why.empty();
+        why.toggleClass("is-expanded", expanded);
+        const words = expanded ? target.matched : target.matched.slice(0, 6);
+        words.forEach((word, i) => {
+          if (!expanded && i > 0) why.appendText(", ");
+          const span = why.createSpan({ text: word, cls: "foliate-related-word" });
+          span.setAttribute("aria-label", `Find "${word}" in this note`);
+          span.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            evt.preventDefault();
+            const hits = findUnlinkedPositions(this.lastContent, word);
+            if (hits.length === 0) {
+              new Notice(`"${word}" is in this note's vocabulary but not its prose.`);
+              return;
+            }
+            void this.jumpToOccurrence(
+              `why:${target.path}:${word}`,
+              hits,
+              this.lastContent,
+              sourceFile,
+              word.length
+            );
+          });
         });
+        if (!expanded && target.matched.length > 6) {
+          why.appendText(`, and ${target.matched.length - 6} more`);
+        }
+      };
+      paintWords(false);
+
+      // The NAME toggles the list; the rest of the row still opens the file.
+      // Two destinations on one row need two targets, and the name is the part
+      // the reader is already pointing at when they wonder what a row is doing
+      // here.
+      nameSpan.addClass("foliate-clickable");
+      let expanded = false;
+      nameSpan.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        evt.preventDefault();
+        expanded = !expanded;
+        paintWords(expanded);
       });
+      nameSpan.setAttribute("aria-label", `Show the words that relate ${name} to this note`);
     }
     row.setAttribute(
       "aria-label",
