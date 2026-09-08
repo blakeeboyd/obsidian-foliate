@@ -1453,11 +1453,14 @@ export class SuggestionsView extends ItemView {
         this.plugin.settings.relatedDocFolders
       )) {
         if (r.kind !== "taxa" || seen.has(r.path)) continue;
-        // A concept already linked here is a connection the user has made, and
-        // it is listed as a backlink in this sidebar and in Obsidian's own pane.
-        // Ranking put those rows first (a link outweighs any vocabulary
-        // overlap), so the top of this section was the backlink list rebuilt,
-        // and the connections it exists to surface were pushed below them.
+        // Linked rows are excluded by the ranker now, for both taxa and
+        // documents, so this guard is belt and braces: it also catches a link
+        // Obsidian's cache knows about that the index has not rescanned yet.
+        //
+        // The reasoning is the same either way. A concept already linked here
+        // is a connection the user has made, listed as a backlink in this
+        // sidebar and in Obsidian's own pane, and ranking put those rows first,
+        // so the top of this section was the backlink list rebuilt.
         //
         // Only the DISPLAY drops them. The link still feeds the ranking of
         // everything else, which is where its evidence belongs: the neighbours

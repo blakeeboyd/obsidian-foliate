@@ -1,7 +1,8 @@
 /**
- * Ranking is the safe direction, but only if the order is right: the whole
- * point is that a document the user linked outranks one that merely shares
- * vocabulary, and that a document sharing vocabulary can appear at all.
+ * The section answers one question: which documents relate to this concept that
+ * the reader has NOT already connected. So a document that links the concept is
+ * excluded (it is a backlink, and the sidebar lists those separately) while a
+ * document that merely shares vocabulary is exactly what belongs here.
  *
  * Run: npx tsx src/services/index/related-docs.test.ts
  */
@@ -40,11 +41,16 @@ const mentionSets = new Map<string, Set<string>>([["mentions/m.md", new Set([CON
 const ranked = rankRelatedDocs(CONCEPT, mentionSets, linkSets, signatures, noteWords);
 const at = (p: string) => ranked.findIndex((r) => r.path === p);
 
-// A link is the user asserting what a document is about. Inference must never
-// outrank a statement.
+// A document the user already linked is a backlink, not a discovery. Listing it
+// answered a question nobody asked and pushed out the answers to the one they
+// did: two sources on entirely different subjects appeared as "related" because
+// each independently linked the open file.
 assert.ok(ranked.length > 0, "something ranks");
-assert.ok(ranked[0].linked, "a linked document ranks first");
-assert.ok(at("unnamed/a.md") > at(linked[0]), "vocabulary alone ranks below a link");
+assert.ok(
+  ranked.every((r) => !r.linked),
+  "a document that links this concept is not offered as related to it"
+);
+assert.strictEqual(at(linked[0]), -1, "specifically, the linked documents are absent");
 
 // The capability that does not exist without signatures: a document that never
 // names the concept still appears.
@@ -58,9 +64,9 @@ assert.ok(
 assert.strictEqual(at("unrelated/b.md"), -1, "an unrelated document is not ranked");
 assert.strictEqual(at("filler/f0.md"), -1, "filler is not ranked");
 
-// A mention counts, and ranks below a link.
+// A mention stays: a document that names the term without linking it is the
+// unlinked relationship this list exists to surface.
 assert.ok(at("mentions/m.md") >= 0, "a mentioning document is ranked");
-assert.ok(at("mentions/m.md") > at(linked[0]), "a mention ranks below a link");
 
 // A concept with no signature still ranks its links and mentions rather than
 // returning nothing: an absent signal contributes zero, never a penalty.
@@ -71,26 +77,28 @@ const noSig = rankRelatedDocs(
   { byPath: new Map(), inverted: new Map(), thin: [] },
   noteWords
 );
-assert.strictEqual(noSig.length, 2, "links and mentions rank without a signature");
-assert.strictEqual(noSig[0].path, "l.md", "the linked one is still first");
+assert.strictEqual(noSig.length, 1, "the mention ranks without a signature");
+assert.strictEqual(noSig[0].path, "m.md", "and the linked document stays out");
 
 // A concept nothing points at ranks nothing, and does not throw.
 const empty = rankRelatedDocs("c/+nothing.md", new Map(), new Map(), signatures, noteWords);
 assert.strictEqual(empty.length, 0, "an unused concept ranks nothing");
 
-// The limit is honoured.
+// The limit is honoured, and it caps what remains after the linked documents
+// are excluded rather than before.
 const capped = rankRelatedDocs(CONCEPT, mentionSets, linkSets, signatures, noteWords, {
   ...DEFAULT_RELATED,
-  limit: 3,
+  limit: 1,
 });
-assert.strictEqual(capped.length, 3, "the limit caps the list");
+assert.strictEqual(capped.length, 1, "the limit caps the list");
+assert.ok(capped.every((r) => !r.linked), "and it never fills the cap with backlinks");
 
-// The finding that shaped the ranking. Linked documents also score well on
-// vocabulary, since the signature was learned partly from them, so in one list
-// they take every slot at any weighting. Measured on the reference vault, at a
-// signature weight of 30 exactly one unlinked document reached the top eight
-// for "+phase". Reserving slots for inferred results is the whole feature: a
-// list of documents the user already linked tells them nothing new.
+// The finding that shaped this. Linked documents also score well on vocabulary,
+// since the signature was learned partly from them, so in one list they take
+// every slot at any weighting: measured on the reference vault, at a signature
+// weight of 30 exactly one unlinked document reached the top eight for "+phase".
+// Reserving slots for them was the first answer; excluding them is the right
+// one, because the backlink section already lists them.
 {
   // The corpus has to be large enough that the concept's vocabulary is still
   // unusual against the notes that resemble its training set. With 28 linked
@@ -117,9 +125,12 @@ assert.strictEqual(capped.length, 3, "the limit caps the list");
   });
   assert.ok(
     r.some((d) => d.path === "hidden/gem.md"),
-    "an unlinked document still appears when 28 linked ones compete"
+    "an unlinked document appears even when 28 linked ones would have crowded it out"
   );
-  assert.ok(r[0].linked, "and the linked documents still come first");
+  assert.ok(
+    r.every((d) => !d.linked),
+    "and none of those 28 take a slot, because the backlink list already has them"
+  );
 }
 
 // A taxa file is not a document. "@Becky Kennedy relates to +personal
@@ -127,11 +138,13 @@ assert.strictEqual(capped.length, 3, "the limit caps the list");
 // is a source about her. The first version ranked both in one list, so a
 // concept was offered as though it were a document.
 {
-  const links = new Map<string, Set<string>>([
+  // Mentions rather than links, since a linked file is now excluded outright
+  // and this is about how the rows that remain are classified.
+  const mentions = new Map<string, Set<string>>([
     ["10-19/concept/+boundary.md", new Set([CONCEPT])],
     ["19 Sources/19.1 interview.md", new Set([CONCEPT])],
   ]);
-  const r = rankRelatedDocs(CONCEPT, new Map(), links, signatures, noteWords, {
+  const r = rankRelatedDocs(CONCEPT, mentions, new Map(), signatures, noteWords, {
     ...DEFAULT_RELATED,
     taxaFolders: ["10-19/concept"],
   });
@@ -143,12 +156,13 @@ assert.strictEqual(capped.length, 3, "the limit caps the list");
 // Documents can be scoped to chosen folders; taxa never are, since the taxa
 // layer is the vault's own vocabulary and needs no scoping.
 {
-  const links = new Map<string, Set<string>>([
+  // Mentions, for the same reason as above.
+  const mentions = new Map<string, Set<string>>([
     ["10-19/concept/+boundary.md", new Set([CONCEPT])],
     ["19 Sources/19.1 interview.md", new Set([CONCEPT])],
     ["session-logs/2026-01-01.md", new Set([CONCEPT])],
   ]);
-  const r = rankRelatedDocs(CONCEPT, new Map(), links, signatures, noteWords, {
+  const r = rankRelatedDocs(CONCEPT, mentions, new Map(), signatures, noteWords, {
     ...DEFAULT_RELATED,
     taxaFolders: ["10-19/concept"],
     documentFolders: ["19 Sources"],

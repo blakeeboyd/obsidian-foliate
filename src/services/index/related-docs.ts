@@ -186,18 +186,19 @@ export function rankRelatedDocs(
     }
   }
 
-  const all = [...rows.values()];
-  const known = all.filter((r) => r.linked || r.mentions).sort((a, b) => b.score - a.score);
-  const inferred = all.filter((r) => !r.linked && !r.mentions).sort((a, b) => b.score - a.score);
-
-  // Both bands get room. Reserving a share for inferred results is the point of
-  // the feature: a list of documents the user already linked tells them nothing
-  // they did not know.
-  const inferredSlots = Math.min(inferred.length, Math.max(1, Math.floor(config.limit / 3)));
-  return [
-    ...known.slice(0, config.limit - inferredSlots),
-    ...inferred.slice(0, inferredSlots),
-  ];
+  // A document that LINKS this file is a backlink, and the sidebar already has
+  // a section for those. Listing it here answered a question the reader did not
+  // ask and pushed out the answers to the one they did: two sources on entirely
+  // different subjects appeared as "related" because each independently linked
+  // the open file, which makes them siblings in the backlink list and nothing
+  // to each other.
+  //
+  // A link still counts toward the RANKING of everything else, where it belongs.
+  // What the section shows is what the reader has not already connected.
+  const all = [...rows.values()].filter((r) => !r.linked);
+  // Mentions stay: a document that names the term without linking it is exactly
+  // the unlinked relationship this list exists to surface.
+  return all.sort((a, b) => b.score - a.score).slice(0, config.limit);
 }
 
 /** Total weight in a signature, for normalizing an overlap against it. */
