@@ -72,6 +72,22 @@ export interface RelatedConfig {
   /** How many documents to return. */
   limit: number;
   /**
+   * Share of notes above which a term's bare appearance stops being evidence.
+   *
+   * A mention created a row with no further test, which is fine for a term
+   * nobody writes by accident and close to meaningless for one they do.
+   * Measured on the reference vault, "+phase" is in 15.9% of notes, three times
+   * this bar, so "this document says phase" ranked an interview about
+   * recovery ("the early phase of recovery"), an essay on AI ("mature past this
+   * phase") and a mastering source alongside each other, and only the last
+   * meant the concept.
+   *
+   * Above the bar a mention has to be corroborated by signature overlap, which
+   * is the same rule Unlinked Mentions applies for the same reason. Below it a
+   * mention still stands on its own.
+   */
+  ambiguousRatio: number;
+  /**
    * Folders the taxa layer lives in, from the taxa mappings.
    *
    * A file inside one of these is another taxa file, not a document. The two
@@ -97,6 +113,7 @@ export const DEFAULT_RELATED: RelatedConfig = {
   mentionWeight: 1,
   signatureWeight: 3,
   minSignatureWords: 5,
+  ambiguousRatio: 0.05,
   limit: 25,
   taxaFolders: [],
   documentFolders: [],
@@ -130,7 +147,13 @@ export function rankRelatedDocs(
   signatures: SignatureResult,
   /** Note path to its vocabulary. Only notes that can train a signature have one. */
   noteWords: Map<string, Set<string>>,
-  config: RelatedConfig = DEFAULT_RELATED
+  config: RelatedConfig = DEFAULT_RELATED,
+  /**
+   * How widespread this term is, so a bare mention of a common one can be
+   * asked for corroboration. Omitted means no ambiguity is known and every
+   * mention counts, which is how this behaved before.
+   */
+  ambiguity?: { df: number; noteCount: number }
 ): RelatedDoc[] {
   const signature = signatures.byPath.get(taxaPath);
   const rows = new Map<string, RelatedDoc>();
@@ -214,9 +237,20 @@ export function rankRelatedDocs(
   //
   // A link still counts toward the RANKING of everything else, where it belongs.
   // What the section shows is what the reader has not already connected.
-  const all = [...rows.values()].filter((r) => !r.linked);
-  // Mentions stay: a document that names the term without linking it is exactly
-  // the unlinked relationship this list exists to surface.
+  const ratio =
+    ambiguity && ambiguity.noteCount > 0 ? ambiguity.df / ambiguity.noteCount : 0;
+  const termIsAmbiguous = ratio >= config.ambiguousRatio;
+
+  const all = [...rows.values()].filter((r) => {
+    // A document the user linked is a backlink, listed separately.
+    if (r.linked) return false;
+    // A mention of a common word is not evidence on its own. "The early phase
+    // of recovery" is not about phase, and nothing in a bare string match can
+    // tell it from "phase distortion". Signature overlap can, so above the
+    // ambiguity bar a mention has to bring some.
+    if (termIsAmbiguous && r.mentions && r.matched.length === 0) return false;
+    return true;
+  });
   return all.sort((a, b) => b.score - a.score).slice(0, config.limit);
 }
 

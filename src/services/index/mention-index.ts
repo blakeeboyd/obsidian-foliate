@@ -430,12 +430,17 @@ export class MentionIndex {
   ): RelatedDoc[] {
     if (!this.stats) return [];
     const taxaFolders = taxaMappings.map((t) => t.folder).filter((f) => f.length > 0);
-    return rankRelatedDocs(taxaPath, this.sets, this.links, this.signatureResult, this.words, {
-      ...DEFAULT_RELATED,
-      limit,
-      taxaFolders,
-      documentFolders,
-    });
+    return rankRelatedDocs(
+      taxaPath,
+      this.sets,
+      this.links,
+      this.signatureResult,
+      this.words,
+      { ...DEFAULT_RELATED, limit, taxaFolders, documentFolders },
+      // How common this term is, so a bare mention of an everyday word can be
+      // asked to bring more than the string.
+      { df: this.stats.df.get(taxaPath) ?? 0, noteCount: this.stats.noteCount }
+    );
   }
 
   /** How many concepts have a signature, and how many were too thin for one. */

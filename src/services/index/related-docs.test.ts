@@ -174,3 +174,69 @@ assert.ok(capped.every((r) => !r.linked), "and it never fills the cap with backl
 }
 
 console.log("related-docs.test.ts: all assertions passed");
+
+// --- a bare mention of a common word is not evidence ---
+//
+// A mention created a row with no further test. That is right for a term nobody
+// writes by accident and close to meaningless for one they do: "+phase" is in
+// 15.9% of the reference vault, so "this document says phase" ranked an
+// interview about recovery ("the early phase of recovery") and an essay on AI
+// ("mature past this phase") beside a mastering source.
+{
+  const AMB = "c/+phase.md";
+  const mentions = new Map<string, Set<string>>([
+    ["docs/ordinary-english.md", new Set([AMB])],
+    ["docs/really-about-it.md", new Set([AMB])],
+  ]);
+  // Only the second shares the concept's vocabulary.
+  const notes: NoteWords[] = [];
+  const trained: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const p = `train/${i}.md`;
+    notes.push({ path: p, words: new Set(["wavelength", "harmonic", "cancellation", "waveform", "hertz", "polarity"]) });
+    trained.push(p);
+  }
+  for (let i = 0; i < 300; i++) notes.push({ path: `pad/${i}.md`, words: new Set([`pad${i}`]) });
+  notes.push({ path: "docs/ordinary-english.md", words: new Set(["recovery", "boundary", "parent"]) });
+  notes.push({
+    path: "docs/really-about-it.md",
+    words: new Set(["wavelength", "harmonic", "cancellation", "waveform", "hertz", "polarity"]),
+  });
+  const sig = buildSignatures(notes, new Map([[AMB, trained]]));
+  const words = new Map(notes.map((n) => [n.path, n.words]));
+
+  // Without the ambiguity hint, both rank: this is how it behaved before. The
+  // training notes rank too, on their own vocabulary, so this asks about the
+  // two documents rather than the length of the list.
+  const blind = rankRelatedDocs(AMB, mentions, new Map(), sig, words).map((r) => r.path);
+  assert.ok(blind.includes("docs/ordinary-english.md"), "a bare mention ranks when ambiguity is unknown");
+  assert.ok(blind.includes("docs/really-about-it.md"));
+
+  // Told the term is in 16% of notes, the bare mention has to bring more.
+  const judged = rankRelatedDocs(AMB, mentions, new Map(), sig, words, DEFAULT_RELATED, {
+    df: 1532,
+    noteCount: 9649,
+  });
+  const paths = judged.map((r) => r.path);
+  assert.ok(
+    !paths.includes("docs/ordinary-english.md"),
+    "a bare mention of a common word is dropped"
+  );
+  assert.ok(
+    paths.includes("docs/really-about-it.md"),
+    "a mention backed by the concept's vocabulary survives"
+  );
+
+  // A RARE term keeps its bare mentions: nobody writes "convolution reverb" by
+  // accident, and asking it for corroboration would hide real relationships.
+  const rare = rankRelatedDocs(AMB, mentions, new Map(), sig, words, DEFAULT_RELATED, {
+    df: 30,
+    noteCount: 9649,
+  }).map((r) => r.path);
+  assert.ok(
+    rare.includes("docs/ordinary-english.md"),
+    "a rare term keeps its bare mentions: nobody writes it by accident"
+  );
+}
+
+console.log("related-docs: ambiguous-mention assertions passed");
