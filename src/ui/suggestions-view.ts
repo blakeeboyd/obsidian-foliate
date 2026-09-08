@@ -10,6 +10,7 @@ import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
 import { OverbroadAliasModal } from "./overbroad-alias-modal";
 import { gateDecision, explainVerdict } from "../services/index/gate";
+import { corroborate, shouldWithhold, signatureWordsByPath } from "../services/index/corroborate";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
 const clearHighlight = StateEffect.define<null>();
@@ -1040,6 +1041,61 @@ export class SuggestionsView extends ItemView {
           }
         }
         unlinkedMatches = kept;
+
+        // Second opinion. The gate judges a term against the note's context;
+        // this asks whether any OTHER analysis in the plugin agrees the row
+        // belongs. A concept whose signature is silent here and which
+        // associates with nothing the note is about was surfaced by its string
+        // alone, which is how "+subwoofer" arrived on a daily note through the
+        // alias "sub".
+        //
+        // Only where the word alone is weak evidence, and only when the concept
+        // HAS a signature: a rare specific term needs no confirmation, and
+        // "no signature fired" says nothing when there was none to fire.
+        const sigWords = signatureWordsByPath(
+          this.plugin.mentionIndex.signatureHits(content, file.path)
+        );
+        const linkedHere = new Set(
+          Object.keys(this.app.metadataCache.resolvedLinks[file.path] ?? {})
+        );
+        const corroborated: UnlinkedMatch[] = [];
+        for (const match of unlinkedMatches) {
+          const df = stats2.df.get(match.filePath) ?? 0;
+          const ambiguous = df / (stats2.noteCount || 1) >= ambiguousBar;
+          const result = corroborate({
+            path: match.filePath,
+            linked: linkedHere,
+            signatureHits: sigWords,
+            present,
+            stats: stats2,
+            floor: this.plugin.gateConfig().neighbourFloor,
+          });
+          if (
+            !shouldWithhold(result, {
+              ambiguous,
+              hasSignature: this.plugin.mentionIndex.hasSignature(match.filePath),
+            })
+          ) {
+            corroborated.push(match);
+            continue;
+          }
+          if (this.plugin.settings.showHiddenConnections) {
+            hiddenMatches.push({
+              filePath: match.filePath,
+              fileName: match.fileName,
+              alias: match.alias,
+              taxon: match.taxon,
+              hiddenTerms: [match.alias],
+              occurrences: match.positions.length,
+              reason: "no-corroboration",
+              detail:
+                `Only the word "${match.alias}" points here. This concept's ` +
+                `vocabulary does not appear in the note, and it is not associated ` +
+                `with anything the note is about.`,
+            });
+          }
+        }
+        unlinkedMatches = corroborated;
       }
     }
 
@@ -1472,6 +1528,23 @@ export class SuggestionsView extends ItemView {
    * without being intrusive: the section is collapsed unless expanded, and off
    * entirely unless the setting is on.
    */
+  /**
+   * Two or three words naming why a mention was withheld.
+   *
+   * The full sentence lives on hover and in the context menu; this is what the
+   * reader sees while scanning, so it has to distinguish the two kinds of call
+   * the plugin makes. "No context" is the gate deciding the note has not
+   * established the term's subject. "Word only" is every other analysis
+   * declining to support a row the gate allowed.
+   */
+  private hiddenReasonLabel(item: HiddenMatch): string {
+    if (item.reason === "no-corroboration") return "word only";
+    // The gate's own reasons, narrowed to what the two failing branches mean.
+    return item.detail.startsWith("This note mentions nothing else")
+      ? "no group match"
+      : "no context";
+  }
+
   private renderHiddenConnections(container: HTMLElement, hidden: HiddenMatch[]) {
     if (!this.plugin.settings.showHiddenConnections || hidden.length === 0) return;
 
@@ -1501,10 +1574,19 @@ export class SuggestionsView extends ItemView {
           text: item.occurrences === 1 ? "1 mention" : `${item.occurrences} mentions`,
         });
 
-        // The reason is available on demand, not printed under every row. What
-        // the reader wants at a glance is WHICH mentions were withheld; why any
-        // particular one was is a follow-up question, and spelling it out for
-        // each made the section louder than the mentions above it.
+        // A short label for WHY, on the row. This section is a list of
+        // judgements the plugin made against the reader's text, and a judgement
+        // with no visible grounds cannot be argued with: the full sentence was
+        // a tooltip and a right-click away, which is where the reader is not
+        // looking when they wonder what happened to a mention.
+        //
+        // Two or three words rather than the sentence, which stays on hover, so
+        // the section can be scanned without becoming louder than the mentions
+        // above it.
+        title.createSpan({
+          cls: "foliate-hidden-why",
+          text: this.hiddenReasonLabel(item),
+        });
         row.setAttribute("aria-label", item.detail);
 
         // Opening the file is the fix path: the user judges the call and edits

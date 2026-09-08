@@ -229,7 +229,12 @@ export interface HiddenMatch {
   hiddenTerms: string[];
   /** How many occurrences of those terms the note contains. */
   occurrences: number;
-  reason: "context-gate";
+  /**
+   * Why it was withheld. "context-gate" is the gate's own call; "no-corroboration"
+   * means the gate let it through and no other analysis in the plugin supported
+   * it, so only the matched string pointed here.
+   */
+  reason: "context-gate" | "no-corroboration";
   detail: string;
 }
 

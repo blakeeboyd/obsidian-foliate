@@ -741,6 +741,16 @@ export class MentionIndex {
 
   // --- Query surface: what the two features read ---
 
+  /**
+   * Whether this concept has a learned signature at all.
+   *
+   * Two thirds of taxa files have too few links to produce one, so "the
+   * signature did not fire" is only meaningful when there was one to fire.
+   */
+  hasSignature(taxaPath: string): boolean {
+    return this.signatureResult.byPath.has(taxaPath);
+  }
+
   /** The taxa a note mentions. */
   mentionsOf(notePath: string): Set<string> {
     return this.sets.get(notePath) ?? new Set();
