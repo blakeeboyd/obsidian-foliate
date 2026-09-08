@@ -1377,3 +1377,17 @@ a.internal-link.foliate-link,
   background: var(--text-accent);
   color: var(--text-on-accent);
 }
+
+/* The over-broad alias dialog: what the "!" mark opens. Sized for reading a
+   short case and answering it, not for browsing. */
+.foliate-modal-lede {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.foliate-modal-detail {
+  margin: 0 0 8px 0;
+  color: var(--text-muted);
+  font-size: 0.9em;
+  line-height: 1.5;
+}

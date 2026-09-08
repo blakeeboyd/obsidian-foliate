@@ -8,6 +8,7 @@ import { createTaxaFile, addAliasToFile, findTermCollisions, foldName } from "..
 import { mineContextTerms, fileTerms, taxonForFile } from "../services/context-mining";
 import { stripPrefix, findTaxonByPrefix } from "../taxa";
 import { FOLIATE_ICON_ID } from "../icon";
+import { OverbroadAliasModal } from "./overbroad-alias-modal";
 import { gateDecision, explainVerdict } from "../services/index/gate";
 
 const addHighlight = StateEffect.define<{ from: number; to: number }>();
@@ -2077,16 +2078,23 @@ export class SuggestionsView extends ItemView {
       `Surfaced by "${t}", an abbreviation. This note never says "${full}". ` +
         `${others.slice(0, 3).join(", ")} still reach this file if the alias goes.`
     );
+    // The dialog rather than the file. Opening the taxa file moved the reader
+    // somewhere else to make a decision they had not made yet, and left them to
+    // edit YAML by hand once they arrived; the dialog states the case where
+    // they already are and offers the fix. Opening the file is still one of its
+    // buttons, for when the right answer is something else.
     mark.addEventListener("click", (evt) => {
       evt.stopPropagation();
       evt.preventDefault();
-      new Notice(
-        `"${t}" is an alias of ${file.basename}, and this note never says ` +
-          `"${full}". If "${t}" usually means something else here, removing it ` +
-          `from the file's aliases leaves ${others.slice(0, 3).join(", ")}.`,
-        12000
-      );
-      this.app.workspace.getLeaf(true).openFile(file);
+      // No vault-wide alias counts passed: the index counts FILES, not which of
+      // a file's terms did the matching, so stats.df would be the concept's
+      // reach and reporting it as the alias's would be a wrong number stated
+      // confidently. The note in hand is evidence enough to decide on.
+      new OverbroadAliasModal(
+        this.app,
+        { file, alias: t, full, alternatives: others, hereCount: abbrevHits },
+        () => this.refresh()
+      ).open();
     });
   }
 

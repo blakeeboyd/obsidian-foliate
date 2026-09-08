@@ -582,6 +582,44 @@ export async function addAliasToFile(
 }
 
 /**
+ * Drop an alias from a taxa file.
+ *
+ * The counterpart to addAliasToFile, for the case where a term claims more of
+ * the vault than its concept does: "sub" on "+subwoofer" matches every "sub
+ * task" in a log. Removing the alias is the fix the plugin recommends over
+ * gating, because it holds in search, backlinks and every query that reads the
+ * vault, not just here.
+ *
+ * Compared case-insensitively, since the file may list "Xue" where the row that
+ * prompted this said "xue", and both mean the same claim.
+ *
+ * Returns whether anything changed, so a caller can tell "removed" from "it was
+ * already gone" rather than reporting a success it did not cause.
+ */
+export async function removeAliasFromFile(
+  app: App,
+  file: TFile,
+  alias: string
+): Promise<boolean> {
+  const wanted = alias.trim().toLowerCase();
+  let removed = false;
+  await app.fileManager.processFrontMatter(file, (fm) => {
+    if (!fm.aliases) return;
+    const list = Array.isArray(fm.aliases) ? fm.aliases : [fm.aliases];
+    const kept = list.filter(
+      (a: unknown) => typeof a !== "string" || a.trim().toLowerCase() !== wanted
+    );
+    if (kept.length === list.length) return;
+    removed = true;
+    // An empty list is removed outright: "aliases: []" is noise in a file that
+    // has none, and Obsidian treats the absent key the same way.
+    if (kept.length === 0) delete fm.aliases;
+    else fm.aliases = kept;
+  });
+  return removed;
+}
+
+/**
  * Ensure a folder path exists, creating intermediate folders as needed.
  */
 export async function ensureFolderExists(
