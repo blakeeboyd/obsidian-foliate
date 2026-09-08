@@ -7,7 +7,16 @@ import { Editor, EditorPosition, Notice, Plugin, TAbstractFile, TFile, MarkdownV
  * that the sidebar is current by the time the reader looks away and back. The
  * sidebar has its own refresh path and does not wait on this.
  */
-const INDEX_EDIT_DEBOUNCE_MS = 800;
+const INDEX_IDLE_TIMEOUT_MS = 2000;
+
+/**
+ * Queued notes above which the index stops waiting for a quiet moment.
+ *
+ * A long queue is worse than a small interruption: it means a bulk change (a
+ * sync landing, a folder rename, a script) and letting it grow only moves a
+ * bigger pause further out.
+ */
+const INDEX_QUEUE_LIMIT = 25;
 import { FoliateSettings, TaxaMapping, ContextConfig } from "./types";
 import { DEFAULT_TAXA_MAPPINGS, DEFAULT_DOMAIN, findTaxonByPrefix } from "./taxa";
 import { FoliateSettingTab } from "./settings";
@@ -172,36 +181,106 @@ export default class FoliatePlugin extends Plugin {
 
       const taxa = () => [...this.settings.taxaMappings, this.settings.domain];
 
-      // Coalesce edits per file before touching the index.
+      // Reindexing waits for a gap in the user's attention.
       //
       // Obsidian fires `modify` on autosave, roughly every couple of seconds
-      // while typing, and each one reindexed the note and rederived the whole
-      // corpus: measured at 259ms of synchronous main-thread work on this vault
-      // to account for a single changed note. During a writing session that is
-      // a stutter every few seconds, and it grows with the vault.
+      // while typing, and each one reindexes the note and rederives the corpus:
+      // measured at 259ms of synchronous main-thread work on this vault for a
+      // single changed note, and it grows with the vault. A debounce alone only
+      // moves that stutter to 800ms after the last keystroke, which is still
+      // while the reader is sitting there.
       //
-      // Per file rather than one timer for the whole handler, because a single
-      // shared debounce would drop an edit to note B when note A is also being
-      // written (a sync client touching files in the background is enough).
-      const pendingEdits = new Map<string, ReturnType<typeof setTimeout>>();
-      this.register(() => {
-        for (const timer of pendingEdits.values()) clearTimeout(timer);
-        pendingEdits.clear();
-      });
+      // So edits accumulate as a set of dirty paths and drain when the moment is
+      // right: when the window loses focus (the user has gone elsewhere and the
+      // main thread is theirs to spend), when the browser reports idle time, or
+      // when enough files have piled up that waiting longer risks a big catch-up
+      // later. Coming back pauses the drain, so a queue that is still working
+      // when the user returns gets out of the way rather than competing.
+      //
+      // Correctness does not depend on any of this. The queue is a set of paths
+      // and the work is idempotent, so a drain that is interrupted, skipped or
+      // run twice ends in the same place; the schedule only decides when.
+      const dirty = new Set<string>();
+      let drainTimer: ReturnType<typeof setTimeout> | null = null;
+      let idleHandle: number | null = null;
+      let draining = false;
+
+      const cancelScheduled = () => {
+        if (drainTimer !== null) { clearTimeout(drainTimer); drainTimer = null; }
+        if (idleHandle !== null) {
+          const w = window as Window & { cancelIdleCallback?: (h: number) => void };
+          w.cancelIdleCallback?.(idleHandle);
+          idleHandle = null;
+        }
+      };
+
+      /**
+       * Reindex the queued notes, one per turn, stopping early if the user comes
+       * back. A file deleted while queued simply resolves to nothing.
+       */
+      const drain = async (reason: "idle" | "blur" | "threshold") => {
+        if (draining || dirty.size === 0) return;
+        draining = true;
+        try {
+          // A drain that began while the user was away stops as soon as they
+          // come back, leaving the rest queued: their frames are worth more
+          // than finishing a queue that has already waited. A threshold drain
+          // does not yield, because it exists precisely because waiting longer
+          // is the worse option.
+          const interrupted = () => reason === "blur" && document.hasFocus();
+          for (const path of [...dirty]) {
+            if (interrupted()) break;
+            dirty.delete(path);
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (file instanceof TFile && file.extension === "md") {
+              await this.mentionIndex.updateNote(file, taxa());
+            }
+            // Yield between notes so a long queue never blocks a frame.
+            await new Promise((r) => window.setTimeout(r, 0));
+          }
+        } finally {
+          draining = false;
+          if (dirty.size > 0) schedule();
+        }
+      };
+
+      const schedule = () => {
+        cancelScheduled();
+        if (dirty.size === 0) return;
+        // Enough has piled up that the catch-up would itself be noticeable.
+        if (dirty.size >= INDEX_QUEUE_LIMIT) {
+          drainTimer = setTimeout(() => void drain("threshold"), 0);
+          return;
+        }
+        const w = window as Window & {
+          requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+        };
+        if (w.requestIdleCallback) {
+          idleHandle = w.requestIdleCallback(() => { idleHandle = null; void drain("idle"); },
+            { timeout: INDEX_IDLE_TIMEOUT_MS });
+        } else {
+          // Safari has no requestIdleCallback; a timer is the honest fallback.
+          drainTimer = setTimeout(() => void drain("idle"), INDEX_IDLE_TIMEOUT_MS);
+        }
+      };
+
+      this.register(() => cancelScheduled());
       this.registerEvent(
         this.app.vault.on("modify", (file) => {
           if (!(file instanceof TFile) || file.extension !== "md") return;
-          const existing = pendingEdits.get(file.path);
-          if (existing) clearTimeout(existing);
-          pendingEdits.set(
-            file.path,
-            setTimeout(() => {
-              pendingEdits.delete(file.path);
-              void this.mentionIndex.updateNote(file, taxa());
-            }, INDEX_EDIT_DEBOUNCE_MS)
-          );
+          dirty.add(file.path);
+          schedule();
         })
       );
+      // Attention left the window: the main thread is free, so spend it.
+      this.registerDomEvent(window, "blur", () => {
+        cancelScheduled();
+        void drain("blur");
+      });
+      this.registerDomEvent(document, "visibilitychange", () => {
+        if (document.hidden) { cancelScheduled(); void drain("blur"); }
+      });
+
       this.registerEvent(
         this.app.vault.on("delete", (file) => {
           void this.mentionIndex.removeNote(file.path);

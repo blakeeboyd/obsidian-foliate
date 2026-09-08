@@ -11,10 +11,6 @@ export interface OverbroadAliasInfo {
   alternatives: string[];
   /** Times the alias occurs in the open note. */
   hereCount: number;
-  /** Notes across the vault the alias reaches, when known. */
-  vaultNotes?: number;
-  /** Notes across the vault the full name reaches, when known. */
-  fullNotes?: number;
 }
 
 /**
@@ -48,34 +44,36 @@ export class OverbroadAliasModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    const { file, alias, full, alternatives, hereCount, vaultNotes, fullNotes } = this.info;
+    const { file, alias, full, alternatives, hereCount } = this.info;
 
-    contentEl.createEl("h3", { text: `"${alias}" surfaced ${file.basename}` });
+    contentEl.createEl("h3", { text: `"${alias}" is a common word` });
 
+    // The diagnosis first, because it is what the reader needs in order to
+    // decide: this row is here because an ordinary word was claimed as a name
+    // for a specific concept. Naming that is more use than describing the
+    // mechanics of the match.
     const p = contentEl.createEl("p", { cls: "foliate-modal-lede" });
-    p.appendText(`This note says "${alias}" `);
-    p.createEl("strong", { text: `${hereCount} time${hereCount === 1 ? "" : "s"}` });
-    p.appendText(` and never says "${full}". "${alias}" is an alias of `);
+    p.appendText(`"${alias}" is listed as an alias of `);
     p.createEl("strong", { text: file.basename });
-    p.appendText(", so every use of the abbreviation matches the concept.");
+    p.appendText(
+      `, so every use of it anywhere in the vault is read as a mention of that ` +
+        `concept. It is an abbreviation of "${full}" and an ordinary word in its own ` +
+        `right, which is why it turns up in writing that has nothing to do with the concept.`
+    );
 
-    // The vault-wide reach, when the index has it. This is the number that
-    // turns one surprising row into a standing problem: an abbreviation that
-    // outruns the word it abbreviates is matching something else.
-    if (vaultNotes !== undefined && fullNotes !== undefined) {
-      const cmp = contentEl.createEl("p", { cls: "foliate-modal-detail" });
-      cmp.appendText(`Across the vault "${alias}" reaches ${vaultNotes} notes and "${full}" reaches ${fullNotes}.`);
-      if (vaultNotes > fullNotes) {
-        cmp.appendText(" The abbreviation reaches further than the word it abbreviates.");
-      }
-    }
+    const evidence = contentEl.createEl("p", { cls: "foliate-modal-detail" });
+    evidence.appendText(`Here, this note uses "${alias}" `);
+    evidence.createEl("strong", { text: `${hereCount} time${hereCount === 1 ? "" : "s"}` });
+    evidence.appendText(` and never says "${full}".`);
 
     if (alternatives.length > 0) {
       contentEl.createEl("p", {
         cls: "foliate-modal-detail",
-        text: `Removing it leaves ${alternatives.slice(0, 6).join(", ")}${
-          alternatives.length > 6 ? `, and ${alternatives.length - 6} more` : ""
-        }.`,
+        text:
+          `Removing the alias costs nothing: ${alternatives.slice(0, 6).join(", ")}` +
+          `${alternatives.length > 6 ? `, and ${alternatives.length - 6} more` : ""} ` +
+          `still reach this file, and the fix holds in search and backlinks too, ` +
+          `not just here.`,
       });
     }
 
