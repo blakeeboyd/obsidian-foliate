@@ -1125,7 +1125,7 @@ export class SuggestionsView extends ItemView {
           this.renderUnlinkedMatch(groupContent, match, file, content);
         }
       }
-      this.wireCollapseAll(collapseAllBtn, keys);
+      this.wireCollapseAll(collapseAllBtn, section, "Unlinked Mentions");
     }
 
     // Hidden connections: mentions the gate found but withheld. Collapsed by
@@ -1365,7 +1365,7 @@ export class SuggestionsView extends ItemView {
       this.renderRelatedRow(section, d, file, !!(d.linked || d.mentions));
     }
     // No groups left to collapse; the button hides itself on an empty list.
-    this.wireCollapseAll(collapseAllBtn, keys);
+    this.wireCollapseAll(collapseAllBtn, section, "Related documents");
   }
 
   /**
@@ -1520,7 +1520,7 @@ export class SuggestionsView extends ItemView {
       this.plugin.settings.collapsedCategories = [...stored];
       void this.plugin.saveSettings();
     }
-    this.wireCollapseAll(collapseAllBtn, keys);
+    this.wireCollapseAll(collapseAllBtn, section, "Related taxa");
   }
 
   /**
@@ -1639,7 +1639,7 @@ export class SuggestionsView extends ItemView {
       void this.plugin.saveSettings();
     }
 
-    this.wireCollapseAll(collapseAllBtn, keys);
+    this.wireCollapseAll(collapseAllBtn, section, "Hidden connections");
   }
 
   /**
@@ -1687,7 +1687,7 @@ export class SuggestionsView extends ItemView {
         );
       }
     }
-    this.wireCollapseAll(collapseAllBtn, keys);
+    this.wireCollapseAll(collapseAllBtn, section, "Backlinks");
   }
 
   /**
@@ -1854,15 +1854,46 @@ export class SuggestionsView extends ItemView {
     const query = this.searchQuery.trim().toLowerCase();
     for (const key of ["mentions", "related"] as const) {
       const { pane, count } = this.tabs[key];
-      // Rows, always. The badge used to count SECTIONS when the search box was
-      // empty and rows once it was not, so "3" meant three headings on one tab
-      // and three matches on the other, and a number that changes meaning is
-      // worse than no number. A row is the unit the reader is looking for.
-      const rows = Array.from(pane.querySelectorAll<HTMLElement>("[data-search]"));
-      const n = query
-        ? rows.filter((r) => (r.dataset.search || "").includes(query)).length
-        : rows.length;
-      if (count) count.textContent = String(n);
+      // Rows the reader can act on, always.
+      //
+      // Two things this is not. It is not a count of SECTIONS, which is what it
+      // used to be when the search box was empty: "3" then meant three headings
+      // on one tab and three matches on the other, and a number that changes
+      // meaning is worse than no number.
+      //
+      // And it does not count Hidden connections. That section is the discard
+      // pile, listing what the plugin decided NOT to show; folding it into the
+      // same figure as the mentions above it promises the reader four things to
+      // look at when three of them are things it already declined. The section
+      // is still there, with its own rows and its own reasons.
+      const rows = Array.from(pane.querySelectorAll<HTMLElement>("[data-search]")).filter(
+        (r) => !r.closest(".foliate-hidden-section")
+      );
+      const visible = query
+        ? rows.filter((r) => (r.dataset.search || "").includes(query))
+        : rows;
+      const n = visible.length;
+      // Mentions carries two figures, not their sum. A linked mention is a
+      // connection already made and an unlinked one is a thing to do, so adding
+      // them answers a question nobody has: "16" said nothing about whether
+      // there was anything left to link. Unlinked first, because that is the
+      // half the reader is deciding about.
+      let label = String(n);
+      if (key === "mentions") {
+        const unlinked = visible.filter((r) => !r.closest(".foliate-linked-section")).length;
+        label = `${unlinked}\u00b7${n - unlinked}`;
+      }
+      if (count) {
+        count.textContent = label;
+        // The split needs saying once: two numbers in a badge are a puzzle
+        // until something names them.
+        count.setAttribute(
+          "aria-label",
+          key === "mentions"
+            ? `${label.split("\u00b7")[0]} not yet linked, ${label.split("\u00b7")[1]} already linked`
+            : `${n} related`
+        );
+      }
       const btn = count?.parentElement;
       if (btn) {
         btn.toggleClass("is-empty", n === 0);
@@ -1925,26 +1956,44 @@ export class SuggestionsView extends ItemView {
   }
 
   /**
-   * Wire a section's collapse/expand-all button. Collapses every category when
-   * any is expanded; expands every category when all are already collapsed.
+   * Wire a section's collapse button: it folds the whole section away.
+   *
+   * It used to write every subgroup's key into the collapsed list, which meant
+   * "hide this section" and "forget how I had the groups arranged" were one
+   * action. Expanding again brought everything back open, including the groups
+   * the reader had deliberately closed, so the per-group state was only ever one
+   * click from being wiped.
+   *
+   * The section now has a collapse key of its own and the groups keep theirs.
+   * Folding a section away and coming back leaves it exactly as it was.
    */
-  private wireCollapseAll(btn: HTMLElement, keys: string[]) {
-    if (keys.length === 0) {
+  private wireCollapseAll(btn: HTMLElement, section: HTMLElement, title: string) {
+    const key = `section:${title}`;
+    const collapsed = this.plugin.settings.collapsedCategories.includes(key);
+    const body = () =>
+      Array.from(section.children).filter(
+        (c) => !c.hasClass("foliate-section-header")
+      ) as HTMLElement[];
+    if (body().length === 0) {
       btn.style.display = "none";
       return;
     }
-    const allCollapsed = keys.every((k) =>
-      this.plugin.settings.collapsedCategories.includes(k)
-    );
-    setIcon(btn, allCollapsed ? "chevrons-up-down" : "chevrons-down-up");
-    btn.setAttribute("aria-label", allCollapsed ? "Expand all" : "Collapse all");
+    const paint = (isCollapsed: boolean) => {
+      for (const el of body()) el.style.display = isCollapsed ? "none" : "";
+      setIcon(btn, isCollapsed ? "chevrons-up-down" : "chevrons-down-up");
+      btn.setAttribute("aria-label", isCollapsed ? `Expand ${title}` : `Collapse ${title}`);
+    };
+    paint(collapsed);
     btn.addEventListener("click", async () => {
       const set = new Set(this.plugin.settings.collapsedCategories);
-      if (allCollapsed) keys.forEach((k) => set.delete(k));
-      else keys.forEach((k) => set.add(k));
+      const nowCollapsed = !set.has(key);
+      if (nowCollapsed) set.add(key);
+      else set.delete(key);
       this.plugin.settings.collapsedCategories = [...set];
       await this.plugin.saveSettings();
-      this.refresh();
+      // Painted directly rather than through a refresh: the section is already
+      // rendered and rescanning the note to hide a div would be absurd.
+      paint(nowCollapsed);
     });
   }
 
@@ -2582,6 +2631,8 @@ export class SuggestionsView extends ItemView {
     if (!hasAny) return;
 
     const { section, keys, collapseAllBtn } = this.makeSection(container, "Linked Mentions");
+    // Marked so the tab badge can tell the two halves of this pane apart.
+    section.addClass("foliate-linked-section");
 
     for (const [mapping, items] of grouped) {
       if (items.length === 0) continue;
@@ -2709,7 +2760,7 @@ export class SuggestionsView extends ItemView {
       }
     }
 
-    this.wireCollapseAll(collapseAllBtn, keys);
+    this.wireCollapseAll(collapseAllBtn, section, "Linked Mentions");
   }
 
 }
