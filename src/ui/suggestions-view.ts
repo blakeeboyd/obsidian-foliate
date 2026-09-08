@@ -1033,6 +1033,7 @@ export class SuggestionsView extends ItemView {
               taxon: match.taxon,
               hiddenTerms: [match.alias],
               occurrences: match.positions.length,
+              positions: match.positions,
               reason: "context-gate",
               detail: explainVerdict(verdict, (p2) =>
                 p2.slice(p2.lastIndexOf("/") + 1).replace(/\.md$/, "")
@@ -1087,6 +1088,7 @@ export class SuggestionsView extends ItemView {
               taxon: match.taxon,
               hiddenTerms: [match.alias],
               occurrences: match.positions.length,
+              positions: match.positions,
               reason: "no-corroboration",
               detail:
                 `Only the word "${match.alias}" points here. This concept's ` +
@@ -1132,7 +1134,7 @@ export class SuggestionsView extends ItemView {
     // default, so the gating stays out of the way while remaining inspectable.
     // Mentions tab: it is the discard pile of the scan above, and belongs with
     // what it was discarded from.
-    this.renderHiddenConnections(mentionsPane, hiddenMatches);
+    this.renderHiddenConnections(mentionsPane, hiddenMatches, file, content);
 
     // Related concepts: recognised by their vocabulary rather than their name,
     // so this can surface a concept the note never mentions. Display only.
@@ -1296,7 +1298,38 @@ export class SuggestionsView extends ItemView {
     // wrongness has to stay visible rather than hide behind a rank.
     const inferred = !target.linked && !target.mentions;
     if (inferred && target.matched.length) {
-      row.createDiv({ cls: "foliate-related-why", text: target.matched.slice(0, 6).join(", ") });
+      // Each word jumps to itself in the open note.
+      //
+      // An inferred row is the one case where the reader cannot check the claim
+      // by looking: the concept is not named here, so "related" rests entirely
+      // on these words, and reading them in place is the only way to see
+      // whether they mean what the concept means. "Tuning" in an interview
+      // about attunement is the failure this makes visible in one click.
+      //
+      // Only the words, not the row: the row still opens the related file,
+      // which is a different and also useful destination.
+      const why = row.createDiv({ cls: "foliate-related-why" });
+      target.matched.slice(0, 6).forEach((word, i) => {
+        if (i > 0) why.appendText(", ");
+        const span = why.createSpan({ text: word, cls: "foliate-related-word" });
+        span.setAttribute("aria-label", `Find "${word}" in this note`);
+        span.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          evt.preventDefault();
+          const hits = findUnlinkedPositions(this.lastContent, word);
+          if (hits.length === 0) {
+            new Notice(`"${word}" is in this note's vocabulary but not its prose.`);
+            return;
+          }
+          void this.jumpToOccurrence(
+            `why:${target.path}:${word}`,
+            hits,
+            this.lastContent,
+            sourceFile,
+            word.length
+          );
+        });
+      });
     }
     row.setAttribute(
       "aria-label",
@@ -1554,7 +1587,12 @@ export class SuggestionsView extends ItemView {
       : "no context";
   }
 
-  private renderHiddenConnections(container: HTMLElement, hidden: HiddenMatch[]) {
+  private renderHiddenConnections(
+    container: HTMLElement,
+    hidden: HiddenMatch[],
+    noteFile: TFile,
+    content: string
+  ) {
     if (!this.plugin.settings.showHiddenConnections || hidden.length === 0) return;
 
     const { section, keys, collapseAllBtn } = this.makeSection(container, "Hidden connections");
@@ -1598,12 +1636,26 @@ export class SuggestionsView extends ItemView {
         });
         row.setAttribute("aria-label", item.detail);
 
-        // Opening the file is the fix path: the user judges the call and edits
-        // the file's context terms if the gate got it wrong.
-        row.addEventListener("click", () => {
-          const f = this.app.vault.getAbstractFileByPath(item.filePath);
-          if (f instanceof TFile) this.app.workspace.getLeaf(false).openFile(f);
-        });
+        // Clicking goes to the occurrence, exactly as it does on a mention that
+        // was shown. A withheld mention is still a mention, and the reader's
+        // first question about one is where it is: seeing the sentence is how
+        // they judge whether the plugin was right to withhold it. Opening the
+        // taxa file instead answered a later question and lost the place.
+        //
+        // Repeated clicks cycle through the occurrences, the same as above,
+        // because jumpToOccurrence keys off the row.
+        if (item.positions && item.positions.length > 0) {
+          row.addClass("foliate-clickable");
+          row.addEventListener("click", () => {
+            void this.jumpToOccurrence(
+              `hidden:${item.filePath}`,
+              item.positions ?? [],
+              content,
+              noteFile,
+              item.alias.length
+            );
+          });
+        }
 
         // Right-click for the reason, matching "Why is this shown?" on a
         // visible row.
@@ -1897,12 +1949,12 @@ export class SuggestionsView extends ItemView {
       // Mentions carries two figures, not their sum. A linked mention is a
       // connection already made and an unlinked one is a thing to do, so adding
       // them answers a question nobody has: "16" said nothing about whether
-      // there was anything left to link. Unlinked first, because that is the
-      // half the reader is deciding about.
+      // there was anything left to link. Linked first, matching the order the
+      // two sections appear in below.
       let label = String(n);
       if (key === "mentions") {
         const unlinked = visible.filter((r) => !r.closest(".foliate-linked-section")).length;
-        label = `${unlinked}\u00b7${n - unlinked}`;
+        label = `${n - unlinked}/${unlinked}`;
       }
       if (count) {
         count.textContent = label;
@@ -1911,7 +1963,7 @@ export class SuggestionsView extends ItemView {
         count.setAttribute(
           "aria-label",
           key === "mentions"
-            ? `${label.split("\u00b7")[0]} not yet linked, ${label.split("\u00b7")[1]} already linked`
+            ? `${label.split("/")[0]} already linked, ${label.split("/")[1]} not yet linked`
             : `${n} related`
         );
       }

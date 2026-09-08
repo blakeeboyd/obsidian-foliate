@@ -1332,6 +1332,20 @@ a.internal-link.foliate-link,
   text-align: right;
 }
 
+/* A signature word, clickable to find it in the note. An inferred row rests
+   entirely on these words, so reading one in place is how the reader checks
+   whether it means what the concept means. */
+.foliate-related-word {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.foliate-related-word:hover {
+  color: var(--text-accent);
+}
+
 /* Tab bar: Mentions / Related. Lives in the sticky top bar, under the search
    box, so it stays reachable while a long list scrolls under it. */
 .foliate-tab-bar {
@@ -1342,8 +1356,12 @@ a.internal-link.foliate-link,
 }
 
 .foliate-tab {
+  /* Each tab takes an equal share of the bar. Two buttons hugging their text
+     left a wide dead strip beside them that read as an unfinished row. */
+  flex: 1 1 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   padding: 5px 10px;
   background: transparent;

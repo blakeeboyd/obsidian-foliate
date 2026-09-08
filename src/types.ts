@@ -230,6 +230,15 @@ export interface HiddenMatch {
   /** How many occurrences of those terms the note contains. */
   occurrences: number;
   /**
+   * Where those occurrences are, so a hidden row can jump to them.
+   *
+   * A withheld mention is still a mention: the reader's first question about
+   * one is where it is, and the answer decides whether the plugin was right to
+   * withhold it. Optional because the matcher's own suppression path reports
+   * terms without scanning for their positions.
+   */
+  positions?: MatchPosition[];
+  /**
    * Why it was withheld. "context-gate" is the gate's own call; "no-corroboration"
    * means the gate let it through and no other analysis in the plugin supported
    * it, so only the matched string pointed here.
