@@ -1352,7 +1352,10 @@ export class SuggestionsView extends ItemView {
     const docs = this.plugin.mentionIndex
       .relatedDocs(file.path, mappings, this.plugin.settings.relatedDocFolders)
       .filter((d) => d.kind === "document");
-    if (docs.length === 0) return;
+    if (docs.length === 0) {
+      this.emptySection(container, "Related documents", "No related documents.");
+      return;
+    }
 
     // One flat list. The Documents/Suggested split was two collapsible groups
     // over what is a single ranked answer to a single question, so it added a
@@ -1483,7 +1486,10 @@ export class SuggestionsView extends ItemView {
       seen.add(hit.path);
       rows.push({ path: hit.path, linked: false, mentions: 0, matched: hit.matched });
     }
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      this.emptySection(container, "Related taxa", "No related taxa.");
+      return;
+    }
 
     const { section, keys, collapseAllBtn } = this.makeSection(container, "Related taxa");
     const grouped = new Map<TaxaMapping, Row[]>();
@@ -1665,7 +1671,10 @@ export class SuggestionsView extends ItemView {
       const taxon = findTaxonByPrefix(source.basename, mappings);
       if (taxon) backTaxa.push({ file: source, taxon });
     }
-    if (backTaxa.length === 0) return;
+    if (backTaxa.length === 0) {
+      this.emptySection(container, "Backlinks", "No taxa link here yet.");
+      return;
+    }
 
     const { section, keys, collapseAllBtn } = this.makeSection(container, "Backlinks");
     for (const mapping of mappings) {
@@ -1749,6 +1758,10 @@ export class SuggestionsView extends ItemView {
 
     // Hide a section heading entirely when everything inside it is filtered
     // out, counting grouped and ungrouped rows alike for the same reason.
+    //
+    // A section that renders its own "none" message has no rows and so hides
+    // here as soon as a query is typed, which is right: "No related taxa" is
+    // worth saying about a note, and says nothing about a search.
     const sections = this.contentEl.querySelectorAll<HTMLElement>(".foliate-section");
     sections.forEach((section) => {
       if (!query) {
@@ -1785,7 +1798,15 @@ export class SuggestionsView extends ItemView {
    * is disabled rather than offered.
    */
   private buildTabs(stickyTop: HTMLElement, mentions: HTMLElement, related: HTMLElement) {
-    const count = (pane: HTMLElement) => pane.querySelectorAll(".foliate-section").length;
+    // Rows, not sections, and for the same reason the badge counts rows:
+    // sections now render even when they are empty, so a pane with three
+    // headings and nothing under them would otherwise read as full. Hidden
+    // connections is excluded here too, since a tab offering only the discard
+    // pile is offering nothing to do.
+    const count = (pane: HTMLElement) =>
+      Array.from(pane.querySelectorAll<HTMLElement>("[data-search]")).filter(
+        (r) => !r.closest(".foliate-hidden-section")
+      ).length;
     const panes: Record<"mentions" | "related", { el: HTMLElement; label: string; n: number }> = {
       mentions: { el: mentions, label: "Mentions", n: count(mentions) },
       related: { el: related, label: "Related", n: count(related) },
@@ -1942,6 +1963,26 @@ export class SuggestionsView extends ItemView {
    * collapse/expand-all button. Returns the section element plus a keys array
    * to fill with each category's collapse key and the button to wire afterward.
    */
+  /**
+   * A section that renders its own emptiness.
+   *
+   * A section that simply does not appear is ambiguous: "nothing is related to
+   * this" and "the plugin did not run" look identical, and the second is the
+   * one worth knowing about. Saying "No related taxa" answers the question the
+   * blank space raised.
+   *
+   * It also steadies the panel. Sections appearing and vanishing between notes
+   * moved everything below them, so the reader's target shifted as they moved
+   * around the vault.
+   *
+   * The collapse button hides itself here, having nothing to fold.
+   */
+  private emptySection(container: HTMLElement, title: string, message: string): void {
+    const { section, collapseAllBtn } = this.makeSection(container, title);
+    collapseAllBtn.style.display = "none";
+    section.createEl("p", { text: message, cls: "foliate-empty-state" });
+  }
+
   private makeSection(
     container: HTMLElement,
     title: string
