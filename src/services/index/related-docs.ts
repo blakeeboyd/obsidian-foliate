@@ -248,7 +248,18 @@ export function rankRelatedDocs(
     // of recovery" is not about phase, and nothing in a bare string match can
     // tell it from "phase distortion". Signature overlap can, so above the
     // ambiguity bar a mention has to bring some.
-    if (termIsAmbiguous && r.mentions && r.matched.length === 0) return false;
+    //
+    // Only when there is a signature to bring. A taxa file is not required to
+    // say anything: its job is to show where a concept appears, and many are
+    // deliberately just a name and a set of backlinks. A concept with too few
+    // links to have learned any vocabulary has produced no evidence AGAINST a
+    // document either, and demanding it would silence the thinnest files
+    // hardest, which is exactly backwards. Measured on the reference vault, 13
+    // of the 22 files this rule can reach have no signature at all.
+    //
+    // The foundation doc's rule, which the rest of this file already follows:
+    // an absent signal contributes zero rather than a penalty.
+    if (signature && termIsAmbiguous && r.mentions && r.matched.length === 0) return false;
     return true;
   });
   return all.sort((a, b) => b.score - a.score).slice(0, config.limit);

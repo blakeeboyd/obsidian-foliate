@@ -240,3 +240,37 @@ console.log("related-docs.test.ts: all assertions passed");
 }
 
 console.log("related-docs: ambiguous-mention assertions passed");
+
+// --- a concept with no signature is not penalised for silence ---
+//
+// A taxa file is not required to say anything: its job is to show where a
+// concept appears, and many are deliberately a name and a set of backlinks. A
+// concept too thinly linked to have learned any vocabulary has produced no
+// evidence against a document either, so demanding corroboration from it would
+// silence the thinnest files hardest, which is backwards. Measured on the
+// reference vault, 13 of the 22 files the ambiguity rule can reach have no
+// signature at all.
+{
+  const BARE = "c/+interface.md";
+  const mentions = new Map<string, Set<string>>([["docs/a.md", new Set([BARE])]]);
+  const notes: NoteWords[] = [
+    { path: "docs/a.md", words: new Set(["screen", "button", "layout"]) },
+  ];
+  for (let i = 0; i < 300; i++) notes.push({ path: `pad/${i}.md`, words: new Set([`pad${i}`]) });
+  const words = new Map(notes.map((n) => [n.path, n.words]));
+  // Two links is below minLinkedNotes, so no signature is built.
+  const noSignature = buildSignatures(notes, new Map([[BARE, ["pad/0.md", "pad/1.md"]]]));
+  assert.strictEqual(noSignature.byPath.has(BARE), false, "fixture: no signature exists");
+
+  const ranked = rankRelatedDocs(BARE, mentions, new Map(), noSignature, words, DEFAULT_RELATED, {
+    // Well above the ambiguity bar: the rule would apply if it could.
+    df: 573,
+    noteCount: 9649,
+  });
+  assert.ok(
+    ranked.some((r) => r.path === "docs/a.md"),
+    "an absent signature contributes zero rather than a penalty"
+  );
+}
+
+console.log("related-docs: absent-signature assertions passed");
