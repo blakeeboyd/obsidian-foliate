@@ -1854,11 +1854,14 @@ export class SuggestionsView extends ItemView {
     const query = this.searchQuery.trim().toLowerCase();
     for (const key of ["mentions", "related"] as const) {
       const { pane, count } = this.tabs[key];
+      // Rows, always. The badge used to count SECTIONS when the search box was
+      // empty and rows once it was not, so "3" meant three headings on one tab
+      // and three matches on the other, and a number that changes meaning is
+      // worse than no number. A row is the unit the reader is looking for.
+      const rows = Array.from(pane.querySelectorAll<HTMLElement>("[data-search]"));
       const n = query
-        ? Array.from(pane.querySelectorAll<HTMLElement>("[data-search]")).filter(
-            (r) => (r.dataset.search || "").includes(query)
-          ).length
-        : pane.querySelectorAll(".foliate-section").length;
+        ? rows.filter((r) => (r.dataset.search || "").includes(query)).length
+        : rows.length;
       if (count) count.textContent = String(n);
       const btn = count?.parentElement;
       if (btn) {

@@ -48,7 +48,26 @@ export interface RelatedConfig {
    * document that never names the concept.
    */
   signatureWeight: number;
-  /** Signature words a note needs before its signature score counts at all. */
+  /**
+   * Signature words a note needs before its signature score counts at all.
+   *
+   * Three let generic vocabulary through. A signature holds the words a concept
+   * keeps company with, and some of those are the words any explanatory writing
+   * uses: measured on the reference vault, "defines" sits in 14 signatures,
+   * "degrees" in 13 and "property" in 11, against "phase" in 63 and "harmonic"
+   * in 51, which are shared because they are genuinely shared audio terms.
+   *
+   * So a therapy interview reached "+phase" on tuning, degrees, cycle and
+   * includes: four words, none of them about phase. The share of signature mass
+   * looked respectable (26%) only because that signature is thin, which is why
+   * the count and not the share is the test.
+   *
+   * Measured against the user's own links as ground truth, each document held
+   * out of training so a signature cannot recognise words learned from it:
+   * a floor of 3 keeps 84% of endorsed documents and admits 7.0% of random
+   * ones; 5 keeps 78% and admits 2.3%. Six points of recall for two thirds of
+   * the noise. Past 5 recall falls faster than noise does.
+   */
   minSignatureWords: number;
   /** How many documents to return. */
   limit: number;
@@ -77,7 +96,7 @@ export const DEFAULT_RELATED: RelatedConfig = {
   linkWeight: 10,
   mentionWeight: 1,
   signatureWeight: 3,
-  minSignatureWords: 3,
+  minSignatureWords: 5,
   limit: 25,
   taxaFolders: [],
   documentFolders: [],
