@@ -94,14 +94,34 @@ export function findOverbroadAliases(
       const lower = term.toLowerCase();
       // The plain word the file is named for, e.g. "care" in "+care", or
       // "phase" in "+phase". A synonym like "Sorge" is not part of the name.
-      return stem === lower || stem.startsWith(lower + " ") || stem.includes(" " + lower);
+      if (stem === lower || stem.startsWith(lower + " ") || stem.includes(" " + lower)) {
+        return true;
+      }
+      // An abbreviation of the name, e.g. "sub" for "+subwoofer" or "reverb"
+      // for "+reverberation (audio effect)". These behave exactly like the bare
+      // name and were invisible to the rule above, which asks for a whole word:
+      // "sub" is a prefix of "subwoofer", not a word in it, so no threshold
+      // could ever surface it. Measured on the reference vault there are 23,
+      // and they read as a list of the abbreviations a person actually types:
+      // sub, mono, stereo, reverb, sync, pan, comp, omni.
+      //
+      // A prefix, not any substring, and at least three characters: that keeps
+      // a genuine synonym out, since "Dante" is not the start of "Audio over
+      // Ethernet" and "CC" is too short to be anything but an acronym.
+      return lower.length >= 3 && lower.length < stem.length && stem.startsWith(lower);
     });
     if (bare.length === 0) continue;
 
     const alternatives = file.terms.filter((t) => !bare.includes(t));
     if (alternatives.length < minAlternatives) continue;
 
+    // One row per alias, not one per spelling. A file listing both "xue" and
+    // "Xue" is making one claim, and reporting it twice reads as two problems.
+    const seen = new Set<string>();
     for (const alias of bare) {
+      const key = alias.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push({ path: file.path, alias, unlinked, linked, curation, alternatives });
     }
   }

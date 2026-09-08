@@ -75,3 +75,44 @@ const flagged = found.map((f) => f.alias);
 }
 
 console.log("overbroad: all assertions passed");
+
+// --- abbreviations of the file's name ---
+//
+// "sub" is a prefix of "subwoofer", not a word in it, so the whole-word rule
+// never considered it and no threshold could surface it. On the reference vault
+// this shape covers 23 aliases and they read as the abbreviations a person
+// types: sub, mono, stereo, reverb, sync, pan, comp, omni.
+{
+  const files = [
+    { path: "c/+subwoofer.md", terms: ["subwoofer", "sub", "LFE"] },
+    // The case the whole-word rule exists to protect: a synonym that is not
+    // part of the name and must never be offered for deletion.
+    { path: "c/+care.md", terms: ["care", "Sorge", "care-structure"] },
+    // Not a prefix of its file's name, so not an abbreviation of it.
+    { path: "c/+Audio over Ethernet.md", terms: ["Audio over Ethernet", "Dante"] },
+    // Too short to be anything but an acronym.
+    { path: "c/+Channel Voice Messages.md", terms: ["Channel Voice Messages", "CC"] },
+  ];
+  const mentions: Set<string>[] = [];
+  for (let i = 0; i < 200; i++) mentions.push(new Set(["c/+subwoofer.md"]));
+  for (let i = 0; i < 200; i++) mentions.push(new Set(["c/+care.md"]));
+  for (let i = 0; i < 200; i++) mentions.push(new Set(["c/+Audio over Ethernet.md"]));
+  for (let i = 0; i < 200; i++) mentions.push(new Set(["c/+Channel Voice Messages.md"]));
+  for (let i = 0; i < 200; i++) mentions.push(new Set([`c/+pad${i}.md`]));
+  const links: Set<string>[] = [];
+  const stats = computeStats(mentions, links);
+
+  const found = findOverbroadAliases(files, stats, { minRatio: 0.01 });
+  const aliases = found.map((f) => f.alias);
+  assert.ok(aliases.includes("sub"), "an abbreviation of the file's name is reported");
+  assert.ok(!aliases.includes("Sorge"), "a synonym is never offered for deletion");
+  assert.ok(!aliases.includes("Dante"), "a synonym that is not a prefix stays out");
+  assert.ok(!aliases.includes("CC"), "two letters is too short to judge");
+  // One row per alias however it is spelled.
+  const dup = findOverbroadAliases(
+    [{ path: "c/+xue.md", terms: ["xue", "Xue", "learning"] }], stats, { minRatio: 0 }
+  );
+  assert.ok(dup.length <= 1, "case variants of one alias are one finding, not two");
+}
+
+console.log("overbroad: abbreviation assertions passed");

@@ -1273,6 +1273,23 @@ a.internal-link.foliate-link,
   color: var(--text-error);
 }
 
+/* A term that claims more of the vault than its concept does: "sub" for
+   "+subwoofer". Distinct from the contested asterisk because it names a
+   different problem, one file over-reaching rather than two colliding. */
+.foliate-overbroad-mark {
+  display: inline-block;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 1.05em;
+  line-height: 1;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.foliate-overbroad-mark:hover {
+  color: var(--text-warning);
+}
+
 /* Flash the row the sidebar's mark sent us to, so it is findable in a long
    list without a permanent highlight to dismiss. */
 .foliate-row-flash {

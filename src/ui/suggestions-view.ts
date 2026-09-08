@@ -2012,6 +2012,84 @@ export class SuggestionsView extends ItemView {
     });
   }
 
+  /**
+   * Mark a row surfaced by an abbreviation that outruns the concept itself.
+   *
+   * The case this exists for: "+subwoofer" carries the alias "sub", so an
+   * Enfocus log saying "sub tasks" surfaces a loudspeaker concept.
+   *
+   * Neither existing check catches it, and both are right not to. The gate
+   * judges FILES, and "+subwoofer" is a legitimate, well-linked audio concept
+   * that passes as unambiguous: "subwoofer" almost always means the concept.
+   * The over-broad report asks whether the user ever links the file, and here
+   * they do, 18 times, an 8.8% curation well above the floor. The file is fine.
+   * One of its aliases is not.
+   *
+   * So the question is asked about the TERM rather than the file: when this
+   * alias matches, is it reaching further than the concept's own name does?
+   * Measured on the reference vault, "sub" occurs 714 times across 120 notes
+   * while "subwoofer" occurs 207 times across 86. An abbreviation that outruns
+   * the word it abbreviates is matching something else.
+   *
+   * Only abbreviations, and only against the file's own name: a synonym like
+   * "Sorge" or "Dante" is deliberate and nobody writes it by accident.
+   *
+   * Passive, like the contested mark beside it: it states the problem, explains
+   * on hover, and does nothing until acted on.
+   */
+  private markIfOverbroad(target: HTMLElement, term: string, filePath: string): void {
+    const t = (term ?? "").trim();
+    if (!t || !/^[\p{L}]+$/u.test(t)) return;
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof TFile)) return;
+
+    const stem = file.basename.replace(/^[^\p{L}\p{N}]+/u, "").toLowerCase();
+    const lower = t.toLowerCase();
+    // An abbreviation of the name: a prefix, three characters or more, shorter
+    // than what it abbreviates. "sub" for "subwoofer", not "Dante" for "Audio
+    // over Ethernet" and not "CC", which is too short to judge.
+    if (!(lower.length >= 3 && lower.length < stem.length && stem.startsWith(lower))) return;
+    // The full word has to be a real term of the file, or there is nothing to
+    // compare against and nothing left if the alias goes.
+    const terms = fileTerms(
+      this.app,
+      file,
+      this.plugin.settings.taxaMappings.find(
+        (m) => m.folder && filePath.startsWith(m.folder + "/")
+      ) ?? this.plugin.settings.taxaMappings[0]
+    );
+    const full = terms.find((x) => x.trim().toLowerCase() === stem);
+    if (!full) return;
+
+    // Reach of each, over the text this scan already read. One note, so this
+    // costs two position scans of the open note rather than a vault pass.
+    const abbrevHits = findUnlinkedPositions(this.lastContent, t).length;
+    const fullHits = findUnlinkedPositions(this.lastContent, full).length;
+    // The abbreviation is doing all the work here and the concept is not named.
+    if (abbrevHits === 0 || fullHits > 0) return;
+
+    const others = terms.filter((x) => x.trim().toLowerCase() !== lower);
+    if (others.length === 0) return;
+
+    const mark = target.createSpan({ cls: "foliate-overbroad-mark", text: "\u00b0" });
+    mark.setAttribute(
+      "aria-label",
+      `Surfaced by "${t}", an abbreviation. This note never says "${full}". ` +
+        `${others.slice(0, 3).join(", ")} still reach this file if the alias goes.`
+    );
+    mark.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      evt.preventDefault();
+      new Notice(
+        `"${t}" is an alias of ${file.basename}, and this note never says ` +
+          `"${full}". If "${t}" usually means something else here, removing it ` +
+          `from the file's aliases leaves ${others.slice(0, 3).join(", ")}.`,
+        12000
+      );
+      this.app.workspace.getLeaf(true).openFile(file);
+    });
+  }
+
   private renderUnlinkedMatch(
     container: HTMLElement,
     match: UnlinkedMatch,
@@ -2033,6 +2111,7 @@ export class SuggestionsView extends ItemView {
     // Beside the name, inside the info block: a bare child of the flex row
     // lands after the action buttons, where it reads as unrelated to the term.
     this.markIfContested(info, match.alias, match.filePath);
+    this.markIfOverbroad(info, match.matchText || match.alias, match.filePath);
 
     const actionsEl = top.createDiv("foliate-suggestion-actions");
 
