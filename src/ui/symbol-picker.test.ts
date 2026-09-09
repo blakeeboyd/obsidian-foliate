@@ -29,7 +29,22 @@ const SAMPLE: SymbolOption[] = [
 function filtered(query: string, symbols = SAMPLE) {
   const q = query.trim().toLowerCase();
   if (!q) return symbols;
-  return symbols.filter((s) => s.char === q || s.names.some((n) => n.includes(q)));
+  return symbols.filter(
+    (s) => s.char === q || s.names.some((n) => n.includes(q)) || s.keys.toLowerCase().includes(q)
+  );
+}
+
+/**
+ * What Enter does: the first match, else the single character typed.
+ *
+ * The second half is the part the empty state promises and did not do.
+ */
+function onEnter(query: string, taken: Set<string>, symbols = SAMPLE): string | null {
+  const first = filtered(query, symbols)[0];
+  if (first && !taken.has(first.char)) return first.char;
+  const typed = [...query.trim()];
+  if (typed.length === 1 && !taken.has(typed[0])) return typed[0];
+  return null;
 }
 
 /** Prefixes claimed by other taxa, excluding the one being edited. */
@@ -76,8 +91,24 @@ assert.deepStrictEqual(filtered("∞").map((s) => s.char), ["∞"]);
 // An empty query shows everything, so the grid is browsable.
 assert.strictEqual(filtered("").length, SAMPLE.length);
 
-// A miss returns nothing, and the UI falls back to "type any character".
+// A miss returns nothing, and Enter falls back to the typed character.
 assert.deepStrictEqual(filtered("zzzznope"), []);
+
+// The reported bug: "=" found nothing. Four names contain the word "equal" and
+// none contains the character, so a name-only search could never match it.
+// Searching the keys hint fixes it, because "=" is exactly what you press.
+{
+  const withEquals = [...SAMPLE, { char: "≠", keys: "Option-=", names: ["not equal", "inequality"] }];
+  const hits = filtered("=", withEquals).map((s) => s.char);
+  assert.ok(hits.includes("≠"), "= finds the symbols typed with it");
+}
+
+// And a bare "=" is usable as a prefix even though no entry is named for it:
+// nothing matches, so Enter takes the character itself.
+assert.strictEqual(onEnter("=", new Set()), "=", "Enter uses an unmatched character");
+assert.strictEqual(onEnter("zzzznope", new Set()), null, "a word is not a prefix");
+assert.strictEqual(onEnter("∞", new Set()), "∞", "a match still wins");
+assert.strictEqual(onEnter("=", new Set(["="])), null, "a taken character is refused");
 
 // One query can match several symbols.
 assert.ok(filtered("greek").length >= 1);

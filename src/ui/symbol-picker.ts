@@ -38,6 +38,7 @@ const SYMBOLS: SymbolOption[] = [
   { char: "∞", keys: "Option-5", names: ["infinity", "endless", "loop", "event"] },
   { char: "≈", keys: "Option-X", names: ["approximately", "almost equal", "wave", "domain"] },
   { char: "&", keys: "Shift-7", names: ["ampersand", "and", "contact"] },
+  { char: "=", keys: "=", names: ["equals", "equal", "definition"] },
   { char: "§", keys: "Option-6", names: ["section", "paragraph", "legal"] },
   { char: "¶", keys: "Option-7", names: ["pilcrow", "paragraph"] },
   { char: "†", keys: "Option-T", names: ["dagger", "cross", "obelisk"] },
@@ -126,6 +127,16 @@ export class SymbolPickerModal extends Modal {
       if (first && !this.taken.has(first.char)) {
         this.onChoose(first.char);
         this.close();
+        return;
+      }
+      // Nothing matched, so take the typed character itself. The empty state
+      // tells the reader they can do this and it was not wired up: Enter did
+      // nothing at all, which reads as a dead field rather than as no match.
+      // A single character only, and not one already spoken for.
+      const typed = [...search.value.trim()];
+      if (typed.length === 1 && !this.taken.has(typed[0])) {
+        this.onChoose(typed[0]);
+        this.close();
       }
     });
 
@@ -134,11 +145,23 @@ export class SymbolPickerModal extends Modal {
     search.focus();
   }
 
-  /** Symbols matching the query, by character or by any of its names. */
+  /**
+   * Symbols matching the query, by character, by name, or by the keys that
+   * type it.
+   *
+   * The keys hint is searched because the character someone types IS what they
+   * know: pressing "=" is how you reach ≠ and ±, and searching for it found
+   * nothing, since no NAME contains "=" even though four of them contain the
+   * word "equal". A search that fails on the most obvious query for a symbol
+   * teaches the field is broken.
+   */
   private filtered(): SymbolOption[] {
     if (!this.query) return SYMBOLS;
     return SYMBOLS.filter(
-      (s) => s.char === this.query || s.names.some((n) => n.includes(this.query))
+      (s) =>
+        s.char === this.query ||
+        s.names.some((n) => n.includes(this.query)) ||
+        s.keys.toLowerCase().includes(this.query)
     );
   }
 
@@ -151,7 +174,7 @@ export class SymbolPickerModal extends Modal {
     if (matches.length === 0) {
       grid.createEl("p", {
         cls: "foliate-symbol-empty",
-        text: "No symbol matches that name. Type any character into the field to use it.",
+        text: "No symbol matches. Press Enter to use the character you typed.",
       });
       return;
     }
