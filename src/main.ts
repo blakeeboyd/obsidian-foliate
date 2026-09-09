@@ -33,6 +33,7 @@ import {
 } from "./services/file-operations";
 import { DomainPickerModal } from "./ui/domain-picker-modal";
 import { MisplacedFilesModal } from "./ui/misplaced-files-modal";
+import { ReprefixModal } from "./ui/reprefix-modal";
 import { DebugReportModal } from "./ui/debug-report-modal";
 import { DetectedTaxaModal } from "./ui/detected-taxa-modal";
 import { detectTaxaPrefixes } from "./services/detect-taxa";
@@ -446,6 +447,23 @@ export default class FoliatePlugin extends Plugin {
       id: "foliate-find-misplaced",
       name: "Find misplaced and duplicate taxa files",
       callback: () => this.openMisplacedModal(),
+    });
+
+    this.addCommand({
+      id: "foliate-reprefix-taxon",
+      name: "Change a taxon's prefix and rename its files",
+      callback: () => {
+        new ReprefixModal(
+          this.app,
+          this.settings.taxaMappings,
+          this.settings.domain,
+          async (taxon, newPrefix) => {
+            taxon.prefix = newPrefix;
+            await this.saveSettings();
+            this.refreshSuggestionsView();
+          }
+        ).open();
+      },
     });
 
     this.addCommand({

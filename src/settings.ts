@@ -1263,11 +1263,27 @@ export class FoliateSettingTab extends PluginSettingTab {
       // split into half a surrogate pair.
       const first = [...value.trim()][0] ?? "";
       if (first === mapping.prefix) return;
+      const old = mapping.prefix;
       this.pushTaxaUndo();
       mapping.prefix = first;
       prefixInput.value = first;
       await this.plugin.saveSettings();
       this.plugin.refreshSuggestionsView();
+      // Files keep the prefix they were named with, so every existing one has
+      // just stopped matching this taxon. Say so, and name the command that
+      // fixes it: the alternative is a silently orphaned population that only
+      // shows up later as taxa the plugin no longer recognises.
+      if (!old) return;
+      const orphaned = this.app.vault
+        .getMarkdownFiles()
+        .filter((f) => f.basename.startsWith(old)).length;
+      if (orphaned > 0) {
+        new Notice(
+          `${orphaned.toLocaleString()} ${orphaned === 1 ? "file still uses" : "files still use"} ${old}. ` +
+            `Run "Change a taxon's prefix and rename its files" to rename them.`,
+          10000
+        );
+      }
     };
 
     prefixInput.addEventListener("change", () => void applyPrefix(prefixInput.value));
