@@ -697,9 +697,12 @@ export default class FoliatePlugin extends Plugin {
 
     // Nothing matches exactly, but existing files may still be what was meant:
     // selecting "Sarah" when the vault holds @Sarah Cavanagh and @Sarah
-    // Schnitker should offer those before creating a third. Only offered when
-    // the selection is a word-boundary prefix of the file's terms, so this
-    // suggests "Sarah" → "Sarah Cavanagh" without matching mid-word noise.
+    // Schnitker should offer those before creating a third, and selecting a
+    // bare surname should find the person whose full name is on the file.
+    // Matching starts at a word boundary anywhere in the term, so "Malafouris"
+    // reaches "@Lambros Malafouris" without mid-word noise dragging in
+    // "compact" for "act". The user confirms which file, and escaping the
+    // picker still creates a new one.
     const partial = findTaxaFilesByPartialText(this.app, text, this.settings.taxaMappings);
     if (partial.length > 0) {
       new FilePickerModal(

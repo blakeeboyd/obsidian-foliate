@@ -443,6 +443,28 @@ export function findTaxaFilesByText(
  * Returns at most `limit` files, since this is a convenience prompt rather than
  * a search: a selection matching dozens of files is too vague to disambiguate.
  */
+/**
+ * Does `target` begin one of the words in `term`?
+ *
+ * Anchoring at the start of the whole term was too strict for the case that
+ * matters most on people: a second reference is usually the SURNAME, and a
+ * surname is the last word, so selecting "Malafouris" found nothing for
+ * "@Lambros Malafouris" and the plugin offered to create a second file for a
+ * person the vault already had. Matching from the start of any word finds it,
+ * while still refusing a match inside a word, which is what keeps "act" from
+ * dragging in "compact".
+ */
+function startsWordIn(term: string, target: string): boolean {
+  let i = term.indexOf(target);
+  while (i !== -1) {
+    // Start of the term, or preceded by a separator. Hyphens and apostrophes
+    // count: "Hans-Georg" and "O'Brien" are two name parts, not one word.
+    if (i === 0 || /[\s\-'\u2019.,()]/.test(term[i - 1])) return true;
+    i = term.indexOf(target, i + 1);
+  }
+  return false;
+}
+
 export function findTaxaFilesByPartialText(
   app: App,
   text: string,
@@ -459,7 +481,7 @@ export function findTaxaFilesByPartialText(
       const terms = getSearchTerms(app, file, taxon).map((t) => t.toLowerCase());
       // Exact matches are the caller's other branch; only near-misses here.
       if (terms.includes(target)) continue;
-      if (terms.some((t) => t.startsWith(target))) hits.push({ file, taxon });
+      if (terms.some((t) => startsWordIn(t, target))) hits.push({ file, taxon });
       if (hits.length >= limit) return hits;
     }
   }

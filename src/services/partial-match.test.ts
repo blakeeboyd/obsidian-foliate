@@ -9,6 +9,16 @@
  */
 import * as assert from "assert";
 
+/** Mirrors startsWordIn in unlinked-matcher. */
+function startsWordIn(term: string, target: string): boolean {
+  let i = term.indexOf(target);
+  while (i !== -1) {
+    if (i === 0 || /[\s\-'\u2019.,()]/.test(term[i - 1])) return true;
+    i = term.indexOf(target, i + 1);
+  }
+  return false;
+}
+
 function partialMatches(files: { name: string; terms: string[] }[], text: string, limit = 12) {
   const target = text.trim().toLowerCase();
   if (target.length < 2) return [];
@@ -16,7 +26,7 @@ function partialMatches(files: { name: string; terms: string[] }[], text: string
   for (const f of files) {
     const terms = f.terms.map((t) => t.toLowerCase());
     if (terms.includes(target)) continue; // exact handled elsewhere
-    if (terms.some((t) => t.startsWith(target))) hits.push(f.name);
+    if (terms.some((t) => startsWordIn(t, target))) hits.push(f.name);
     if (hits.length >= limit) break;
   }
   return hits;
@@ -82,6 +92,33 @@ assert.deepStrictEqual(partialMatches(VAULT, "S"), []);
     terms: [`Test ${i}`],
   }));
   assert.strictEqual(partialMatches(many, "Test", 12).length, 12, "capped at the limit");
+}
+
+// A bare surname finds the person, which is the second-reference case and the
+// commonest way a name appears after its first mention. Anchoring at the start
+// of the whole term missed every one of these.
+{
+  const files = [{ name: "@Lambros Malafouris", terms: ["Lambros Malafouris"] }];
+  assert.deepStrictEqual(partialMatches(files, "Malafouris"), ["@Lambros Malafouris"]);
+  assert.deepStrictEqual(partialMatches(files, "Lambros"), ["@Lambros Malafouris"]);
+  // Still not a substring search: a match must begin a word.
+  assert.deepStrictEqual(partialMatches(files, "afouris"), []);
+}
+
+// Hyphens and apostrophes separate name parts, so the part after one is findable.
+{
+  const files = [
+    { name: "@Hans-Georg Moeller", terms: ["Hans-Georg Moeller"] },
+    { name: "@Flannery O\u2019Connor", terms: ["Flannery O\u2019Connor"] },
+  ];
+  assert.deepStrictEqual(partialMatches(files, "Georg"), ["@Hans-Georg Moeller"]);
+  assert.deepStrictEqual(partialMatches(files, "Connor"), ["@Flannery O\u2019Connor"]);
+}
+
+// The mid-word case the anchor exists to refuse.
+{
+  const files = [{ name: "+compact disc", terms: ["compact disc"] }];
+  assert.deepStrictEqual(partialMatches(files, "act"), [], "no match inside a word");
 }
 
 console.log("partial taxa matching: all assertions passed");
