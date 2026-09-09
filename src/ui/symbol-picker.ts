@@ -69,6 +69,66 @@ const SYMBOLS: SymbolOption[] = [
   { char: "«", keys: "Option-\\", names: ["left guillemet", "quote", "angle quote"] },
   { char: "»", keys: "Option-Shift-\\", names: ["right guillemet", "quote", "angle quote"] },
   { char: "◦", keys: "(paste)", names: ["white bullet", "hollow dot", "ring"] },
+
+  // Everything else the US layout types that is legal in a filename. Ordered
+  // after the curated set above, so the symbols the plugin ships with stay at
+  // the top of the grid, but nothing typeable is withheld: a prefix is the
+  // user's naming convention rather than the plugin's, and there is no reason
+  // to rule out a currency mark or a letter someone wants.
+  { char: "£", keys: "Option-3", names: ["pound", "sterling", "currency", "money"] },
+  { char: "¢", keys: "Option-4", names: ["cent", "currency", "money"] },
+  { char: "¥", keys: "Option-Y", names: ["yen", "yuan", "currency", "money"] },
+  { char: "€", keys: "Option-Shift-2", names: ["euro", "currency", "money"] },
+  { char: "$", keys: "$", names: ["dollar", "currency", "money"] },
+  { char: "%", keys: "%", names: ["percent", "share", "rate"] },
+  { char: "–", keys: "Option--", names: ["en dash", "range"] },
+  { char: "—", keys: "Option-Shift--", names: ["em dash", "break"] },
+  { char: "…", keys: "Option-;", names: ["ellipsis", "dots", "unfinished"] },
+  { char: "·", keys: "Option-Shift-9", names: ["middle dot", "interpunct", "separator"] },
+  { char: "‚", keys: "Option-Shift-0", names: ["single low quote", "comma quote"] },
+  { char: "⁄", keys: "Option-Shift-1", names: ["fraction slash", "over"] },
+  { char: "‹", keys: "Option-Shift-3", names: ["single left guillemet", "angle quote"] },
+  { char: "›", keys: "Option-Shift-4", names: ["single right guillemet", "angle quote"] },
+  { char: "“", keys: "Option-[", names: ["left double quote", "curly quote"] },
+  { char: "”", keys: "Option-Shift-[", names: ["right double quote", "curly quote"] },
+  { char: "‘", keys: "Option-]", names: ["left single quote", "curly quote"] },
+  { char: "’", keys: "Option-Shift-]", names: ["right single quote", "apostrophe"] },
+  { char: "„", keys: "Option-Shift-W", names: ["low double quote", "german quote"] },
+  { char: "∏", keys: "Option-Shift-P", names: ["product", "big pi", "multiply"] },
+  { char: "‰", keys: "Option-Shift-R", names: ["per mille", "permille", "thousand"] },
+  { char: "ç", keys: "Option-C", names: ["c cedilla", "cedilla", "french"] },
+  { char: "Ç", keys: "Option-Shift-C", names: ["capital c cedilla", "cedilla"] },
+  { char: "œ", keys: "Option-Q", names: ["oe ligature", "ligature", "french"] },
+  { char: "Œ", keys: "Option-Shift-Q", names: ["capital oe", "ligature"] },
+  { char: "æ", keys: "Option-'", names: ["ae ligature", "ash", "ligature"] },
+  { char: "Æ", keys: "Option-Shift-'", names: ["capital ae", "ash", "ligature"] },
+  { char: "Ω", keys: "Option-Z", names: ["omega", "ohm", "greek", "resistance"] },
+  { char: "Å", keys: "Option-Shift-A", names: ["a with ring", "angstrom", "nordic"] },
+  { char: "Ø", keys: "Option-Shift-O", names: ["slashed capital o", "empty set", "nordic"] },
+  { char: "ı", keys: "Option-Shift-B", names: ["dotless i", "turkish"] },
+  { char: "ﬁ", keys: "Option-Shift-5", names: ["fi ligature", "ligature"] },
+  { char: "ﬂ", keys: "Option-Shift-6", names: ["fl ligature", "ligature"] },
+  { char: "Á", keys: "Option-Shift-Y", names: ["a acute", "accent"] },
+  { char: "Â", keys: "Option-Shift-M", names: ["a circumflex", "accent"] },
+  { char: "Í", keys: "Option-Shift-S", names: ["i acute", "accent"] },
+  { char: "Î", keys: "Option-Shift-D", names: ["i circumflex", "accent"] },
+  { char: "Ï", keys: "Option-Shift-F", names: ["i diaeresis", "umlaut", "accent"] },
+  { char: "Ó", keys: "Option-Shift-H", names: ["o acute", "accent"] },
+  { char: "Ô", keys: "Option-Shift-J", names: ["o circumflex", "accent"] },
+  { char: "Ò", keys: "Option-Shift-L", names: ["o grave", "accent"] },
+  { char: "Ú", keys: "Option-Shift-;", names: ["u acute", "accent"] },
+  { char: "!", keys: "!", names: ["exclamation", "bang", "important"] },
+  { char: "(", keys: "(", names: ["left paren", "parenthesis"] },
+  { char: ")", keys: ")", names: ["right paren", "parenthesis"] },
+  { char: "{", keys: "{", names: ["left brace", "curly bracket"] },
+  { char: "}", keys: "}", names: ["right brace", "curly bracket"] },
+  { char: "_", keys: "_", names: ["underscore", "low line"] },
+  { char: "-", keys: "-", names: ["hyphen", "dash", "minus"] },
+  { char: ";", keys: ";", names: ["semicolon"] },
+  { char: "'", keys: "'", names: ["apostrophe", "single quote"] },
+  { char: ",", keys: ",", names: ["comma"] },
+  { char: ".", keys: ".", names: ["period", "full stop", "dot"] },
+  { char: "`", keys: "`", names: ["backtick", "grave accent"] },
 ];
 
 /**
@@ -142,6 +202,18 @@ export class SymbolPickerModal extends Modal {
 
     this.gridEl = contentEl.createDiv("foliate-symbol-grid");
     this.renderGrid();
+
+    // Say what is missing and why. A user hunting for "#" or "/" should learn
+    // the filesystem refuses it, rather than conclude the grid is incomplete
+    // and that the plugin is picking favourites.
+    contentEl.createEl("p", {
+      cls: "foliate-symbol-note",
+      text:
+        "Any character can be typed into the field. Not offered here: / \\ : | # ^ [ ] ? * < > \" " +
+        "are illegal in filenames or break [[links]], and accent keys (Option-E, Option-U, ...) " +
+        "combine with the next character instead of standing alone.",
+    });
+
     search.focus();
   }
 

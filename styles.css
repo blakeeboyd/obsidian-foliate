@@ -895,6 +895,17 @@
   color: var(--text-muted);
 }
 
+/* Why some typeable characters are not in the grid. Set apart from the symbols
+   so it reads as a footnote rather than as another option. */
+.foliate-symbol-note {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
 /* Detected taxa: prefix conventions found in the vault */
 .foliate-detected-modal {
   width: min(600px, 92vw);
