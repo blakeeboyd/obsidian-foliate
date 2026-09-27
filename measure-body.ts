@@ -29,6 +29,29 @@
  * rather than representative, which is exactly how the scope experiment failed
  * (52 textbook chapters drowning 8 vault notes).
  *
+ * RESULT, 200 folds, 2026-09-27:
+ *
+ *   links (shipped)   MRR 0.3254   top-1 20.0%
+ *   body only         MRR 0.3146   top-1 16.0%
+ *   links + body      MRR 0.2843   top-1 14.0%
+ *
+ *   coverage: 986 link-trained signatures, 3157 body-seeded,
+ *             2183 concepts gaining one that had none.
+ *
+ * Body alone lands within 0.011 MRR of link-trained, with one self-authored
+ * document standing in for three or more linking notes. On the same folds the
+ * embedding arm scored 0.3060 / 13.5%, so a body-seeded lexical signature beats
+ * an embedding of the same text on both metrics and stays explainable.
+ *
+ * The third arm is what makes this shippable rather than merely tempting:
+ * adding the body to existing links is WORSE than either input alone. That is
+ * the register problem in the predicted place. A concept's own file is the one
+ * document most likely to state its definition rather than its usage, so in a
+ * pool of three or four it pulls the signature away from how the concept
+ * actually appears. The rule is therefore conditional, and the condition is the
+ * design: seed from the body only where no link-trained signature exists, and
+ * never mix the two.
+ *
  * Run: FOLDS=200 npx tsx measure-body.ts
  */
 import * as fs from "fs";
