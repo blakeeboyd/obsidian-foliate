@@ -54,6 +54,17 @@ export interface SignatureConfig {
    */
   minLocalShare: number;
   /**
+   * Absolute floor on how many training notes must contain a word, before the
+   * proportional `minLocalShare` floor applies. Defaults to 2, which is what
+   * stops one note's vocabulary from becoming a signature on its own.
+   *
+   * Only an experiment that deliberately trains from a single document (R5's
+   * body-seeding arm) has reason to lower it, and lowering it removes the
+   * protection: with one training note every word it contains passes, so the
+   * remaining filters (IDF, peer baseline, global ratio) carry the whole load.
+   */
+  minLocalNotes?: number;
+  /**
    * Notes a word must appear in vault-wide before it can carry weight.
    *
    * A word appearing twice in the vault has an enormous lift wherever it lands,
@@ -294,7 +305,7 @@ export function buildSignatures(
     }
 
     const n = training.length;
-    const floor = Math.max(2, Math.ceil(n * config.minLocalShare));
+    const floor = Math.max(config.minLocalNotes ?? 2, Math.ceil(n * config.minLocalShare));
 
     // What counts as ordinary, for this concept. Judged against the notes that
     // read like its own training notes rather than against the whole vault, so
